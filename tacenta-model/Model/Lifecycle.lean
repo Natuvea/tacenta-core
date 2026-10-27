@@ -2259,7 +2259,9 @@ def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStor
 
 /-- An initial message whose decoded identity the oracle refuses is rejected as
     an invalid identity key once the signed-prekey and KEM lookups have
-    succeeded, before the one-time lookup, any decapsulation or agreement. -/
+    succeeded, before the one-time lookup, any decapsulation or agreement.
+Since the message size bound the message passes the size rule (`hz`); one it refuses is refused `decode tooLong` first
+(`establishResponder_frame_too_long`). -/
 theorem prepareResponder_invalid_identity (oracle : Oracle) (identity : Identity)
     (store : PrekeyStore) (initialMessage : Bytes)
     (initial : Model.Messages.Initial) (signedSecret : Key) (kemPair : Bytes)

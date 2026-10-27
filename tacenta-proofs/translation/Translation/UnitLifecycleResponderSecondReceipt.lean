@@ -265,7 +265,8 @@ data) whose first agreement with the session's ratchet key returns `xB`: the ste
 * `candA` is not the peer key and the session oracle's open of `oracleA`'s seal is refused: `aead`, the draw consumed;
 * the open returns `y`: the step returns `y`, consumes the draw, and leaves `secondReceiptSession` (agreement
   `braid'`, no pending initial message).
-No other refusal occurs. -/
+No other refusal occurs.
+The second frame passes the size rule (`hsizeS`), so the dispatch reaches the passthrough. -/
 theorem second_receipt_model_outcomes (view viewA : Model.Lifecycle.CodewordView)
     (oracleB oracleA : Model.Lifecycle.Oracle) (mB : Model.Lifecycle.Session)
     (ec prk k1 k2 a4 d dSend newPub : Key)
@@ -674,7 +675,12 @@ its source; `sB''` refines `replierSession`, keeps the agreement `sB'` held, pas
   Ratchet, the agreement and the ratchet key, and its session refines `secondReceiptSession` (the Triple
   `responderAfterSecond`, the header decoder holding the chunks at index 0 and 1).
 `DhAgreeContributory` and `AeadRoundTrip`, hypotheses already, exclude the model step's `Handshake` and `Aead` arms; the
-draw premise excludes its `ceiling` arm.  No compiler-trust axiom (the pin). -/
+draw premise excludes its `ceiling` arm.  No compiler-trust axiom (the pin).
+Since the message size bound the reply plaintext `ptR` and the second plaintext `ptS` are each at most
+`MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes (`hfitR`, `hfitS`), so that the frame carrying it passes the size
+rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for plaintexts of 1,048,561 to 1,048,575 bytes, which the code
+sends and the size rule admits, no theorem here states the outcome, because `AeadSealBounded` bounds the sealed output
+by the plaintext plus 48 bytes and not by its padded length. -/
 theorem responder_receives_second_message_two_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (traceB : F → List Model.Lifecycle.Key) (rngR : F) (dB2 : Model.Lifecycle.Key) (restB2 : List Model.Lifecycle.Key)
     (hdrawB2 : traceB rngR = dB2 :: restB2)
@@ -996,7 +1002,12 @@ passes `Session::invariant`, meets `CounterHeadroom` and has room for every `j` 
 (`CounterRoom`).  The invariant and the budget come from `decrypt_keeps_invariant_in_order` at `sB''`: the model step is an
 in-order step (`secondReceipt_inOrderStep`), the decoder there holds one chunk (`established_responder_decoder_small`,
 through the reply keeping the agreement), and the budget is read off the model session (`modelCounterRoom_replier`).  No
-compiler-trust axiom (the pin). -/
+compiler-trust axiom (the pin).
+Since the message size bound the reply plaintext `ptR` and the second plaintext `ptS` are each at most
+`MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes (`hfitR`, `hfitS`), so that the frame carrying it passes the size
+rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for plaintexts of 1,048,561 to 1,048,575 bytes, which the code
+sends and the size rule admits, no theorem here states the outcome, because `AeadSealBounded` bounds the sealed output
+by the plaintext plus 48 bytes and not by its padded length. -/
 theorem responder_receives_second_message [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (traceB : F → List Model.Lifecycle.Key) (rngR : F) (dB2 : Model.Lifecycle.Key) (restB2 : List Model.Lifecycle.Key)
     (hdrawB2 : traceB rngR = dB2 :: restB2) (oracle : Model.Lifecycle.Oracle) (dA : Model.Lifecycle.Key)

@@ -274,9 +274,12 @@ theorem replyFrame_with_draws (oracle : Model.Lifecycle.Oracle) (draws : List Ke
   rfl
 
 /-- **The model's `encrypt` at the receiver after its first receipt has one outcome**, for every codeword view,
-oracle and plaintext, when the model session has no pending initial message: it reads no draw, returns the bare
+oracle and plaintext of at most `maxPlaintextLen` bytes, when the model session has no pending initial message: it
+reads no draw, returns the bare
 reply frame (`replyFrame`, no initial wrapper), and leaves the session with the Triple after the send and everything
-else, the agreement included, unchanged.  Model only. -/
+else, the agreement included, unchanged.  Model only.
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hlen`); a longer one is refused
+`plaintextTooLong` first, with no effect (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem reply_model_step (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (mB : Model.Lifecycle.Session) (secret : Model.Lifecycle.Bytes) (rcv : Model.Braid.Chunk)
     (ec prk k1 k2 a4 d dSend newPub c : Key) (hpend : mB.pendingInitial = none) (pt : Model.Lifecycle.Bytes)
@@ -674,7 +677,8 @@ open Tacenta.UnitLifecycleEstablishResponder (ResponderPreparedParts responderMo
 `initiator_first_send_responder_successor_hypotheses`, with the responder's oracle record strengthened to the full
 `OracleOf` at its source and the Braid send record `BraidSendRefinementContracts` at that source, at every successful
 return `(Ok (sB', ptB), storeB', rngB')` of `establish_responder` on the bytes the initiator's first `encrypt`
-emitted, for every plaintext `ptR` of at most `Usize.max - 150` bytes and every source state `rngR`:
+emitted, for every plaintext `ptR` of at most `Usize.max - 150` and at most `MAX_PLAINTEXT_LEN` bytes and every
+source state `rngR`:
 `Session::encrypt` at `sB'` returns `Ok` with bytes `bytesR` and session `sB''` and leaves the source state `rngR` as
 given (no draw); `sB''` is `sB'` with only the Triple Ratchet replaced, so the agreement is unchanged and no initial
 wrapper is pending; the bytes are the bare reply frame (`replyFrame`: the fresh ratchet key `oracleB.dhPublic dB`,
@@ -683,7 +687,10 @@ classical numbers 0 and 0, sparse epoch 0 and number 1, agreement epoch 1 and ty
 receives on) with the initiator's associated data; and `sB''` refines the model session after the receipt with the
 Triple `replierAfterSend`.  The run's keys are kept with it: the root-key equation from `ec` and the initiator's
 `dh_out`, the responder oracle's agreement `dSend`, and equal associated data.  No compiler-trust axiom (the pin):
-the nine `native_decide` constants of the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
+the nine `native_decide` constants of the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel
+proofs.
+Since the message size bound `ptR` is also at most `MAX_PLAINTEXT_LEN` bytes (`hlenR`); a longer one is refused
+`PlaintextTooLong` first (`UnitLifecycleSizeRule.encrypt_size_refusal`). -/
 theorem initiator_first_send_responder_replies [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

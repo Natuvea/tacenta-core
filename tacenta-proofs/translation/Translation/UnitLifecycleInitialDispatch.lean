@@ -13642,10 +13642,11 @@ theorem initial_ratchet_refines_terminal_or_decode_refusal
 /-! ## Public `Session::decrypt` composition
 
 The inner initial dispatcher is now consumed by an outer indexed evidence
-sum.  Its constructors carry either the exact generated ratchet result and
-`StepRefines` relation for a non-initial frame, or the complete initial
-branch package (including concrete DH, Triple, AEAD, model-result and success
-splice evidence).  The final theorem therefore does not accept an untyped
+sum.  Its constructors carry the size rule's refusal of the frame (the first
+step, with only the relation and the trace at the call), or, for a frame the rule admits, either the
+exact generated ratchet result and `StepRefines` relation for a non-initial
+frame, or the complete initial branch package (including concrete DH, Triple,
+AEAD, model-result and success splice evidence).  The final theorem therefore does not accept an untyped
 route callback or a pre-built public witness. -/
 inductive SessionDecryptEvidence {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)

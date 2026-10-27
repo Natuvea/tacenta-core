@@ -38,8 +38,8 @@ conditional refinement of its private `decrypt_ratchet` (under, among other hypo
 two assumed laws about `Vec::pop` and `Option::as_mut`), carried through the public
 `Session::decrypt` on frames that are not initial messages under the same hypotheses,
 and proofs that the message size bound's refusals at `encrypt`, `decrypt` and
-`establish_responder` happen first and change nothing (the received maximum under one
-assumed law about the AEAD's open);
+`establish_responder` happen first and change nothing (the received maximum only for a
+result that refines the model's step, and under one assumed law about the AEAD's open);
 none of these makes `Session::encrypt` or `Session::decrypt` proved end to end. The KEM wrapper refuses a
 restored encapsulation state whose coefficients lie outside the bound libcrux states,
 so the Braid fails closed: tested only, not proved.

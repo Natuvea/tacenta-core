@@ -729,12 +729,15 @@ def initialWire (m : Model.Lifecycle.Session) (pending : Model.Lifecycle.Pending
     (UInt32.ofNat pending.oneTimePrekeyId) (UInt32.ofNat pending.kemPrekeyId) frame
 
 /-- **The model's `encrypt` at the model session of the parts has two outcomes**, for every codeword view,
-oracle and plaintext, when the oracle holds two draws: it consumes both, and either the model's key
+oracle and plaintext of at most `maxPlaintextLen` bytes, when the oracle holds two draws: it consumes both, and
+either the model's key
 generation refuses at their little-endian value, and the step refuses `agreementFailed` with the Braid
 committed in `failed` and nothing else changed; or it answers, and the step returns the initial message
 wrapping the first ratchet frame, with the Triple advanced, the Braid at `keysSampled` holding the
 decapsulation key, the vector and the header encoder after one chunk, and the pending initial message
-kept. -/
+kept.
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hlen`); a longer one is refused
+`plaintextTooLong` first, with no effect (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem established_encrypt_model_cases (dh : DhView) (view : Model.Lifecycle.CodewordView)
     (oracle : Model.Lifecycle.Oracle) {R : Type} {rc : rand_core_1.RngCore R}
     {crc : rand_core_1.CryptoRng R} {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
@@ -844,7 +847,9 @@ draws `d1`, `d2`.  The call returns, the source it leaves holds the trace withou
   Triple Ratchet and the agreement, the agreement `KeysSampled` at epoch 1, and the session related to the
   model's next session, whose agreement holds `dk`, `ekVector` and the header encoder after one chunk.
 
-The terminal guard and every Triple refusal do not occur here: neither disjunct is one of them. -/
+The terminal guard and every Triple refusal do not occur here: neither disjunct is one of them.
+Since the message size bound the plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused
+`PlaintextTooLong` first, with no effect (`UnitLifecycleSizeRule.encrypt_size_refusal`). -/
 theorem established_encrypt_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

@@ -8272,24 +8272,35 @@ refuses a plaintext longer than `MAX_PLAINTEXT_LEN` (1,048,575 bytes) as `Plaint
 ratchet message (located through the frame's own `kem_ciphertext_len`, with a checked `84 + kem_ciphertext_len`) is longer
 than `MAX_RATCHET_FRAME_LEN` (1,048,710 bytes), and any other frame longer than `MAX_RATCHET_FRAME_LEN`. The results below
 are about the translated checks and the translated entries; the ones about the rule and the refusals take no law, and the
-received maximum takes one assumed law. The lemmas they rest on are in `UnitLifecycleT1` (`check_frame_size_no_panic`),
+received maximum takes one assumed law and, as a hypothesis, that the call's result refines the model's step (which only
+the T3 refinement results supply, under all their premises, and for a repeated initial frame none does). The lemmas they rest on are in `UnitLifecycleT1` (`check_frame_size_no_panic`),
 `UnitLifecycleT3` (`check_frame_size_refines`: the translated rule is the model's `frameTooLong` on every byte string;
 `decrypt_frame_too_long_refines`, `encrypt_plaintext_too_long_refines`) and `UnitLifecycleAtomicity`
 (`decrypt_refuses_long_frame`, `encrypt_refuses_long_plaintext`, `establish_responder_refuses_long_frame`, which take no
 hypothesis about any opaque operation).
 
 **How the earlier results changed.** The leading checks changed the translated bodies of the three entries. Every lifecycle
-result was repaired without a weakening: where a result states a public refinement witness and holds the session relation
-and the trace at the call, its statement is unchanged and its proof splits on the size rule; where it has a successful call,
-the size fact is derived from that call; and where it states an exact outcome past the check, it takes the size bound as a
-hypothesis (the frame passes the size rule, or the plaintext is at most `MAX_PLAINTEXT_LEN`), and the complement is the size
-refusal below, which holds with no other hypothesis. The responder's prepared parts carry the size rule's admission, the
+result was repaired by adding only hypotheses about size, with one coverage gap: where a result states a public refinement
+witness and holds the session relation and the trace at the call, its statement is unchanged and its proof splits on the
+size rule; where it has a successful call, the size fact is derived from that call; and where it states an exact outcome
+past the check, it takes a size hypothesis. For the size bound itself (the frame passes the size rule, or the plaintext is
+at most `MAX_PLAINTEXT_LEN`) the complement is the size refusal below, which holds with no other hypothesis. The exception
+is the reply bound `hfitR`/`hfitS` below, which is narrower than the size bound: its complement includes fifteen plaintext
+lengths that the code sends and the size rule admits and that no theorem here covers. The responder's prepared parts carry the size rule's admission, the
 initial dispatch context carries it, and the encrypt and decrypt route evidence gain a size-refusal constructor. A run that
 delivers one party's encrypted message to the other takes, where the lengths allow, the size rule on that message from
 `UnitLifecycleEstablishedEncrypt.encrypt_ok_length_le` (a message `encrypt` returns is at most the plaintext plus 150 bytes,
 plus 65,770 with a pending initial message, under `AeadSealBounded` and `DhCodecTotal`); the routes that deliver a reply take
-the reply plaintext at most `MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560), fifteen lengths short of `MAX_PLAINTEXT_LEN`,
-because `AeadSealBounded` bounds the seal by the plaintext plus 48 bytes and not by its exact padded length; the routes that
+the reply plaintext at most `MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560; `hfitR`, and `hfitS` for the second message),
+fifteen lengths short of `MAX_PLAINTEXT_LEN`, because `AeadSealBounded` bounds the seal by the plaintext plus 48 bytes and
+not by its exact padded length. For plaintexts of 1,048,561 to 1,048,575 bytes the shipping code encrypts, the reply frame
+(at most 1,048,710 bytes) passes the size rule and the receiver goes on, and neither a success nor a refusal theorem here
+states the outcome. The eleven results that take `hfitR` or `hfitS` are `initiator_receives_reply`, its `_outcomes` and
+`_two_outcomes` forms, `initiator_receives_reply_successor`, `initiator_second_send_after_reply`,
+`initiator_sends_second_message`, `initiator_repeated_reply_refused`, `initiator_refuses_tampered_reply`,
+`responder_receives_second_message` and its `_two_outcomes` form, and `responder_sends_second_reply`; their earlier
+statements are still true of the code for those lengths, by reading, but no longer proved (`GAP-REGISTER.md`, row
+`SIZE-BOUND-REPLY-ROUTE-GAP`). The routes that
 deliver the first message take the size rule on it as a hypothesis, because the translation sees the ML-KEM ciphertext's
 length only through `KemCiphertextLenBound` (at most 65,536 bytes).
 
@@ -8351,17 +8362,26 @@ interpretation of the opaque operations.
 
 **Non-vacuity.** The refusals hold for every input past the bound, and such inputs exist at both platform widths: a byte
 string of 1,050,363 bytes fits a slice when `Usize.max` is at least `2^32 - 1`. The limits are stated as equivalences, so
-the admitted side is not empty either. The received maximum is non-vacuous only where the inner receive succeeds, which the
-reach theorems of the earlier sections exhibit under their named laws.
+the admitted side is not empty either. The received maximum is **not** shown non-vacuous in Lean: no model in this tree
+satisfies `AeadOpenLength` together with its other hypotheses. The toy AEADs the reaches use open to the input less one
+byte (`UnitOracleModel.openModel`) or less 32 bytes (`UnitLifecycleTamperedReply.openTagged`, `Model.Lifecycle.toyOracle`),
+and the law asks for less 33, so the reach theorems of the earlier sections do not exhibit a successful receive under it.
+The law is met by the shipping AEAD by reading (`boundary/src/aead.rs` refuses an input shorter than the tag and unpads with
+RustCrypto's PKCS#7, which refuses an empty ciphertext, so a ciphertext of `C` bytes opens to `C - 16` to `C - 1` bytes); a
+padded toy AEAD and a reach at it would show it in Lean, and are not here.
 
 **What this establishes, and what it does not.** In the translated public implementation, the three size refusals happen
 first, change nothing and draw nothing, refine the model's, and take precedence over the terminal, decode, not-a-repeat and
 prekey-lookup refusals; the nested bound holds on both receiving entries; and, under the assumed open-length law, no
-plaintext a receive returns is longer than `MAX_PLAINTEXT_LEN`. **Not shown:** that the AEAD has the open-length property
-(the received maximum is conditional on it; the padding measurements are tested evidence, not a discharge); that every message
-`encrypt` returns passes the size rule (proved only under `AeadSealBounded` for plaintexts of at most `MAX_RATCHET_FRAME_LEN -
-150` bytes, and for the first message of an establishment under `KemCiphertextLenBound` for plaintexts of at most
-`MAX_RATCHET_FRAME_LEN - 65,770` bytes); memory and time per call, allocation failure or abort, and the build profile; callers
+plaintext a receive returns is longer than `MAX_PLAINTEXT_LEN` when the call's result refines the model's step, which only
+the T3 refinement results supply, under all their premises (for a repeated initial frame, none does). **Not shown:** that
+the AEAD has the open-length property (the received maximum is conditional on it; the padding measurements are tested
+evidence, not a discharge); that any Lean model meets that law together with the other hypotheses (Non-vacuity, above);
+the outcome of the reply routes for reply plaintexts of 1,048,561 to 1,048,575 bytes (above); that every message `encrypt`
+returns passes the size rule (proved only under `AeadSealBounded` for plaintexts of at most `MAX_RATCHET_FRAME_LEN - 150`
+bytes; the helper `first_message_fits` derives it for a first message only for plaintexts of at most
+`MAX_RATCHET_FRAME_LEN - 65,770` bytes under `KemCiphertextLenBound`, which does not limit the first-message routes: they
+take the size rule on the frame as a hypothesis, whose complement is `establish_responder_size_refusal`); memory and time per call, allocation failure or abort, and the build profile; callers
 that reach the AEAD, the decoders or the ratchet without going through the three public entries; the AEAD, KEM and
 Diffie-Hellman laws the success results rest on, which stay assumed.
 
@@ -8370,7 +8390,7 @@ Diffie-Hellman laws the success results rest on, which stay assumed.
 compiler-trust axiom. Of the other 19 results, 5 rest on `propext`, `Classical.choice` and `Quot.sound` alone and 14 on those
 and opaque constants of the unit. Each of the 20 results carries an axiom pin and a statement pin. As for every statement
 pin, a printed pin is not the whole elaborated statement, and that the pinned statement is the right one is decided by
-reading. `check-size-rule-negatives.py` plants fourteen faults in a copy of the module, every one a change to a statement,
+reading. `check-size-rule-negatives.py` plants twenty-two faults in a copy of the module, every one a change to a statement,
 and requires Lean to refuse each at the result named for it, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false): each of the four bounds one off (the
 outer bound in `check_frame_size_refuses_iff`, the ratchet bound in `non_initial_limit`, the nested bound in
@@ -8378,9 +8398,11 @@ outer bound in `check_frame_size_refuses_iff`, the ratchet bound in `non_initial
 claimed with the outer bound alone) and the span read as the whole frame (`decoded_span`); three refusals' effects changed
 (`decrypt_size_refusal` claimed to clear the pending initial message, `establish_responder_size_refusal` claimed to empty the
 last-resort record, `encrypt_size_refusal_refines` claimed to take a draw from the model's oracle, refused where it places
-the result of `UnitLifecycleT3`); the order swapped (`encrypt_on_failed_agreement`, `decrypt_initial_decode_refusal_order`);
-and the received maximum claimed one byte lower (`decrypt_ok_plaintext_le_max`) and without the open-length law
-(`ratchet_ok_plaintext_le_max`); those thirteen are refused at the result whose statement they change. The fourteenth
+the result of `UnitLifecycleT3`); each of the three refusals claimed to return another random source than the one it was
+given (`encrypt_size_refusal`, `decrypt_size_refusal`, `establish_responder_size_refusal`); the order swapped at all five
+order results; the nested refusal claimed as the decoder's `LengthOverrun` at both entries; and the received maximum claimed
+one byte lower (`decrypt_ok_plaintext_le_max`) and without the open-length law (`ratchet_ok_plaintext_le_max`); those
+twenty-one are refused at the result whose statement they change. The twenty-second
 claims the inner receive's bound one under the nested limit, which `ratchet_ok_plaintext_le_max` still proves, and is
 refused inside `establish_responder_ok_plaintext_le_max`, which composes that limit with it (accepted there with that
 proof emptied). None is labelled a projection or a statement-shape check. These are controls on the proofs; the checks in the Rust are held by the

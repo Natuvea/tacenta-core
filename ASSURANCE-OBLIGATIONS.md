@@ -1126,8 +1126,9 @@ recorded decision or a target-closing slice:
   placed unchanged);
   `check-size-rule-negatives.py` keeps the size rule's bounds exact (each of the four one off), the nested check
   (dropped, and the span read as the whole frame), the size refusals' effects (a session write, a store write, a draw
-  from the model's oracle), the refusal order (two swaps) and the received maximum (one byte lower, the open-length
-  law dropped, and the responder's composition fed a bound one under the nested limit);
+  from the model's oracle, another random source returned by each of the three refusals), the refusal order (all five
+  swapped), the nested refusal (claimed as the decoder's overrun at both entries) and the received maximum (one byte
+  lower, the open-length law dropped, and the responder's composition fed a bound one under the nested limit);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1205,13 +1206,13 @@ recorded decision or a target-closing slice:
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
-  `check-size-rule-negatives.py` (two unmodified copies accepted and 14 changes refused, each a change to a statement:
-  13 refused at that result and one inside the composing `establish_responder_ok_plaintext_le_max`, accepted there with
+  `check-size-rule-negatives.py` (two unmodified copies accepted and 22 changes refused, each a change to a statement:
+  21 refused at that result and one inside the composing `establish_responder_ok_plaintext_le_max`, accepted there with
   that proof emptied: the outer, ratchet, nested and sender's bounds each one off, the nested check dropped from
   `decoded_initial_limit`, the span read as the whole frame in `decoded_span`, the decrypt refusal claimed to clear the
   pending initial message, the responder refusal claimed to empty the last-resort record, the sender's refusal claimed
-  to take a draw from the model's oracle, the order swapped in `encrypt_on_failed_agreement` and
-  `decrypt_initial_decode_refusal_order`, the received maximum claimed one byte lower and without the open-length
+  to take a draw from the model's oracle, each refusal claimed to return another random source, the order swapped at
+  all five order results, the nested refusal claimed as the decoder's overrun at both entries, the received maximum claimed one byte lower and without the open-length
   law, and the inner receive's bound claimed one under the nested limit),
   `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused:
   the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`,

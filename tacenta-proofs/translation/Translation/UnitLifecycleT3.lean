@@ -2128,7 +2128,9 @@ theorem braid_failed_refines (K : Model.Braid.Kem)
     simp [tacenta_braid.Braid.failed, Model.Lifecycle.braidFailed,
       Tacenta.SessionUnitBraidT3.StateRefines, hr, hm] at hrel ⊢
 
-/-- The first `encrypt` refusal branch agrees exactly: a terminal Braid returns
+/-- The first `encrypt` refusal branch past the sender's rule agrees exactly: for a plaintext of at
+most `MAX_PLAINTEXT_LEN` bytes (`hlen`; a longer one is refused `PlaintextTooLong` first,
+`encrypt_plaintext_too_long_refines`), a terminal Braid returns
 `AgreementFailed`, leaves the complete Session and RNG untouched, and performs
 no primitive call. -/
 theorem encrypt_terminal_guard_refines {R : Type}
@@ -2775,7 +2777,8 @@ theorem decrypt_ratchet_decode_refusal_refines {R : Type}
 
 /-- Lift an already-related ratchet receive through the public decrypt
 dispatcher's passthrough arms (`none` and explicit ratchet).  Refusals preserve
-the inner state; success clears `pending_initial` on both sides. -/
+the inner state; success clears `pending_initial` on both sides.
+The frame passes the size rule (`hsize`); a frame it refuses is refused first (`decrypt_frame_too_long_refines`). -/
 theorem decrypt_passthrough_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -2890,7 +2893,8 @@ theorem decrypt_passthrough_step_refines {R : Type}
 
 /-- The public decrypt passthrough proof with the infallible byte-copy step
 discharged.  Callers reason about the copied bytes by value rather than carrying
-an implementation-level `Slice::to_vec` equation. -/
+an implementation-level `Slice::to_vec` equation.
+The frame passes the size rule (`hsize`); a frame it refuses is refused first (`decrypt_frame_too_long_refines`). -/
 theorem decrypt_passthrough_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -3066,7 +3070,9 @@ theorem decrypt_passthrough_success_exact
 
 /-- Lift an exact initial-wrapper decoder refusal through public decrypt.
 Like the ratchet decoder branch, this isolates the remaining obligation: prove
-the detailed concrete and model decoders choose the same public reason. -/
+the detailed concrete and model decoders choose the same public reason.
+The frame passes the size rule (`hsize`); a frame it refuses is refused `Decode(TooLong)` first
+(`decrypt_frame_too_long_refines`). -/
 theorem decrypt_initial_decode_refusal_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -4820,7 +4826,9 @@ theorem decrypt_ratchet_triple_refusal_step_refines {R : Type}
 
 /-- The Triple refusal branch is atomic at the lifecycle boundary.  Braid has
 already produced a candidate next state, but neither implementation commits it
-when Triple send refuses; only the already-consumed RNG trace advances. -/
+when Triple send refuses; only the already-consumed RNG trace advances.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem encrypt_triple_refusal_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -5562,7 +5570,9 @@ set_option maxHeartbeats 4000000 in
 /-- Successful established-session encryption refines the executable lifecycle
 model all the way to the returned wire bytes. The leaf send relations supply
 the candidate state/header/message key; this theorem composes them with the
-proved serializers and the AEAD oracle contract. -/
+proved serializers and the AEAD oracle contract.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem encrypt_success_no_initial_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5745,7 +5755,8 @@ theorem encrypt_success_no_initial_step_refines {R : Type}
 
 
 /-- The established-session success leaf with the Triple candidate supplied by
-the exact generated send_candidate result. -/
+the exact generated send_candidate result.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`). -/
 theorem encrypt_success_no_initial_of_exact_candidate {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5810,7 +5821,9 @@ theorem encrypt_success_no_initial_of_exact_candidate {R : Type}
 
 
 /-- Established-session encryption after the Triple result has been obtained
-from the generated candidate and contract-backed model adapter. -/
+from the generated candidate and contract-backed model adapter.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem public_encrypt_success_no_initial_of_contracts {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5899,7 +5912,9 @@ set_option maxHeartbeats 4000000 in
 /-- Successful pending-initial encryption refines the executable lifecycle
 model all the way to the returned wire bytes. The leaf send relations supply
 the candidate state/header/message key; this theorem composes them with the
-proved serializers and the AEAD oracle contract. -/
+proved serializers and the AEAD oracle contract.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem encrypt_success_initial_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -6176,7 +6191,8 @@ theorem encrypt_success_initial_step_refines {R : Type}
 
 
 /-- The pending-initial success leaf with the Triple candidate supplied by
-the exact generated send_candidate result. -/
+the exact generated send_candidate result.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`). -/
 theorem encrypt_success_initial_of_exact_candidate {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -6253,7 +6269,9 @@ theorem encrypt_success_initial_of_exact_candidate {R : Type}
 
 
 /-- Pending-initial encryption after the Triple result has been obtained from
-the generated candidate and contract-backed model adapter. -/
+the generated candidate and contract-backed model adapter.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem public_encrypt_success_initial_of_contracts {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

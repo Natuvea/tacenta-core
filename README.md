@@ -335,10 +335,13 @@ The message size bound (`message-format.md`, Message size) is enforced first at 
 bound refuses is refused with the session, the prekey store and the random source returned as given and no draw, refining
 the model's refusal, before the terminal, decode, not-a-repeat and prekey-lookup refusals, and an initial frame cannot
 carry a ratchet message over the bound, whatever KEM ciphertext length it declares (no law about an opaque operation, no
-compiler-trust axiom). That every plaintext a receive returns is at most `MAX_PLAINTEXT_LEN` bytes rests on one assumed
-law about the AEAD's open, not shown of the real AEAD; the AEAD's totality contracts are not restated for the lengths
-the bound allows, so the results that take them stay conditional on them. The earlier lifecycle results take the size
-bound as a hypothesis where they state an outcome past the checks.
+compiler-trust axiom). That every plaintext a receive returns is at most `MAX_PLAINTEXT_LEN` bytes is shown only for a
+result that refines the model's step (which only the refinement results supply, under all their premises, and for a
+repeated initial frame none does), and under one assumed law about the AEAD's open, not shown of the real AEAD and not met
+by any Lean model here together with the other hypotheses; the AEAD's totality contracts are not restated for the lengths
+the bound allows, so the results that take them stay conditional on them. The earlier lifecycle results take a size
+hypothesis where they state an outcome past the checks; on the reply routes it is narrower than the bound, and for reply
+plaintexts of 1,048,561 to 1,048,575 bytes no result covers the outcome.
 The Braid's T3 theorems take a live-encoder and an unspliced-stream precondition and, for the receive, the bound `ct1_bounded` on the stored KEM ciphertext; on the eight-leaf session unit they also take the bound `decoders_bounded` on the erasure decoders. `tacenta-proofs/CLAIMS.md` has theorems that every successful send and receive of the Braid keeps both bounds, from a state that also meets a clause about the decoder that makes the stored ciphertext, under an assumed law about the erasure decoder (on the session unit, two laws about `Vec::truncate` and `usize::div_ceil`). The Braid's four KEM refusals (key generation, both halves of encapsulation, decapsulation) are refined against the model's `Failed` transitions under agreements about the KEM wrapper that are assumed, not proved, and the state witnesses for those theorems additionally assume `KemDrawsSucceed` (the real key generation and first encapsulation each succeed for some random draw), which is tested only, by every Braid test that completes an agreement. The KEM wrapper refuses a restored encapsulation state whose coefficients lie outside the bound libcrux states, so the Braid fails closed; that is tested only (`GAP-REGISTER.md`, row `KEM-STORED-STATE-TOTALITY`, open), and no theorem relates a restored Braid state to the model.
 `Session::encrypt` and `Session::decrypt` are not proved end to end. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.

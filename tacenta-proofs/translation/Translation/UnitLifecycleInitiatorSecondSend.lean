@@ -389,11 +389,14 @@ theorem secondFrame_with_draws (view : Model.Lifecycle.CodewordView) (oracle : M
   rfl
 
 /-- **The model's `encrypt` at the initiator after the receipt of the reply has one outcome**, for every codeword
-view, oracle and plaintext, when the session the receipt started from had its agreement at `keysSampled` epoch 1:
+view, oracle and plaintext of at most `maxPlaintextLen` bytes, when the session the receipt started from had its
+agreement at `keysSampled` epoch 1:
 it reads no draw, returns the bare second frame (`secondFrame`: agreement type `hdr` and the encoder's next chunk,
 no initial wrapper since the receipt cleared the pending initial message), and leaves the session with the Triple
 `initiatorAfterSecond` and the agreement's encoder advanced by one chunk, everything else unchanged.  Model
-only. -/
+only.
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hlen`); a longer one is refused
+`plaintextTooLong` first, with no effect (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem second_model_step (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (mA : Model.Lifecycle.Session) (rkA prk k1 k2 dSend x newPub candPub c : Key) (a : Model.Braid.Auth)
     (dk ekVector : Model.Braid.Bytes) (enc : Model.Braid.Encoder)
@@ -494,7 +497,9 @@ variable {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
 /-- **The model session the initiator's first send leaves, with its encoder**: when the model's key generation
 answers `(dk, ekSeed, ekVector)` at the two draws, the established model session with the Triple after the first
 message and the agreement at `keysSampled` epoch 1, holding `dk`, `ekVector` and the header encoder of
-`headerSource` after one chunk (position 1).  Model only (through the establishment's parts). -/
+`headerSource` after one chunk (position 1).  Model only (through the establishment's parts).
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hlen`); a longer one is refused
+`plaintextTooLong` first, with no effect (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem first_send_model_session_encoder {E : Type} {rcE : rand_core_1.RngCore E}
     {crcE : rand_core_1.CryptoRng E} (dh : DhView) (view : Model.Lifecycle.CodewordView)
     (oracle : Model.Lifecycle.Oracle) (q : InitiatorSecretParts rcE crcE our bundle)
@@ -546,7 +551,13 @@ by applying the receipt again but are not carried here, with the key generation 
 
 The invariant and the ceilings at `s''` are not shown here: they are the implication's premises.
 No compiler-trust axiom (the pin): the nine `native_decide` constants of the encrypt and decrypt refinements it applies
-are kernel proofs since 2026-10-21. -/
+are kernel proofs since 2026-10-21.
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. The second plaintext `ptS` is also at most `MAX_PLAINTEXT_LEN` bytes (`hlenS`); a longer one is refused
+`PlaintextTooLong` first (`UnitLifecycleSizeRule.encrypt_size_refusal`). -/
 theorem initiator_second_send_after_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

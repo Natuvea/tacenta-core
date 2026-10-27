@@ -21,14 +21,18 @@ one composing theorem is `establish_responder_ok_plaintext_le_max`, which compos
 under that limit, which `ratchet_ok_plaintext_le_max` still proves and the composition can no longer feed (with the
 composing proof emptied, Lean accepts the change). The other results are each proved directly or by one application,
 so every other control is refused at the result whose statement it changes (leaf controls), and none is a definition
-held by its pin (the module has no definitions). The thirteen leaf controls: each bound one off (the outer bound in `check_frame_size_refuses_iff`, the ratchet bound in
-`non_initial_limit`, the nested bound in `nested_too_long_refused`, the sender's bound in `encrypt_size_refusal`); the
+held by its pin (the module has no definitions). The twenty-one leaf controls: each bound one off (the outer bound in
+`check_frame_size_refuses_iff`, the ratchet bound in `non_initial_limit`, the nested bound in `nested_too_long_refused`, the sender's bound in `encrypt_size_refusal`); the
 nested check dropped (`decoded_initial_limit` claimed with the outer bound alone) and the span read as the whole frame
 (`decoded_span`); the refusals' effects changed (the session's pending initial message cleared by the decrypt refusal,
 the store's last-resort record emptied by the responder refusal, a draw taken from the model's oracle by the sender's
-refusal, the last refused where `encrypt_size_refusal_refines` places the T3 result); the order swapped
-(`encrypt_on_failed_agreement`, `decrypt_initial_decode_refusal_order`); and the received maximum claimed one byte
-lower (`decrypt_ok_plaintext_le_max`) and without the open-length law (`ratchet_ok_plaintext_le_max`).
+refusal, the last refused where `encrypt_size_refusal_refines` places the T3 result); each of the three refusals
+claimed to return another random source than the one it was given (`encrypt_size_refusal`, `decrypt_size_refusal`,
+`establish_responder_size_refusal`); the order swapped at all five order results (`encrypt_on_failed_agreement`,
+`decrypt_initial_decode_refusal_order`, `decrypt_not_a_repeat_order`, `establish_responder_decode_refusal_order`,
+`establish_responder_prekey_lookup_order`); the nested refusal claimed as the decoder's `LengthOverrun` at both entries
+(`decrypt_nested_too_long_refused`, `establish_responder_nested_too_long_refused`); and the received maximum claimed one
+byte lower (`decrypt_ok_plaintext_le_max`) and without the open-length law (`ratchet_ok_plaintext_le_max`).
 
 A proof that Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one
 change to a copy of the module and requires Lean to refuse it, at a named place, with an error that names what
@@ -150,6 +154,41 @@ MUTANTS = [
      [('    (hopen : Model.Lifecycle.AeadOpenLength oracle) :\n    plaintext.val.length ≤ Model.Lifecycle.maxPlaintextLen := by\n  have hres := hstep.result\n  rw [hok] at hres\n  cases hm : (Model.Lifecycle.decryptRatchet view',
        '    (hopen : True) :\n    plaintext.val.length ≤ Model.Lifecycle.maxPlaintextLen := by\n  have hres := hstep.result\n  rw [hok] at hres\n  cases hm : (Model.Lifecycle.decryptRatchet view')],
      r'hopen\nhas type\n  True\nbut is expected to have type\n  Model\.Lifecycle\.AeadOpenLength oracle', ['ratchet_ok_plaintext_le_max']),
+    # The code-level random source: each refusal claimed to return another source than the one it was given.
+    ('module', 'encrypt-refusal-returns-another-source',
+     [('    (s : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)\n    (hlong : Model.Lifecycle.maxPlaintextLen < plaintext.val.length) :\n    lifecycle.Session.encrypt rc crc s plaintext rng =\n      ok (core.result.Result.Err lifecycle.Error.PlaintextTooLong, s, rng) :=\n',
+       '    (s : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)\n    (hlong : Model.Lifecycle.maxPlaintextLen < plaintext.val.length) {other : R} :\n    lifecycle.Session.encrypt rc crc s plaintext rng =\n      ok (core.result.Result.Err lifecycle.Error.PlaintextTooLong, s, other) :=\n')],
+     r'but is expected to have type\n  lifecycle\.Session\.encrypt rc crc s plaintext rng =\n    ok \(core\.result\.Result\.Err lifecycle\.Error\.PlaintextTooLong, s, other\)', ['encrypt_size_refusal']),
+    ('module', 'decrypt-refusal-returns-another-source',
+     [('    (s : lifecycle.Session) (message : Slice Std.U8) (rng : R)\n    (hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true) :\n    lifecycle.Session.decrypt rc crc s message rng =\n      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), s, rng) :=\n  Tacenta.UnitLifecycleAtomicity.decrypt_refuses_long_frame',
+       '    (s : lifecycle.Session) (message : Slice Std.U8) (rng : R)\n    (hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true) {other : R} :\n    lifecycle.Session.decrypt rc crc s message rng =\n      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), s, other) :=\n  Tacenta.UnitLifecycleAtomicity.decrypt_refuses_long_frame')],
+     r'but is expected to have type\n  lifecycle\.Session\.decrypt rc crc s message rng =\n    ok \(core\.result\.Result\.Err \(lifecycle\.Error\.Decode tacenta_wire\.DecodeError\.TooLong\), s, other\)', ['decrypt_size_refusal']),
+    ('module', 'responder-refusal-returns-another-source',
+     [('    (message : Slice Std.U8) (rng : R)\n    (hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true) :\n    lifecycle.establish_responder rc crc our store message rng =\n      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), store, rng) :=\n',
+       '    (message : Slice Std.U8) (rng : R)\n    (hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true) {other : R} :\n    lifecycle.establish_responder rc crc our store message rng =\n      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), store, other) :=\n')],
+     r'but is expected to have type\n  lifecycle\.establish_responder rc crc our store message rng =\n    ok \(core\.result\.Result\.Err \(lifecycle\.Error\.Decode tacenta_wire\.DecodeError\.TooLong\), store, other\)', ['establish_responder_size_refusal']),
+    # The order swapped at the other three places.
+    ('module', 'not-a-repeat-precedence-swapped',
+     [('          then lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong\n          else lifecycle.Error.NotARepeatedInitial), s, rng) := by\n',
+       '          then lifecycle.Error.NotARepeatedInitial\n          else lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), s, rng) := by\n')],
+     r'if true = true then lifecycle\.Error\.NotARepeatedInitial\n\s+else lifecycle\.Error\.Decode tacenta_wire\.DecodeError\.TooLong', ['decrypt_not_a_repeat_order']),
+    ('module', 'responder-decode-precedence-swapped',
+     [('        (if Model.Lifecycle.frameTooLong (sliceOf message) then tacenta_wire.DecodeError.TooLong\n          else reason)), store, rng) := by\n',
+       '        (if Model.Lifecycle.frameTooLong (sliceOf message) then reason\n          else tacenta_wire.DecodeError.TooLong)), store, rng) := by\n')],
+     r'if true = true then reason else tacenta_wire\.DecodeError\.TooLong', ['establish_responder_decode_refusal_order']),
+    ('module', 'prekey-lookup-precedence-swapped',
+     [('          then lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong else e), store, rng) := by\n',
+       '          then e else lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), store, rng) := by\n')],
+     r'if true = true then e else lifecycle\.Error\.Decode tacenta_wire\.DecodeError\.TooLong', ['establish_responder_prekey_lookup_order']),
+    # The nested refusal at the entries claimed as the decoder's overrun.
+    ('module', 'decrypt-nested-claimed-as-an-overrun',
+     [('      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), s, rng) :=\n  Tacenta.UnitLifecycleAtomicity.decrypt_refuses_long_frame rc crc s message rng\n    (nested_too_long_refused',
+       '      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.LengthOverrun), s, rng) :=\n  Tacenta.UnitLifecycleAtomicity.decrypt_refuses_long_frame rc crc s message rng\n    (nested_too_long_refused')],
+     r'but is expected to have type\n  lifecycle\.Session\.decrypt rc crc s message rng =\n    ok \(core\.result\.Result\.Err \(lifecycle\.Error\.Decode tacenta_wire\.DecodeError\.LengthOverrun\), s, rng\)', ['decrypt_nested_too_long_refused']),
+    ('module', 'responder-nested-claimed-as-an-overrun',
+     [('      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), store, rng) :=\n  Tacenta.UnitLifecycleAtomicity.establish_responder_refuses_long_frame rc crc our store message rng\n    (nested_too_long_refused',
+       '      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.LengthOverrun), store, rng) :=\n  Tacenta.UnitLifecycleAtomicity.establish_responder_refuses_long_frame rc crc our store message rng\n    (nested_too_long_refused')],
+     r'but is expected to have type\n  lifecycle\.establish_responder rc crc our store message rng =\n    ok \(core\.result\.Result\.Err \(lifecycle\.Error\.Decode tacenta_wire\.DecodeError\.LengthOverrun\), store, rng\)', ['establish_responder_nested_too_long_refused']),
     # The responder's maximum composed from the nested limit: the inner bound claimed one under that limit.
     ('module', 'inner-bound-one-under-the-limit',
      [('    (hmessage : message.val.length ≤ Model.Lifecycle.maxRatchetFrameLen)\n',

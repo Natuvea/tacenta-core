@@ -150,7 +150,13 @@ model's one outcome for the second send), and
 
 The two sessions named `s''` by the two theorems it composes are one: both state the responder's `encrypt` of the reply
 and the initiator's `decrypt` of its bytes on the same inputs, and those are functions.  No compiler-trust axiom (the
-pin): the nine `native_decide` constants of the refinements it applies are kernel proofs since 2026-10-21. -/
+pin): the nine `native_decide` constants of the refinements it applies are kernel proofs since 2026-10-21.
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. The second plaintext `ptS` is at most `MAX_PLAINTEXT_LEN` bytes (`hlenS`); a longer one is refused
+`PlaintextTooLong` first (`UnitLifecycleSizeRule.encrypt_size_refusal`). -/
 theorem initiator_sends_second_message [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (ptS : Slice Std.U8) (hroomS : 102 + (ptS.val.length + 48) ≤ Usize.max)
     (hlenS : (Tacenta.UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen)

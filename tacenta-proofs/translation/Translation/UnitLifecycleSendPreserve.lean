@@ -969,14 +969,17 @@ theorem modelCounterRoom_firstReceipt (mB : Model.Lifecycle.Session) (secret : M
 /-- **The responder's reply keeps `Session::invariant` and the four ceilings, on the run of the initiator's first
 send.**  Under the hypotheses of `initiator_first_send_responder_replies` (no other), at every successful return of
 `establish_responder` on the bytes the initiator's first `encrypt` emitted, for every reply plaintext `ptR` of at most
-`Usize.max - 150` bytes and every source state `rngR`: `Session::encrypt` at `sB'` returns `Ok bytesR` and `sB''`
+`Usize.max - 150` and at most `MAX_PLAINTEXT_LEN` bytes and every source state `rngR`: `Session::encrypt` at `sB'`
+returns `Ok bytesR` and `sB''`
 and leaves `rngR` as it was, `sB''` passes `Session::invariant`, meets the four ceilings (`CounterHeadroom`) and has
 room for every `j` with `j + 3 < u32::MAX` further operations (`CounterRoom`), and refines the model session after
 the receipt with the Triple `replierAfterSend`.  Derived on the run: `sB'`, its relation and its invariant are the
 successor results' at the same call, the call and the relation after it are the reply's, and
 `encrypt_keeps_invariant_no_draw` composes them at the agreement state `NoHeaderReceived`, whose send takes no draw.
 No compiler-trust axiom (the pin): the nine `native_decide` constants of the encrypt and decrypt refinements it applies
-are kernel proofs since 2026-10-21. -/
+are kernel proofs since 2026-10-21.
+Since the message size bound `ptR` is also at most `MAX_PLAINTEXT_LEN` bytes (`hlenR`); a longer one is refused
+`PlaintextTooLong` first (`UnitLifecycleSizeRule.encrypt_size_refusal`). -/
 theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1080,7 +1083,8 @@ theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.De
 
 /-- **`Session::invariant` and the four ceilings at the session the responder's reply leaves**: the invariant and
 ceiling conjuncts of `initiator_first_send_responder_reply_successor`, at every successful return of the reply's
-`encrypt` at `sB'`, under its hypotheses.  No compiler-trust axiom (the pin), as that theorem. -/
+`encrypt` at `sB'`, under its hypotheses.  No compiler-trust axiom (the pin), as that theorem.
+Since the message size bound `ptR` is also at most `MAX_PLAINTEXT_LEN` bytes (`hlenR`). -/
 theorem initiator_first_send_responder_reply_admissible [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

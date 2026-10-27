@@ -301,7 +301,8 @@ the frame with the reply's header (ratchet key `newPub`, 32 canonical bytes) and
 session's first agreement with `newPub` returns `dSend`, the oracle's next draw `c` agrees with `newPub`, `newPub`
 is not the peer key the session holds, and the oracle's open of `cT` under the AEAD keys of the message key the
 receive derives and the reply's associated data is refused, the step refuses `aead`, consumes the draw and leaves the
-session as it was. -/
+session as it was.
+The tampered frame passes the size rule (`hsizeT`), so the dispatch reaches the passthrough. -/
 theorem tampered_reply_model_refusal (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle)
     (mA : Model.Lifecycle.Session) (a4 peer rkA cksA prk k1 k2 : Key) (e : Nat) (auth : Model.Braid.Auth)
     (dk ekVector : Model.Braid.Bytes) (enc : Model.Braid.Encoder)
@@ -386,13 +387,19 @@ open Tacenta.UnitLifecycleResponderReplyReceipt (fresh_public_of_draw initiator_
 receiving chain derives, and the initiator's public `decrypt` of `bytesR` at `s'` from `rng'` returns `Ok ptA` with
 `ptA` the bytes of `ptR`, taking exactly the draw `dA`; the reply's own ciphertext, the bytes of `bytesR` after its
 first 102, carries its tag under the reply's MAC key and associated data, so `NotTagged` excludes it; and for every
-slice `frame` whose bytes are the first 102 bytes of `bytesR` (the reply's header) followed by bytes `cT` that are
+slice `frame` that passes the size rule and whose bytes are the first 102 bytes of `bytesR` (the reply's header)
+followed by bytes `cT` that are
 `NotTagged` under that MAC key and that associated data (the per-run premise), the same call on `frame` at `s'` from
 `rng'` returns `Err(Aead)`, returns the session `s'` as it was, and leaves a source holding exactly the draws after
 `dA`.  A frame whose header bytes differ is not covered.  Conditional, like every encrypt result, on `AeadSealBounded`,
 which has no length premise and is false of the shipping seal at the top of the length range, and on the decrypt oracle
 record's open clause (`AeadOpenTotal`), used at the tampered ciphertext's length, which is false, by reading, from about
-`2^61` bytes on a 64-bit target built with overflow checks.  No compiler-trust axiom (the pin). -/
+`2^61` bytes on a 64-bit target built with overflow checks.  No compiler-trust axiom (the pin).
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. -/
 theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (hu : AeadOpenChecksTag) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

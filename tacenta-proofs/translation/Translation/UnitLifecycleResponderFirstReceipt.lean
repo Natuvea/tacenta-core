@@ -1138,7 +1138,10 @@ inner receive with parts carrying the initiator's secrets and then returns exact
 So, beyond the store, the only refusals left at this frame are the two named, and each is the failure of one
 premise of `responder_first_frame_succeeds` in the responder's oracle: `DhAgreeContributory` for the first,
 `AeadRoundTrip` (with the agreement of the two oracles on the keys) for the second.  The model's `ceiling` (an
-empty trace) is excluded by the per-run premise that the trace holds a draw. -/
+empty trace) is excluded by the per-run premise that the trace holds a draw.
+Since the message size bound the frame passes the size rule (`hsize`); a frame the rule refuses is refused
+`Decode(TooLong)` first, with the store and the source as given
+(`UnitLifecycleSizeRule.establish_responder_size_refusal`). -/
 theorem responder_first_frame_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type}
     (rcB : rand_core_1.RngCore E) (crcB : rand_core_1.CryptoRng E)
     (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
@@ -1233,7 +1236,8 @@ theorem responder_first_frame_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] 
 open Tacenta.UnitLifecycleResponderFirstFrame (responder_first_frame_prepares) in
 /-- **`establish_responder` on the initiator's first frame succeeds with the initiator's plaintext, or the
 store refuses**: for every record `q` of an initiator's run, every plaintext and real codeword `c` of a 96-byte
-source `src` sent as `CodewordViewSendOf` sends it, every message that is the initial message wrapping the first
+source `src` sent as `CodewordViewSendOf` sends it, every message that passes the size rule and is the initial
+message wrapping the first
 frame (the plaintext sealed under `firstKey` of the initiator's chains, with chunk `modelChunkOf src c`), every
 responder identity and prekey store as in `responder_first_frame_prepares` with the store bound of
 `establish_responder_no_panic`, and every source of randomness whose trace is the responder oracle's and holds a
@@ -1241,7 +1245,10 @@ draw `dB`: either the store refuses as in `responder_first_frame_prepares` (stor
 whole call returns `Ok` of the session and bytes equal to the plaintext, takes exactly the draw `dB`, commits
 the store (`ResponderCommit` of the bundle's identifiers; on the one-time path no fingerprint, on the
 last-resort path the fingerprint of the initiator's shared secret), and its session refines
-`firstReceiptSession`. -/
+`firstReceiptSession`.
+Since the message size bound the frame passes the size rule (`hsize`); a frame the rule refuses is refused
+`Decode(TooLong)` first, with the store and the source as given
+(`UnitLifecycleSizeRule.establish_responder_size_refusal`). -/
 theorem responder_first_frame_succeeds [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type}
     (rcB : rand_core_1.RngCore E) (crcB : rand_core_1.CryptoRng E)
     (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
@@ -1346,7 +1353,10 @@ generation at its two draws (`headerSource`).  Under the hypotheses of `first_se
 decrypt agreements at the responder's oracle's KEM, the laws `AeadRoundTrip`, `DhAgreeContributory` and
 `KeyGenSizesOf` of the initiator's oracle's KEM, the responder's oracle record, the store bound of
 `establish_responder_no_panic`, and the per-run premises that the responder's trace is its oracle's and holds a
-draw.  No compiler-trust axiom (the pin): the constants of the encrypt and decrypt refinements are kernel proofs. -/
+draw.  No compiler-trust axiom (the pin): the constants of the encrypt and decrypt refinements are kernel proofs.
+Since the message size bound the bytes the initiator emitted pass the size rule (`hsize`), a hypothesis; bytes the
+rule refuses are refused `Decode(TooLong)` first, with the store and the source as given
+(`UnitLifecycleSizeRule.establish_responder_size_refusal`). -/
 theorem initiator_first_send_responder_receives [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1478,7 +1488,10 @@ receive with parts carrying the initiator's secrets and returns exactly one of `
 returns and the responder oracle's open of the initiator oracle's seal of the plaintext is refused), each with the
 store as given and exactly one draw taken, or `Ok` of what that open returned, with the store committed and the
 session related as in `initiator_first_send_responder_receives`.  The refusals are the named premises' failures; a
-tampered frame is not considered (the bytes are the initiator's).  Its axioms are that theorem's (the pin). -/
+tampered frame is not considered (the bytes are the initiator's).  Its axioms are that theorem's (the pin).
+Since the message size bound the bytes the initiator emitted pass the size rule (`hsize`), a hypothesis; bytes the
+rule refuses are refused `Decode(TooLong)` first, with the store and the source as given
+(`UnitLifecycleSizeRule.establish_responder_size_refusal`). -/
 theorem initiator_first_send_responder_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

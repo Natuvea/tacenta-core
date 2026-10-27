@@ -292,7 +292,9 @@ theorem repeated_initial_accepted_iff (oracle : Oracle) (session : Session) (mes
   dispatchDecrypt_initial_ok_iff oracle session message inner hInitial
 
 /-- A terminal agreement state makes encryption refuse without another state
-    transition or random draw. -/
+    transition or random draw.
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hLen`); a longer one is refused
+`plaintextTooLong` first, also without a transition or a draw (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem agreement_failed_encrypt_sticky (view : CodewordView) (oracle : Oracle)
     (session : Session) (plaintext : Bytes)
     (hLen : plaintext.length ≤ maxPlaintextLen)

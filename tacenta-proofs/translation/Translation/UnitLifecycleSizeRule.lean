@@ -41,6 +41,9 @@ The message size bound (message-format.md, Message size) at the three public ent
   ciphertext of `C` bytes that authenticates opens to between `C − 16` and `C − 1` bytes). It is a premise of the
   three received-maximum results only, and is not shown of the shipping AEAD; the padding measurements are tested
   evidence for it, not a discharge.
+* The received-maximum results also take, as a hypothesis, that the call's result refines the model's step
+  (`hstep`), which only the T3 refinement results supply, under all their premises; for a repeated initial frame
+  no theorem supplies it.
 * The refinement results take the session relation and the trace at the call, as every T3 result does.
 * No other law: the rule, the effects, the precedence and the nested bound hold for every interpretation of the
   opaque operations.
@@ -49,14 +52,21 @@ The message size bound (message-format.md, Message size) at the three public ent
 
 * The refusals hold for every input past the bound; a frame or plaintext past it is a byte string of the right
   length, which exists at both platform widths (`Usize.max ≥ 2^32 − 1`).
+* The received maximum is not shown non-vacuous: no model in the tree meets `AeadOpenLength` with the other
+  hypotheses (the toy AEADs open to the input less 1 or less 32 bytes; the law asks for less 33). The shipping AEAD
+  meets the law by reading (PKCS#7 refuses an empty ciphertext); a padded toy witness is follow-up work.
 
 ## What it does not show
 
 * that the AEAD has the open-length property: the received maximum is conditional on it;
+* that any Lean model meets that law together with the other hypotheses (Non-vacuity, above);
 * that every message `encrypt` returns passes the size rule: proved only under `AeadSealBounded` for plaintexts of
   at most `MAX_RATCHET_FRAME_LEN − 150` bytes (`UnitLifecycleEstablishedEncrypt.reply_fits`), and for the first
   message of an establishment under `KemCiphertextLenBound` for plaintexts of at most `MAX_RATCHET_FRAME_LEN −
-  65,770` bytes (`first_message_fits`);
+  65,770` bytes (`first_message_fits`, a helper: the first-message routes take the size rule on the frame instead,
+  and are not limited by it);
+* the outcome of the reply routes for reply plaintexts of 1,048,561 to 1,048,575 bytes: they take `hfitR`/`hfitS`,
+  and the size refusals start above 1,048,575, so no theorem covers those fifteen lengths;
 * memory and time per call, allocation failure or abort, and the build profile;
 * callers that reach the AEAD, the decoders or the ratchet without going through the three public entries;
 * the AEAD, KEM and Diffie-Hellman laws the success results rest on, which stay assumed.

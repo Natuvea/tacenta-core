@@ -4164,7 +4164,18 @@ ciphertext of `C` bytes. The page states both halves (`C - 16` to `C - 1`); the 
 because the maximum needs no more, and nothing here states or uses the lower half. The law is not proved of the shipping
 AEAD, and it is not discharged by the tests: the round trips at the maximum lengths in `tacenta-core/tests/message_size.rs`
 and the PKCS#7 padding read from `aead::decrypt` are tested and read evidence that the shipping open behaves so, not a
-proof. A result that takes the law says so in `CLAIMS.md`.
+proof. A result that takes the law says so in `CLAIMS.md`. The three results also take, as a hypothesis, that the call's
+result refines the model's step (`hstep`): for `decrypt` that comes only from the T3 refinement results, under all their
+premises (the decrypt oracle record, whose open clause implies `AeadOpenTotal` at every length, the contract records and the
+per-run premises), and for a repeated initial frame no theorem supplies it. So the received maximum is a statement about
+results already related to the model, not about every call.
+
+**Not shown non-vacuous in Lean.** No model in this tree satisfies `AeadOpenLength` together with the other hypotheses of
+the received maximum. The toy AEADs the reaches use open to the input less one byte (`UnitOracleModel.openModel`) or less 32
+bytes (`UnitLifecycleTamperedReply.openTagged`, `Model.Lifecycle.toyOracle`); the law asks for less 33. The law is
+satisfiable: the shipping AEAD meets it by reading (`boundary/src/aead.rs` refuses an input shorter than the tag, then
+unpads with RustCrypto's PKCS#7, which refuses an empty ciphertext), and a padded toy seal and open would meet it alongside
+`AeadSealBounded` and `AeadRoundTrip`. That witness, and a reach at it, are follow-up work.
 
 **The AEAD contracts are not restated here.** With the bound enforced first at each public entry, the lengths at which
 those entries call the AEAD are bounded (a plaintext of at most `MAX_PLAINTEXT_LEN` bytes to seal; an input within a frame
@@ -4174,13 +4185,25 @@ open clause of `OracleOf` are still asked at every length, including the lengths
 row of "The clauses of `OracleOf`" records them false of the real functions by reading, and every result that takes them
 stays conditional on them, as before this bound.
 
-**Narrower than the shipping bound, in the delivery routes.** A run that delivers a reply takes the reply plaintext at most
-`MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560), fifteen lengths short of `MAX_PLAINTEXT_LEN`, because `AeadSealBounded`
-bounds the sealed output by the plaintext plus 48 bytes and not by its exact padded length; the shipping code admits those
-fifteen lengths (the tests above send the maximum). A run that delivers the first message of an establishment takes the size
-rule on that message as a hypothesis, because the translation sees the ML-KEM ciphertext's length only through
-`KemCiphertextLenBound` (at most 65,536 bytes) and not as the 1,568 bytes ML-KEM-1024 produces. Both are hypotheses of the
-size bound only; the refusals for their complement are the size refusals above.
+**A coverage gap in the reply routes.** A run that delivers a reply takes the reply plaintext at most
+`MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560; `hfitR`, and `hfitS` for the initiator's second message), fifteen lengths
+short of `MAX_PLAINTEXT_LEN`, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its
+exact padded length. For plaintexts of 1,048,561 to 1,048,575 bytes the shipping code encrypts (the tests above send the
+maximum), the frame (at most 1,048,710 bytes) passes the size rule and the receiver goes on, and **no theorem here covers
+those lengths**: neither the success statements, which take `hfitR`/`hfitS`, nor the size refusals, which start above
+1,048,575. The eleven results affected are `initiator_receives_reply` and its `_outcomes` and `_two_outcomes` forms,
+`initiator_receives_reply_successor`, `initiator_second_send_after_reply`, `initiator_sends_second_message`,
+`initiator_repeated_reply_refused`, `initiator_refuses_tampered_reply`, `responder_receives_second_message` and its
+`_two_outcomes` form, and `responder_sends_second_reply`. Their earlier statements are still true of the code at those
+lengths by reading, but are no longer proved there. An exact seal-length law would close the gap; none is assumed
+(`GAP-REGISTER.md`, row `SIZE-BOUND-REPLY-ROUTE-GAP`).
+
+**The first message.** A run that delivers the first message of an establishment takes the size rule on that message as a
+hypothesis, because the translation sees the ML-KEM ciphertext's length only through `KemCiphertextLenBound` (at most 65,536
+bytes) and not as the 1,568 bytes ML-KEM-1024 produces. That is a hypothesis of the size bound only, and its complement is
+`establish_responder_size_refusal`, so those routes have no gap. The helper `first_message_fits`
+derives the rule for a first message only for plaintexts of at most `MAX_RATCHET_FRAME_LEN - 65,770` bytes (982,940); it is
+used by the reaches and does not limit the routes.
 
 **Where the route results above gained a hypothesis.** The run paragraphs earlier in this file that say a headline adds no
 law or per-run premise are unchanged in that respect: each hypothesis the bound added bounds a plaintext's length or states
@@ -4197,7 +4220,8 @@ ask the receiver to allocate; it does not make an allocation succeed), and the b
 strategy); callers that reach the AEAD, the decoders or the ratchet without going through the three public entries, which
 the bound does not constrain; and the AEAD, KEM and Diffie-Hellman laws the success results rest on, which stay assumed.
 That a message `encrypt` returns passes the size rule is shown only under `AeadSealBounded` and, for a first message,
-`KemCiphertextLenBound`, with the narrower lengths above.
+`KemCiphertextLenBound`, with the narrower lengths above; the outcome of the reply routes for reply plaintexts of 1,048,561
+to 1,048,575 bytes is not shown.
 
 ## The erasure coding's field is proved
 

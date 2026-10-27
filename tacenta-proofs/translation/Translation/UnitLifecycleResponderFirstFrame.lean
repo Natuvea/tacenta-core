@@ -1032,7 +1032,8 @@ theorem replay_refusal_cause (store : lifecycle.PrekeyStore) (kemId : U32) (sk :
 /-! ## The call at the initiator's frame -/
 
 /-- A refusal of the KEM lookup, after the message decoded and the signed prekey was found, is the call's
-refusal, with the store and the source as given. -/
+refusal, with the store and the source as given.
+The message passes `check_frame_size` (`hsz`), the first step of the call. -/
 theorem establish_responder_slot_refused {E : Type} (rcB : rand_core_1.RngCore E)
     (crcB : rand_core_1.CryptoRng E) (ourB : lifecycle.Identity) (store : lifecycle.PrekeyStore)
     (msg : Slice U8) (rng : E) (d : tacenta_wire.DecodedInitial)
@@ -1049,7 +1050,8 @@ theorem establish_responder_slot_refused {E : Type} (rcB : rand_core_1.RngCore E
   rfl
 
 /-- A refusal of the replay check, after every earlier step of the prepare phase returned, is the call's
-refusal, with the store and the source as given. -/
+refusal, with the store and the source as given.
+The message passes `check_frame_size` (`hsz`), the first step of the call. -/
 theorem establish_responder_replay_refused_at {E : Type} (rcB : rand_core_1.RngCore E)
     (crcB : rand_core_1.CryptoRng E) (ourB : lifecycle.Identity) (store : lifecycle.PrekeyStore)
     (msg : Slice U8) (rng : E) (d : tacenta_wire.DecodedInitial)
@@ -1094,7 +1096,8 @@ theorem establish_responder_replay_refused_at {E : Type} (rcB : rand_core_1.RngC
 
 /-- Parts for the call, from every step of the prepare phase up to an accepted replay check: the remaining
 steps (the Triple and the Braid built from the secret, the identity, the associated data and the copy of the
-ephemeral key) return under the contracts of `establish_responder_no_panic`. -/
+ephemeral key) return under the contracts of `establish_responder_no_panic`.
+The message passes `check_frame_size` (`hsz`), the first step of the prepare phase. -/
 theorem parts_of_steps {E : Type} (rcB : rand_core_1.RngCore E)
     (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
     (ourB : lifecycle.Identity) (store : lifecycle.PrekeyStore) (msg : Slice U8)
@@ -1176,7 +1179,8 @@ def StoreRefusal (store : lifecycle.PrekeyStore) (secret : Array U8 32#usize) (e
         lifecycle.MAX_LAST_RESORT_SEEN ≤ n)
 
 /-- **`establish_responder` on the initiator's first frame**, for every record `q` of a successful
-`establish_initiator_for` run (identity, bundle, source), every frame the initial message carries, every
+`establish_initiator_for` run (identity, bundle, source), every frame the initial message carries whose message
+passes the size rule, every
 responder identity whose public key is the store's and every prekey store whose `publish` returned the bundle
 the initiator used, whose identifiers are distinct (`PrekeyIdsDistinct`) and whose KEM key pair under the
 named identifier decapsulates the initiator's ciphertext to the initiator's secret (`FirstKemAgrees`), and
@@ -1190,7 +1194,10 @@ every source of randomness: either
   carries; `p.lastResort` holds exactly when the bundle names the last-resort key.
 
 Under the contracts of `establish_responder_no_panic`, `DhPublicValid`, the agreement law `DhAgreeSymmetric`,
-the public-key byte round trip, the view's codec relation and the two ciphertext-length laws. -/
+the public-key byte round trip, the view's codec relation and the two ciphertext-length laws.
+Since the message size bound the frame passes the size rule (`hsize`); a frame the rule refuses is refused
+`Decode(TooLong)` first, with the store and the source as given
+(`UnitLifecycleSizeRule.establish_responder_size_refusal`). -/
 theorem responder_first_frame_prepares {E : Type} (rcB : rand_core_1.RngCore E)
     (crcB : rand_core_1.CryptoRng E) (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
     (hpub : DhPublicValid) (hsym : DhAgreeSymmetric)
@@ -1331,7 +1338,10 @@ decrypt theorem's session-side hypotheses hold**: `responder_first_frame_prepare
 `Session::invariant` of the session, the four counter ceilings and the relation to `responderModelOf dh p`,
 from the generic responder route (`responder_prepared_invariant`, `counterHeadroom_responder_prepared`,
 `sessionRefines_responder_prepared`), under the recorded `OptionEqU64Shape` and the decrypt agreements
-`DecryptRatchetAgreements K`. -/
+`DecryptRatchetAgreements K`.
+Since the message size bound the frame passes the size rule (`hsize`); a frame the rule refuses is refused
+`Decode(TooLong)` first, with the store and the source as given
+(`UnitLifecycleSizeRule.establish_responder_size_refusal`). -/
 theorem responder_first_frame_admissible {E : Type} (rcB : rand_core_1.RngCore E)
     (crcB : rand_core_1.CryptoRng E) (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
     (hpub : DhPublicValid) (hsym : DhAgreeSymmetric)
@@ -1386,7 +1396,11 @@ source as given, or reaches the inner receive with parts whose shared secret is 
 frame is that first ratchet frame; there `Session::invariant`, the four ceilings and the relation to
 `responderModelOf dh p` hold.  Under the hypotheses of `established_encrypt_outcomes` (the encrypt boundary
 records, the oracle record and the laws `KeyGenSeededFor`, `KemCiphertextLenOf`, `KemCiphertextLenBound`),
-those of `responder_first_frame_admissible`, and the per-run premise `FirstKemAgrees`. -/
+those of `responder_first_frame_admissible`, and the per-run premise `FirstKemAgrees`.
+Since the message size bound the bytes the initiator emitted pass the size rule (`hsize`), a hypothesis: the
+translation sees the ML-KEM ciphertext's length only through `KemCiphertextLenBound`; bytes the rule refuses are
+refused `Decode(TooLong)` first, with the store and the source as given
+(`UnitLifecycleSizeRule.establish_responder_size_refusal`). -/
 theorem first_send_responder_prepares [Tacenta.SessionUnitT1.DerivedKeysModel] {E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : Tacenta.UnitLifecycleT3.KemView)

@@ -240,7 +240,8 @@ ratchet key returns `dSend`, and `mk` the key the receive derives on a fresh key
   consumed;
 * the open returns `y`: the step returns `y`, consumes the draw, and leaves `replyReceiptSession` (the agreement
   unchanged, no pending initial message).
-No other refusal (`agreementFailed`, the dispatch, `decode`, the first agreement, another Triple refusal) occurs. -/
+No other refusal (`agreementFailed`, the dispatch, `decode`, the first agreement, another Triple refusal) occurs.
+The reply frame passes the size rule (`hsizeR`), so the dispatch reaches the passthrough. -/
 theorem reply_receipt_model_outcomes (view : Model.Lifecycle.CodewordView)
     (oracleA oracleB : Model.Lifecycle.Oracle) (mA : Model.Lifecycle.Session)
     (a4 peer rkA cksA prk k1 k2 : Key) (e : Nat) (auth : Model.Braid.Auth) (dk ekVector : Model.Braid.Bytes)
@@ -472,7 +473,9 @@ open Tacenta.UnitLifecycleResponderFirstReceipt (established_triple_first first_
 /-- **The model session the initiator's first send leaves**, when the model's key generation answers at the two
 draws: the established model session with the Triple after the first message (`senderAfterFirst` of the
 establishment's keys) and the agreement at `keysSampled` epoch 1 holding the key generation's decapsulation key and
-vector and some encoder.  Model only (through the establishment's parts). -/
+vector and some encoder.  Model only (through the establishment's parts).
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hlen`); a longer one is refused
+`plaintextTooLong` first, with no effect (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem first_send_model_session {E : Type} {rcE : rand_core_1.RngCore E} {crcE : rand_core_1.CryptoRng E}
     (dh : DhView) (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (q : InitiatorSecretParts rcE crcE our bundle) (plaintext : Model.Lifecycle.Bytes)
@@ -531,7 +534,8 @@ send.**  Under the hypotheses of `initiator_first_send_responder_replies`, the d
 initiator's source (`DecryptRatchetContracts`, `DecryptRatchetAgreements` at the initiator oracle's KEM) and the
 per-run premise that the initiator's source after its first send holds a draw `dA`: at every successful return of
 `establish_responder` on the bytes the initiator's first `encrypt` emitted, for every plaintext `ptR` of at most
-`Usize.max - 150` bytes and every source state `rngR` of the responder, the responder's `encrypt` at `sB'` returns
+`Usize.max - 150` and at most `MAX_RATCHET_FRAME_LEN - 150` bytes and every source state `rngR` of the responder,
+the responder's `encrypt` at `sB'` returns
 bytes `bytesR` (the bare reply frame under the key the initiator's receiving chain will derive: the root `rootKey`
 after the agreement `dSend`), and the initiator's public `decrypt` of those bytes at the session `s'` its first
 send left, from the source `rng'` that send left, returns, takes exactly the draw `dA`, and its result is one of the
@@ -549,7 +553,12 @@ four arms the model's step lists:
 No other outcome of the call occurs on these bytes.  This is the general analysis: the theorem's own premises
 `DhAgreeContributory` and `AeadRoundTrip` exclude the `Handshake` and `Aead` arms
 (`initiator_receives_reply_two_outcomes`).  No compiler-trust axiom (the pin): the nine `native_decide` constants of
-the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
+the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel proofs.
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. -/
 theorem initiator_receives_reply_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -790,7 +799,12 @@ takes exactly the draw `dA`, and
   Ratchet, the agreement and the ratchet key, and its session refines `replyReceiptSession`.
 The two agreements `dSend` and `x` the relation names are in the conclusion.  No premise is added to those of
 `initiator_receives_reply_outcomes`.  No compiler-trust axiom (the pin): the nine `native_decide` constants of the encrypt and
-decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
+decrypt refinements, inherited until 2026-10-21, are kernel proofs.
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. -/
 theorem initiator_receives_reply_two_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -913,7 +927,8 @@ hypotheses of `initiator_receives_reply_outcomes` and the per-run premise that t
 key (`oracleB.dhPublic dB`, from its draw) is not the peer key the initiator holds (its signed prekey's bytes), the
 only premise added (`initiator_receives_reply_two_outcomes` with its stale-key arm excluded): at
 every successful return of `establish_responder` on the bytes the initiator's first `encrypt` emitted, for every
-plaintext `ptR` of at most `Usize.max - 150` bytes and every source state `rngR` of the responder, the responder's
+plaintext `ptR` of at most `Usize.max - 150` and at most `MAX_RATCHET_FRAME_LEN - 150` bytes and every source state
+`rngR` of the responder, the responder's
 `encrypt` at `sB'` returns bytes `bytesR`, and the initiator's public `decrypt` of those bytes at the session `s'`
 its first send left, from the source `rng'` that send left, returns `Ok ptA` with `ptA` the bytes of `ptR`, takes
 exactly the draw `dA`, clears the pending initial message, writes only the Triple Ratchet, the agreement and the
@@ -921,7 +936,13 @@ ratchet key, and the session it returns refines `replyReceiptSession` of the mod
 (the Triple after one Diffie-Hellman step on the reply's ratchet key, the agreement unchanged).  The responder
 oracle's agreement `dSend` of its draw with the initiator's ratchet key and the initiator oracle's agreement `x` of
 its draw with the reply's ratchet key are the ones the relation names.  No compiler-trust axiom (the pin):
-the nine `native_decide` constants of the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel proofs. -/
+the nine `native_decide` constants of the encrypt and decrypt refinements, inherited until 2026-10-21, are kernel
+proofs.
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. -/
 theorem initiator_receives_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

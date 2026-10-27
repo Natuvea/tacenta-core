@@ -144,7 +144,8 @@ canonical bytes, the session's ratchet key agrees with it and the oracle's first
 consumes `c`, refuses `triple (classical outOfOrder)` and leaves the session as it was, at every codeword view.  The
 frame is a ratchet message, so the dispatch passes it through; the agreement's receive at `keysSampled` of a message
 of type `none` is computed and discarded with the refusal.  No other refusal (`agreementFailed`, `decode`, either
-agreement, `ceiling`, another Triple refusal, `aead`) occurs under these premises.  Model only. -/
+agreement, `ceiling`, another Triple refusal, `aead`) occurs under these premises.  Model only.
+The reply frame passes the size rule (`hsizeR`), so the dispatch reaches the passthrough. -/
 theorem reply_again_model_refused (view : Model.Lifecycle.CodewordView)
     (oracleA oracleB : Model.Lifecycle.Oracle) (mA : Model.Lifecycle.Session)
     (rkA prk k1 k2 dSend x newPub candPub c0 : Key) (e : Nat) (auth : Model.Braid.Auth)
@@ -237,7 +238,9 @@ refuses `triple (classical outOfOrder)` and keeps the session (`reply_again_mode
 `decrypt` of `msg` at `sA` from `rng` returns `Triple(Classical(OutOfOrder))`, `sA` itself and a source whose trace
 is the rest after `c`.  The refinement of the call is `decrypt_refines_ratchet_frame_of_counter_headroom`; the
 session is `sA` by `decrypt_err_leaves_state`.  The invariant, the ceilings and the relation are hypotheses here; the
-run's headline derives them. -/
+run's headline derives them.
+Since the message size bound the frame passes the size rule (`hsize`); a frame the rule refuses is refused
+`Decode(TooLong)` first, with no effect (`UnitLifecycleSizeRule.decrypt_size_refusal`). -/
 theorem reply_again_refused_of_invariant [Tacenta.SessionUnitT1.DerivedKeysModel] {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView)
@@ -369,7 +372,12 @@ the rest after `dA2`.  Derived on the run: the first receipt and its invariant a
 `initiator_receives_reply_successor`'s, the reply's bytes and the relation `initiator_receives_reply`'s (one call, as
 `encrypt` and `decrypt` are functions), the model session the first send left is `first_send_model_session`'s at the
 key generation `initiator_first_send_responder_replies` gives, and `reply_again_refused_of_invariant` takes the second
-delivery.  `rngA2` is any source with a draw; the reach takes the one the first receipt left. -/
+delivery.  `rngA2` is any source with a draw; the reach takes the one the first receipt left.
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. -/
 theorem initiator_repeated_reply_refused [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)

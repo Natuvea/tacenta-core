@@ -212,10 +212,13 @@ theorem secondReplyFrame_with_draws (oracle : Model.Lifecycle.Oracle) (draws : L
   rfl
 
 /-- **The model's `encrypt` at the responder after its receipt of the second message has one outcome**, for every
-codeword view, oracle and plaintext, when the agreement there waits for the header at epoch 1: it reads no draw,
+codeword view, oracle and plaintext of at most `maxPlaintextLen` bytes, when the agreement there waits for the
+header at epoch 1: it reads no draw,
 returns the bare second reply frame (`secondReplyFrame`, agreement type `none`, no chunk, no initial wrapper since the
 receipt cleared the pending initial message), and leaves the session with the Triple `responderAfterSecondSend` and
-everything else, the agreement included, unchanged.  Model only. -/
+everything else, the agreement included, unchanged.  Model only.
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hlen`); a longer one is refused
+`plaintextTooLong` first, with no effect (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem second_reply_model_step (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (mB : Model.Lifecycle.Session) (auth : Model.Braid.Auth) (dec : Model.Braid.Decoder)
     (ec prk k1 k2 d dSend candA xB z newPub2 c : Key) (pt : Model.Lifecycle.Bytes)
@@ -339,7 +342,8 @@ open Tacenta.UnitLifecycleSendPreserve (CounterRoom)
 /-- **The responder's second reply, on the run of the initiator's first send.**  Under the hypotheses of
 `responder_receives_second_message`, with its two per-run premises (the responder's source after its reply holds a
 draw `dB2`; `hfreshA`, the initiator's new ratchet key is not its first), and for every plaintext `ptR2` of at most
-`Usize.max - 150` bytes (the only binder added, placed first): the receipt's conjuncts named in the statement hold (the
+`Usize.max - 150` and at most `MAX_PLAINTEXT_LEN` bytes (the only binder added, placed first): the receipt's
+conjuncts named in the statement hold (the
 reply, the initiator's receipt of it, the second send, the responder's receipt of it returning the second plaintext and
 leaving `rngR2` with the rest after `dB2`, the agreements `x` and `z`, `Session::invariant` and `CounterHeadroom` at
 `sB'''`); the public `Session::encrypt` of `ptR2` at `sB'''` from `rngR2` returns `Ok bytesR2` and `sB4` and leaves
@@ -349,7 +353,14 @@ number 2, agreement epoch 1 and type `none`, no chunk) sealed under `secondReply
 data; `sB4` refines the model session after that step (the Triple `responderAfterSecondSend`); and `sB4` passes
 `Session::invariant` (send preservation at `NoHeaderReceived`), meets `CounterHeadroom` and has room for every `j` with
 `j + 3 < u32::MAX` further operations (read off the model session after the step).  No compiler-trust axiom (the
-pin). -/
+pin).
+Since the message size bound the reply plaintext `ptR` and the second plaintext `ptS` are each at most
+`MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes (`hfitR`, `hfitS`), so that the frame carrying it passes the size
+rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for plaintexts of 1,048,561 to 1,048,575 bytes, which the code
+sends and the size rule admits, no theorem here states the outcome, because `AeadSealBounded` bounds the sealed output
+by the plaintext plus 48 bytes and not by its padded length. The second reply plaintext `ptR2` is at most
+`MAX_PLAINTEXT_LEN` bytes (`hlenR2`); a longer one is refused `PlaintextTooLong` first
+(`UnitLifecycleSizeRule.encrypt_size_refusal`). -/
 theorem responder_sends_second_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (ptR2 : Slice Std.U8) (hroomR2 : 102 + (ptR2.val.length + 48) ≤ Usize.max)
     (hlenR2 : (Tacenta.UnitLifecycleT3.sliceOf ptR2).length ≤ Model.Lifecycle.maxPlaintextLen)
