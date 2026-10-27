@@ -738,6 +738,7 @@ theorem established_encrypt_model_cases (dh : DhView) (view : Model.Lifecycle.Co
     (oracle : Model.Lifecycle.Oracle) {R : Type} {rc : rand_core_1.RngCore R}
     {crc : rand_core_1.CryptoRng R} {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
     (p : InitiatorOutputParts rc crc our bundle) (plaintext : Model.Lifecycle.Bytes)
+    (hlen : plaintext.length ≤ Model.Lifecycle.maxPlaintextLen)
     (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
     (hdraws : oracle.draws = d1 :: d2 :: rest) :
     (Model.Lifecycle.encrypt view oracle (establishedModelOf dh p.session) plaintext).oracle.draws =
@@ -785,7 +786,7 @@ theorem established_encrypt_model_cases (dh : DhView) (view : Model.Lifecycle.Co
     rw [hsend] at hsa
     have hstep := Model.Lifecycle.encrypt_braid_failure_commits view oracle
       { oracle with draws := rest } (establishedModelOf dh p.session) plaintext none 0 none .failed
-      hready hsa rfl
+      hlen hready hsa rfl
     rw [hstep]
     exact ⟨rfl, Or.inl ⟨rfl, rfl, rfl⟩⟩
   · rcases hnc : (Model.Braid.encode ((ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector) ++
@@ -808,7 +809,7 @@ theorem established_encrypt_model_cases (dh : DhView) (view : Model.Lifecycle.Co
             kem_prekey_id := bundle.kem_prekey_id }) := rfl
     refine ⟨?_, Or.inr ⟨dk, ekSeed, ekVector, rfl, tripleNext, _, messageKey, chunk, encoder, _,
       htriple, hnc, hpending, ?_, ?_⟩⟩ <;>
-      simp [Model.Lifecycle.encrypt, hready, hsa, Model.Lifecycle.braidFailed,
+      simp [Model.Lifecycle.encrypt, Nat.not_lt.mpr hlen, hready, hsa, Model.Lifecycle.braidFailed,
         Model.Lifecycle.sparseOutputOf, htriple, Model.Lifecycle.compositeOf,
         Model.Lifecycle.compositeTypeOf, hpending, initialWire, firstFrame, firstComposite, hbraid]
 
@@ -863,6 +864,7 @@ theorem established_encrypt_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R
     (h : lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 =
       ok (core.result.Result.Ok s, rng1))
     (plaintext : Slice Std.U8) (hroom : plaintext.val.length + 65770 ≤ Usize.max)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (rng : R) (htrace : trace rng = oracle.draws)
     (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
     (hdraws : trace rng = d1 :: d2 :: rest) :
@@ -895,8 +897,8 @@ theorem established_encrypt_outcomes [Tacenta.SessionUnitT1.DerivedKeysModel] {R
     rng0 rng1 s h plaintext hroom rng htrace ⟨d1, d2, rest, hdraws⟩
   obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 s h
   obtain ⟨output, hcall, hstep⟩ := W
-  obtain ⟨hdr', hcases⟩ := established_encrypt_model_cases dh view oracle p (sliceOf plaintext) d1 d2
-    rest (htrace.symm.trans hdraws)
+  obtain ⟨hdr', hcases⟩ := established_encrypt_model_cases dh view oracle p (sliceOf plaintext) hlen
+    d1 d2 rest (htrace.symm.trans hdraws)
   refine ⟨output, hcall, hstep.draws.trans hdr', ?_⟩
   obtain ⟨res, s', rng'⟩ := output
   have hres := hstep.result
@@ -991,10 +993,12 @@ theorem established_encrypt_successor_counterHeadroom [Tacenta.SessionUnitT1.Der
     (hcall : lifecycle.Session.encrypt rc crc s plaintext rng =
       ok (core.result.Result.Ok bytes, s', rng')) :
     Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng bytes s' rng'
+    hcall
   obtain ⟨d1, d2, rest, htr⟩ := hdraws
   obtain ⟨output, hcall', -, hcases⟩ := established_encrypt_outcomes rc crc trace dh kem view oracle
     braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE crcE our
-    bundle expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest htr
+    bundle expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest htr
   rw [hcall] at hcall'
   cases hcall'
   obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 _ h
@@ -1062,6 +1066,9 @@ theorem established_encrypt_successor_refines [Tacenta.SessionUnitT1.DerivedKeys
       ∃ a dk ekVector encoder,
         (Model.Lifecycle.encrypt view oracle (establishedModelOf dh s) (sliceOf plaintext)).session.braid =
           .keysSampled 1 a dk ekVector encoder := by
+  -- The call succeeded, so the sender's rule admitted the plaintext.
+  have hlen := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng bytes s' rng'
+    hcall
   obtain ⟨d1, d2, rest, htr⟩ := hdraws
   obtain ⟨output, hcall', hstep⟩ := established_initiator_encrypt_refines rc crc trace dh kem view
     oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE
@@ -1071,8 +1078,8 @@ theorem established_encrypt_successor_refines [Tacenta.SessionUnitT1.DerivedKeys
   refine ⟨hstep.session, hstep.draws, ?_⟩
   have hres := hstep.result
   obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 s h
-  obtain ⟨-, hcases⟩ := established_encrypt_model_cases dh view oracle p (sliceOf plaintext) d1 d2
-    rest (htrace.symm.trans htr)
+  obtain ⟨-, hcases⟩ := established_encrypt_model_cases dh view oracle p (sliceOf plaintext) hlen
+    d1 d2 rest (htrace.symm.trans htr)
   rcases hcases with ⟨-, hresM, -⟩ | ⟨dk, ekSeed, ekVector, -, tripleNext, header, messageKey, chunk,
       encoder, pending, -, -, -, -, hsessM⟩
   · rw [hresM] at hres; exact hres.elim
@@ -1295,7 +1302,8 @@ theorem established_encrypt_outcomes_at_witness (K : Model.Braid.Kem) (dh : DhVi
   obtain ⟨output, hcall, -, hcases⟩ := established_encrypt_outcomes byteRng byteCrc byteTrace dh kem
     Tacenta.UnitLifecycleRepair.witnessView oracle H.braid H.triple H.aead H.dhCodec H.oracleOf H.codec
     H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen H.kemCiphertextLen
-    H.kemCiphertextBound byteRng byteCrc our bundle _ [] rng1 s H.established emptyPlaintext H.room seed
+    H.kemCiphertextBound byteRng byteCrc our bundle _ [] rng1 s H.established emptyPlaintext H.room
+    (by simp [emptyPlaintext, Tacenta.UnitLifecycleT3.sliceOf]) seed
     H.trace_eq _ _ _ (byteTrace_two seed (by omega))
   rw [two_draws_of_64 seed hseed] at hcases
   refine ⟨oracle, bundle, s, rng1, output, rfl, H, hcall, ?_⟩
@@ -1682,6 +1690,9 @@ theorem encrypt_ok_parts {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_cor
       ∃ sparse cand hdr mk, lifecycle.send_candidate s.triple e sparse = ok (cand, .Ok (hdr, mk)) ∧
         s' = { s with triple := cand, braid := b } := by
   unfold lifecycle.Session.encrypt at h
+  by_cases hlong : Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN
+  · simp [hlong] at h
+  rw [if_neg hlong] at h
   obtain ⟨fb, hfb, h⟩ := bind_eq_ok_inv h
   split at h
   · simp at h
@@ -1703,6 +1714,142 @@ theorem encrypt_ok_parts {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_cor
     obtain ⟨rfl, rfl⟩ := key
     exact ⟨m, e, o, b, hsend, sp, cand, hdr, mk, hcand, rfl⟩
   · simp at h
+
+/-- **Every message a successful `encrypt` returns is at most the plaintext's length plus 150 bytes on a
+session with no pending initial message, and plus 65,770 bytes on every session**, under `AeadSealBounded`
+and `DhCodecTotal`, for a session whose pending initial message (if any) holds a KEM ciphertext of at most
+65,536 bytes (`KemCiphertextLenBound`): 150 bytes of ratchet framing and tag over the plaintext, and 84
+bytes of initial wrapper around a ciphertext of at most 65,536 bytes. The sender's rule bounds the
+plaintext first (`encrypt_ok_plaintext_fits`). The 48 bytes of AEAD expansion are `AeadSealBounded`'s; the
+exact padded length is not used. -/
+theorem encrypt_ok_length_le {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded) (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (s : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R) (v : alloc.vec.Vec Std.U8)
+    (s' : lifecycle.Session) (rng' : R)
+    (hkem : ∀ p, s.pending_initial = some p → p.kem_ciphertext.val.length ≤ 65536)
+    (h : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok v, s', rng')) :
+    (s.pending_initial = none → v.val.length ≤ plaintext.val.length + 150) ∧
+      v.val.length ≤ plaintext.val.length + 65770 := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng v s' rng' h
+  rw [Tacenta.UnitLifecycleT3.sliceOf_length] at hfits
+  simp only [Model.Lifecycle.maxPlaintextLen] at hfits
+  have hmax := Tacenta.UnitHeadroomSatisfiable.usize_max_ge
+  unfold lifecycle.Session.encrypt at h
+  by_cases hlong : Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN
+  · simp [hlong] at h
+  rw [if_neg hlong] at h
+  obtain ⟨fb, hfb, h⟩ := bind_eq_ok_inv h
+  split at h
+  · simp at h
+  obtain ⟨⟨⟨m, e, o, b⟩, rng1⟩, hsend, h⟩ := bind_eq_ok_inv h
+  obtain ⟨fb1, hfb1, h⟩ := bind_eq_ok_inv h
+  split at h
+  · simp at h
+  obtain ⟨sp, hsp, h⟩ := bind_eq_ok_inv h
+  obtain ⟨⟨cand, sent⟩, hcand, h⟩ := bind_eq_ok_inv h
+  rcases sent with ⟨hdr, mk⟩ | err
+  swap
+  · simp at h
+  simp only at h
+  obtain ⟨composite, hcomp, h⟩ := bind_eq_ok_inv h
+  obtain ⟨mk1, hmk1, h⟩ := bind_eq_ok_inv h
+  obtain ⟨a, ha, h⟩ := bind_eq_ok_inv h
+  obtain ⟨t, ht, h⟩ := bind_eq_ok_inv h
+  obtain ⟨keys, hkeys, h⟩ := bind_eq_ok_inv h
+  obtain ⟨enc, mac, iv, hd, h⟩ := bind3_eq_ok_inv h
+  obtain ⟨ad, had, h⟩ := bind_eq_ok_inv h
+  obtain ⟨ct, hct, h⟩ := bind_eq_ok_inv h
+  obtain ⟨rm, hrm, h⟩ := bind_eq_ok_inv h
+  have hctl : ct.val.length ≤ plaintext.val.length + 48 := by
+    obtain ⟨r, hr, hb⟩ := aead enc mac iv plaintext (alloc.vec.Vec.deref ad)
+    rw [hct] at hr
+    cases hr
+    exact hb
+  have hrml : rm.val.length = 102 + ct.val.length := by
+    obtain ⟨r, hr, hb⟩ := Std.WP.spec_imp_exists
+      (Tacenta.UnitLifecycleT1.encode_message_no_panic composite (alloc.vec.Vec.deref ct)
+        (by simp only [alloc.vec.Vec.deref]; omega))
+    rw [hrm] at hr
+    cases hr
+    simpa [alloc.vec.Vec.deref] using hb
+  rcases hp : s.pending_initial with _ | p
+  · rw [hp] at h
+    simp only [ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, -, -⟩ := h
+    exact ⟨fun _ => by omega, by omega⟩
+  · rw [hp] at h
+    obtain ⟨w, hw, h⟩ := bind_eq_ok_inv h
+    obtain ⟨w1, hw1, h⟩ := bind_eq_ok_inv h
+    obtain ⟨w2, hw2, h⟩ := bind_eq_ok_inv h
+    simp only [ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨rfl, -, -⟩ := h
+    have hwl : w.val.length = 33 := by
+      obtain ⟨r, hr, hb⟩ := Std.WP.spec_imp_exists (Tacenta.UnitLifecycleT1.encode_ec_spec hdh s.our_identity_public)
+      rw [hw] at hr; cases hr; exact hb
+    have hw1l : w1.val.length = 33 := by
+      obtain ⟨r, hr, hb⟩ := Std.WP.spec_imp_exists (Tacenta.UnitLifecycleT1.encode_ec_spec hdh p.ephemeral_public)
+      rw [hw1] at hr; cases hr; exact hb
+    have hk := hkem p hp
+    obtain ⟨r, hr, hb⟩ := Std.WP.spec_imp_exists
+      (Tacenta.UnitLifecycleT1.encode_initial_no_panic (alloc.vec.Vec.deref w) (alloc.vec.Vec.deref w1)
+        (alloc.vec.Vec.deref p.kem_ciphertext) (alloc.vec.Vec.deref rm) p.signed_prekey_id
+        p.one_time_prekey_id p.kem_prekey_id
+        (by simp only [alloc.vec.Vec.deref]; omega))
+    rw [hw2] at hr
+    cases hr
+    simp only [alloc.vec.Vec.deref] at hb
+    exact ⟨fun h => (by simp at h), by omega⟩
+
+/-- **A reply passes the receiver's size rule**: a message `encrypt` returns from a session with no
+pending initial message, for a plaintext of at most `MAX_RATCHET_FRAME_LEN - 150` bytes (1,048,560), is
+at most `MAX_RATCHET_FRAME_LEN` bytes under `AeadSealBounded` and `DhCodecTotal`, so the size rule admits
+it. The last 15 plaintext lengths up to `MAX_PLAINTEXT_LEN` are not covered here: `AeadSealBounded`
+bounds the seal by the plaintext plus 48 bytes, not by its exact padded length. -/
+theorem reply_fits {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded) (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (s : lifecycle.Session) (hpend : s.pending_initial = none)
+    (plaintext : Slice Std.U8) (rng : R) (v : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
+    (hroomF : plaintext.val.length + 150 ≤ Model.Lifecycle.maxRatchetFrameLen)
+    (h : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok v, s', rng')) :
+    Model.Lifecycle.frameTooLong (Tacenta.UnitLifecycleT3.sliceOf (alloc.vec.Vec.deref v)) = false := by
+  have hl := (encrypt_ok_length_le rc crc aead hdh s plaintext rng v s' rng'
+    (fun p hp => by rw [hpend] at hp; cases hp) h).1 hpend
+  apply Tacenta.UnitLifecycleT3.frameTooLong_false_of_le
+  rw [Tacenta.UnitLifecycleT3.sliceOf_length]
+  simp only [alloc.vec.Vec.deref]
+  omega
+
+/-- **The initiator's first message passes the receiver's size rule** when the plaintext is at most
+`MAX_RATCHET_FRAME_LEN - 65770` bytes, under `AeadSealBounded`, `DhCodecTotal`, `KemCiphertextLenOf` and
+`KemCiphertextLenBound`: the message is at most `plaintext + 65770` bytes (`encrypt_ok_length_le`), so
+within `MAX_RATCHET_FRAME_LEN`, and every frame of at most that length passes
+(`frameTooLong_false_of_le`). A longer plaintext is not covered: at the 65,536-byte ciphertext the bound
+allows, the size rule can refuse it; with ML-KEM-1024's 1,568-byte ciphertext it does not, but the
+translation sees the ciphertext length only through `KemCiphertextLenBound`. -/
+theorem first_message_fits (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (hdh : Tacenta.UnitLifecycleT1.DhCodecTotal) (hct : KemCiphertextLenOf)
+    (hbound : KemCiphertextLenBound) {E : Type}
+    (rcE : rand_core_1.RngCore E) (crcE : rand_core_1.CryptoRng E)
+    (our : lifecycle.Identity) (bundle : lifecycle.PublishedBundle)
+    (expected : tacenta_boundary.dh.PublicKeyBytes) (rng0 rng1 : E) (s : lifecycle.Session)
+    (h : lifecycle.establish_initiator_for rcE crcE our bundle expected rng0 =
+      ok (core.result.Result.Ok s, rng1))
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (plaintext : Slice Std.U8) (rng : R) (v : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
+    (hroomF : plaintext.val.length + 65770 ≤ Model.Lifecycle.maxRatchetFrameLen)
+    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok v, s', rng')) :
+    Model.Lifecycle.frameTooLong (Tacenta.UnitLifecycleT3.sliceOf (alloc.vec.Vec.deref v)) = false := by
+  obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 _ h
+  have hkem : ∀ q, p.session.pending_initial = some q → q.kem_ciphertext.val.length ≤ 65536 := by
+    intro q hq
+    simp only [InitiatorOutputParts.session, Option.some.injEq] at hq
+    subst hq
+    exact kemCiphertext_length_parts hct hbound p
+  have hl := (encrypt_ok_length_le rc crc aead hdh p.session plaintext rng v s' rng' hkem hcall).2
+  apply Tacenta.UnitLifecycleT3.frameTooLong_false_of_le
+  rw [Tacenta.UnitLifecycleT3.sliceOf_length]
+  simp only [alloc.vec.Vec.deref]
+  omega
 
 /-- The sparse chain table after the first send: the epoch-0 entry with its send chain at counter 1. -/
 def sentChains (c1 c2 : Array U8 32#usize) : alloc.vec.Vec (U64 × tacenta_spqr.Chains) :=
@@ -1996,10 +2143,12 @@ theorem established_encrypt_successor_admissible [Tacenta.SessionUnitT1.DerivedK
     (hcall : lifecycle.Session.encrypt rc crc s plaintext rng =
       ok (core.result.Result.Ok bytes, s', rng')) :
     lifecycle.Session.invariant s' = ok true := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng bytes s' rng'
+    hcall
   obtain ⟨d1, d2, rest, htr⟩ := hdraws
   obtain ⟨output, hcall', -, hcases⟩ := established_encrypt_outcomes rc crc trace dh kem view oracle
     braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE crcE our
-    bundle expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest htr
+    bundle expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest htr
   rw [hcall] at hcall'
   cases hcall'
   obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 _ h
@@ -2171,10 +2320,12 @@ theorem established_encrypt_successor_shape [Tacenta.SessionUnitT1.DerivedKeysMo
     ∃ (p : InitiatorOutputParts rcE crcE our bundle) (cks c1 : Array U8 32#usize)
       (kp : tacenta_kem.IncrementalKeyPair) (enc : tacenta_erasure.Encoder),
       s = p.session ∧ s' = sentSession p cks c1 p.auth kp enc := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng bytes s' rng'
+    hcall
   obtain ⟨d1, d2, rest, htr⟩ := hdraws
   obtain ⟨output, hcall', -, hcases⟩ := established_encrypt_outcomes rc crc trace dh kem view oracle
     braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE crcE our
-    bundle expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest htr
+    bundle expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest htr
   rw [hcall] at hcall'
   cases hcall'
   obtain ⟨p, rfl⟩ := establish_initiator_for_parts rcE crcE our bundle expected rng0 rng1 _ h
@@ -2313,7 +2464,8 @@ theorem established_encrypt_successor_reachable (K : Model.Braid.Kem) (dh : DhVi
   obtain ⟨⟨res, s', rng'⟩, hcall, -, hcases⟩ := established_encrypt_outcomes byteRng byteCrc byteTrace
     dh kem Tacenta.UnitLifecycleRepair.witnessView oracle H.braid H.triple H.aead H.dhCodec H.oracleOf
     H.codec H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen H.kemCiphertextLen
-    H.kemCiphertextBound byteRng byteCrc our bundle _ [] rng1 s H.established emptyPlaintext H.room seed
+    H.kemCiphertextBound byteRng byteCrc our bundle _ [] rng1 s H.established emptyPlaintext H.room
+    (by simp [emptyPlaintext, Tacenta.UnitLifecycleT3.sliceOf]) seed
     H.trace_eq _ _ _ (byteTrace_two seed (by omega))
   rw [two_draws_of_64 seed hseed] at hcases
   rcases hcases with ⟨hnone, -⟩ | ⟨dk, ekSeed, ekVector, -, bytes, hres, -⟩
@@ -4755,55 +4907,60 @@ info: Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_model_cases : 
   {rc : tacenta_session_unit.rand_core_1.RngCore R} {crc : tacenta_session_unit.rand_core_1.CryptoRng R}
   {our : tacenta_session_unit.lifecycle.Identity} {bundle : tacenta_session_unit.lifecycle.PublishedBundle}
   (p : Tacenta.UnitLifecycleEstablishInitiatorShape.InitiatorOutputParts rc crc our bundle)
-  (plaintext : Model.Lifecycle.Bytes) (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
-  oracle.draws = d1 :: d2 :: rest →
-    (Model.Lifecycle.encrypt view oracle (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
-              plaintext).oracle.draws =
-        rest ∧
-      ((oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = none ∧
-          (Model.Lifecycle.encrypt view oracle
-                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session) plaintext).result =
-              Except.error Model.Lifecycle.Refusal.agreementFailed ∧
-            (Model.Lifecycle.encrypt view oracle
-                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session) plaintext).session =
-              have __src := Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session;
-              { triple := __src.triple, braid := Model.Braid.BraidState.failed, ratchetPrivate := __src.ratchetPrivate,
-                identityAd := __src.identityAd, ourIdentityPublic := __src.ourIdentityPublic,
-                peerIdentityPublic := __src.peerIdentityPublic, pendingInitial := __src.pendingInitial,
-                establishedEphemeral := __src.establishedEphemeral }) ∨
-        ∃ dk ekSeed ekVector,
-          oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = some (dk, ekSeed, ekVector) ∧
-            ∃ tripleNext header messageKey chunk encoder pending,
-              Model.Triple.sendDetailed
-                    (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session).triple 0 none =
-                  Except.ok (tripleNext, header, messageKey) ∧
-                (Model.Braid.encode
-                        (ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector ++
-                          (Tacenta.SessionUnitBraidT3.AuthOf p.auth).macHdr 1
-                            (ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector))).nextChunk =
-                    (chunk, encoder) ∧
-                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session).pendingInitial =
-                      some pending ∧
-                    (Model.Lifecycle.encrypt view oracle
-                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
-                            plaintext).result =
-                        Except.ok
-                          (Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
-                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session) pending
-                            (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view oracle
-                              (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session) plaintext
-                              messageKey chunk)) ∧
-                      (Model.Lifecycle.encrypt view oracle
-                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
-                            plaintext).session =
-                        have __src := Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session;
-                        { triple := tripleNext,
-                          braid :=
-                            Model.Braid.BraidState.keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf p.auth) dk ekVector
-                              encoder,
-                          ratchetPrivate := __src.ratchetPrivate, identityAd := __src.identityAd,
-                          ourIdentityPublic := __src.ourIdentityPublic, peerIdentityPublic := __src.peerIdentityPublic,
-                          pendingInitial := __src.pendingInitial, establishedEphemeral := __src.establishedEphemeral })
+  (plaintext : Model.Lifecycle.Bytes),
+  List.length plaintext ≤ Model.Lifecycle.maxPlaintextLen →
+    ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+      oracle.draws = d1 :: d2 :: rest →
+        (Model.Lifecycle.encrypt view oracle
+                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
+                  plaintext).oracle.draws =
+            rest ∧
+          ((oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = none ∧
+              (Model.Lifecycle.encrypt view oracle
+                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session) plaintext).result =
+                  Except.error Model.Lifecycle.Refusal.agreementFailed ∧
+                (Model.Lifecycle.encrypt view oracle
+                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
+                      plaintext).session =
+                  have __src := Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session;
+                  { triple := __src.triple, braid := Model.Braid.BraidState.failed,
+                    ratchetPrivate := __src.ratchetPrivate, identityAd := __src.identityAd,
+                    ourIdentityPublic := __src.ourIdentityPublic, peerIdentityPublic := __src.peerIdentityPublic,
+                    pendingInitial := __src.pendingInitial, establishedEphemeral := __src.establishedEphemeral }) ∨
+            ∃ dk ekSeed ekVector,
+              oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = some (dk, ekSeed, ekVector) ∧
+                ∃ tripleNext header messageKey chunk encoder pending,
+                  Model.Triple.sendDetailed
+                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session).triple 0 none =
+                      Except.ok (tripleNext, header, messageKey) ∧
+                    (Model.Braid.encode
+                            (ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector ++
+                              (Tacenta.SessionUnitBraidT3.AuthOf p.auth).macHdr 1
+                                (ekSeed ++ oracle.braidKem.hashEk ekSeed ekVector))).nextChunk =
+                        (chunk, encoder) ∧
+                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session).pendingInitial =
+                          some pending ∧
+                        (Model.Lifecycle.encrypt view oracle
+                                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
+                                plaintext).result =
+                            Except.ok
+                              (Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session) pending
+                                (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view oracle
+                                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
+                                  plaintext messageKey chunk)) ∧
+                          (Model.Lifecycle.encrypt view oracle
+                                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session)
+                                plaintext).session =
+                            have __src := Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh p.session;
+                            { triple := tripleNext,
+                              braid :=
+                                Model.Braid.BraidState.keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf p.auth) dk
+                                  ekVector encoder,
+                              ratchetPrivate := __src.ratchetPrivate, identityAd := __src.identityAd,
+                              ourIdentityPublic := __src.ourIdentityPublic,
+                              peerIdentityPublic := __src.peerIdentityPublic, pendingInitial := __src.pendingInitial,
+                              establishedEphemeral := __src.establishedEphemeral })
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_model_cases
@@ -4862,102 +5019,107 @@ info: @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes : �
                                   Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok s, rng1) →
                                 ∀ (plaintext : Aeneas.Std.Slice Aeneas.Std.U8),
                                   (↑plaintext).length + 65770 ≤ Aeneas.Std.Usize.max →
-                                    ∀ (rng : R),
-                                      trace rng = oracle.draws →
-                                        ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
-                                          trace rng = d1 :: d2 :: rest →
-                                            ∃ output,
-                                              tacenta_session_unit.lifecycle.Session.encrypt rc crc s plaintext rng =
-                                                  Aeneas.Std.Result.ok output ∧
-                                                trace output.2.2 = rest ∧
-                                                  (oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) =
-                                                        none ∧
-                                                      output.1 =
-                                                          Aeneas.Std.core.result.Result.Err
-                                                            tacenta_session_unit.lifecycle.Error.AgreementFailed ∧
-                                                        output.2.1 =
-                                                          { triple := s.triple,
-                                                            braid :=
-                                                              {
-                                                                state :=
-                                                                  tacenta_session_unit.tacenta_braid.State.Failed },
-                                                            ratchet_private := s.ratchet_private,
-                                                            identity_ad := s.identity_ad,
-                                                            our_identity_public := s.our_identity_public,
-                                                            peer_identity_public := s.peer_identity_public,
-                                                            pending_initial := s.pending_initial,
-                                                            established_ephemeral := s.established_ephemeral } ∨
-                                                    ∃ dk ekSeed ekVector,
-                                                      oracle.braidKem.keyGen
+                                    List.length (Tacenta.UnitLifecycleT3.sliceOf plaintext) ≤
+                                        Model.Lifecycle.maxPlaintextLen →
+                                      ∀ (rng : R),
+                                        trace rng = oracle.draws →
+                                          ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+                                            trace rng = d1 :: d2 :: rest →
+                                              ∃ output,
+                                                tacenta_session_unit.lifecycle.Session.encrypt rc crc s plaintext rng =
+                                                    Aeneas.Std.Result.ok output ∧
+                                                  trace output.2.2 = rest ∧
+                                                    (oracle.braidKem.keyGen
                                                             (Model.Lifecycle.braidRandomness (d1 ++ d2)) =
-                                                          some (dk, ekSeed, ekVector) ∧
-                                                        ∃ bytes,
-                                                          output.1 = Aeneas.Std.core.result.Result.Ok bytes ∧
-                                                            output.2.1 =
-                                                                { triple := output.2.1.triple,
-                                                                  braid := output.2.1.braid,
-                                                                  ratchet_private := s.ratchet_private,
-                                                                  identity_ad := s.identity_ad,
-                                                                  our_identity_public := s.our_identity_public,
-                                                                  peer_identity_public := s.peer_identity_public,
-                                                                  pending_initial := s.pending_initial,
-                                                                  established_ephemeral := s.established_ephemeral } ∧
-                                                              (∃ auth kp encoder,
-                                                                  output.2.1.braid.state =
-                                                                    tacenta_session_unit.tacenta_braid.State.KeysSampled
-                                                                      1#u64 auth kp encoder) ∧
-                                                                ∃ tripleNext messageKey chunk encoder pending a,
-                                                                  (∃ header,
-                                                                      Model.Triple.sendDetailed
-                                                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                              dh s).triple
-                                                                          0 none =
-                                                                        Except.ok (tripleNext, header, messageKey)) ∧
-                                                                    (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                            dh s).braid =
-                                                                        Model.Braid.BraidState.keysUnsampled 1 a ∧
-                                                                      (Model.Braid.encode
-                                                                              (ekSeed ++
-                                                                                  oracle.braidKem.hashEk ekSeed
-                                                                                    ekVector ++
-                                                                                a.macHdr 1
-                                                                                  (ekSeed ++
+                                                          none ∧
+                                                        output.1 =
+                                                            Aeneas.Std.core.result.Result.Err
+                                                              tacenta_session_unit.lifecycle.Error.AgreementFailed ∧
+                                                          output.2.1 =
+                                                            { triple := s.triple,
+                                                              braid :=
+                                                                {
+                                                                  state :=
+                                                                    tacenta_session_unit.tacenta_braid.State.Failed },
+                                                              ratchet_private := s.ratchet_private,
+                                                              identity_ad := s.identity_ad,
+                                                              our_identity_public := s.our_identity_public,
+                                                              peer_identity_public := s.peer_identity_public,
+                                                              pending_initial := s.pending_initial,
+                                                              established_ephemeral := s.established_ephemeral } ∨
+                                                      ∃ dk ekSeed ekVector,
+                                                        oracle.braidKem.keyGen
+                                                              (Model.Lifecycle.braidRandomness (d1 ++ d2)) =
+                                                            some (dk, ekSeed, ekVector) ∧
+                                                          ∃ bytes,
+                                                            output.1 = Aeneas.Std.core.result.Result.Ok bytes ∧
+                                                              output.2.1 =
+                                                                  { triple := output.2.1.triple,
+                                                                    braid := output.2.1.braid,
+                                                                    ratchet_private := s.ratchet_private,
+                                                                    identity_ad := s.identity_ad,
+                                                                    our_identity_public := s.our_identity_public,
+                                                                    peer_identity_public := s.peer_identity_public,
+                                                                    pending_initial := s.pending_initial,
+                                                                    established_ephemeral := s.established_ephemeral } ∧
+                                                                (∃ auth kp encoder,
+                                                                    output.2.1.braid.state =
+                                                                      tacenta_session_unit.tacenta_braid.State.KeysSampled
+                                                                        1#u64 auth kp encoder) ∧
+                                                                  ∃ tripleNext messageKey chunk encoder pending a,
+                                                                    (∃ header,
+                                                                        Model.Triple.sendDetailed
+                                                                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                dh s).triple
+                                                                            0 none =
+                                                                          Except.ok (tripleNext, header, messageKey)) ∧
+                                                                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                              dh s).braid =
+                                                                          Model.Braid.BraidState.keysUnsampled 1 a ∧
+                                                                        (Model.Braid.encode
+                                                                                (ekSeed ++
                                                                                     oracle.braidKem.hashEk ekSeed
-                                                                                      ekVector))).nextChunk =
-                                                                          (chunk, encoder) ∧
-                                                                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                dh s).pendingInitial =
-                                                                            some pending ∧
-                                                                          Tacenta.UnitLifecycleT3.vecOf bytes =
-                                                                              Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
-                                                                                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                  dh s)
-                                                                                pending
-                                                                                (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
-                                                                                  view oracle
+                                                                                      ekVector ++
+                                                                                  a.macHdr 1
+                                                                                    (ekSeed ++
+                                                                                      oracle.braidKem.hashEk ekSeed
+                                                                                        ekVector))).nextChunk =
+                                                                            (chunk, encoder) ∧
+                                                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                  dh s).pendingInitial =
+                                                                              some pending ∧
+                                                                            Tacenta.UnitLifecycleT3.vecOf bytes =
+                                                                                Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
                                                                                   (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
                                                                                     dh s)
-                                                                                  (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                    plaintext)
-                                                                                  messageKey chunk) ∧
-                                                                            Tacenta.UnitLifecycleT3.SessionRefines dh
-                                                                              oracle.braidKem output.2.1
-                                                                              (have __src :=
-                                                                                Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                  dh s;
-                                                                              { triple := tripleNext,
-                                                                                braid :=
-                                                                                  Model.Braid.BraidState.keysSampled 1 a
-                                                                                    dk ekVector encoder,
-                                                                                ratchetPrivate := __src.ratchetPrivate,
-                                                                                identityAd := __src.identityAd,
-                                                                                ourIdentityPublic :=
-                                                                                  __src.ourIdentityPublic,
-                                                                                peerIdentityPublic :=
-                                                                                  __src.peerIdentityPublic,
-                                                                                pendingInitial := __src.pendingInitial,
-                                                                                establishedEphemeral :=
-                                                                                  __src.establishedEphemeral }))
+                                                                                  pending
+                                                                                  (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
+                                                                                    view oracle
+                                                                                    (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                      dh s)
+                                                                                    (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                      plaintext)
+                                                                                    messageKey chunk) ∧
+                                                                              Tacenta.UnitLifecycleT3.SessionRefines dh
+                                                                                oracle.braidKem output.2.1
+                                                                                (have __src :=
+                                                                                  Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                    dh s;
+                                                                                { triple := tripleNext,
+                                                                                  braid :=
+                                                                                    Model.Braid.BraidState.keysSampled 1
+                                                                                      a dk ekVector encoder,
+                                                                                  ratchetPrivate :=
+                                                                                    __src.ratchetPrivate,
+                                                                                  identityAd := __src.identityAd,
+                                                                                  ourIdentityPublic :=
+                                                                                    __src.ourIdentityPublic,
+                                                                                  peerIdentityPublic :=
+                                                                                    __src.peerIdentityPublic,
+                                                                                  pendingInitial :=
+                                                                                    __src.pendingInitial,
+                                                                                  establishedEphemeral :=
+                                                                                    __src.establishedEphemeral }))
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes

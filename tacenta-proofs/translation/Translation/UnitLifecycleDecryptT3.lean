@@ -144,6 +144,11 @@ theorem decrypt_refines_ratchet_frame {R : Type}
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh oracle.braidKem output
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh
+      oracle.braidKem view oracle real model message rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   obtain ⟨innerOutput, hinner, hstep⟩ :=
     Tacenta.UnitLifecycleDecryptRatchetCompleteT3.decrypt_ratchet_refines_complete rngCore cryptoRng
       trace dh view oracle oracleOf codec contracts agreements real model message rng hrel headroom
@@ -153,7 +158,7 @@ theorem decrypt_refines_ratchet_frame {R : Type}
     rintro rfl
     exact hframe (message_type_refines_initial message htype)
   exact decrypt_passthrough_refines rngCore cryptoRng trace dh oracle.braidKem view oracle real model
-    message rng realType innerOutput htype hnotInitial hinner hstep
+    message rng realType innerOutput hsize htype hnotInitial hinner hstep
 
 /-- The theorem has exactly the statement recorded in `DecryptRefinesRatchetFrameStatement`. -/
 theorem decrypt_refines_ratchet_frame_statement : DecryptRefinesRatchetFrameStatement := by
@@ -301,9 +306,24 @@ theorem succMessage_not_initial :
     Tacenta.UnitSatisfiabilityBraidStates.sliceOf_sliceOfBytes succBytes succBytes_le]
   decide
 
+/-- The message of the refusal run passes the size rule. -/
+theorem succMessage_fits :
+    Model.Lifecycle.frameTooLong (sliceOf succMessage) = false := by
+  apply frameTooLong_false_of_le
+  rw [show sliceOf succMessage = succBytes from
+    Tacenta.UnitSatisfiabilityBraidStates.sliceOf_sliceOfBytes succBytes succBytes_le]
+  decide
+
 /-- The message of the sample run is not an initial message on the model's reading. -/
 theorem sampleMessage_not_initial :
     Model.Lifecycle.messageType (sliceOf sampleMessage) ≠ some .initial := by
+  rw [sliceOf_sampleMessage]
+  decide
+
+/-- The message of the sample run passes the size rule. -/
+theorem sampleMessage_fits :
+    Model.Lifecycle.frameTooLong (sliceOf sampleMessage) = false := by
+  apply frameTooLong_false_of_le
   rw [sliceOf_sampleMessage]
   decide
 
@@ -441,7 +461,7 @@ theorem inv_model_refuses (dh : DhView) (view : Model.Lifecycle.CodewordView)
     simp [sampleComposite, arrayOf, zeros32, Array.repeat, Tacenta.SessionUnitBraidT3.u8]
   have hdispatch := Model.Lifecycle.dispatchDecrypt_passthrough
     (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng))
-    (modelOf dh (invReal k pkb a ad)) (sliceOf sampleMessage) sampleMessage_not_initial
+    (modelOf dh (invReal k pkb a ad)) (sliceOf sampleMessage) sampleMessage_fits sampleMessage_not_initial
   have hstep : (Model.Lifecycle.decryptRatchet view
       (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng))
       (modelOf dh (invReal k pkb a ad)) (sliceOf sampleMessage)).result =
@@ -606,7 +626,7 @@ theorem pend_model_clears (dh : DhView) (view : Model.Lifecycle.CodewordView)
     (modelOf dh (pendReal sk pk p)).pendingInitial ≠ none := by
   have hdispatch := Model.Lifecycle.dispatchDecrypt_passthrough
     (oracleDecrypt (Tacenta.UnitLifecycleIntegrationScreen.byteTrace sampleRng))
-    (modelOf dh (pendReal sk pk p)) (sliceOf succMessage) succMessage_not_initial
+    (modelOf dh (pendReal sk pk p)) (sliceOf succMessage) succMessage_fits succMessage_not_initial
   refine ⟨?_, ?_, by simp [modelOf, pendReal]⟩ <;>
   (unfold Model.Lifecycle.decrypt; rw [hdispatch]; simp [succ_decode_model,
     Model.Lifecycle.decryptRatchet, Model.Lifecycle.agreementFailed, modelOf, pendReal, succReal,

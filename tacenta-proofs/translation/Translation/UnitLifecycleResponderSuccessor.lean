@@ -742,8 +742,10 @@ theorem responder_first_frame_successor [Tacenta.SessionUnitT1.DerivedKeysModel]
           (arrayOf q.ratchetBytes) (arrayOf q.dhOut) dSend (oracleB.dhPublic dB) dB) ∧
       lifecycle.Session.invariant sB' = ok true ∧
       Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by
+  have hsize := Tacenta.UnitLifecycleEstablishResponder.establish_responder_ok_fits rcB crcB ourB storeB
+    msg rngB _ _ _ hcallB
   rcases responder_first_frame_prepares rcB crcB contracts hpub hsym hrt hct hbound codec q pending hpend _ msg
-      hmsg ourB storeB hpublish hidentity hdistinct hkem rngB with ⟨-, e, -, hrefuse⟩ |
+      hmsg hsize ourB storeB hpublish hidentity hdistinct hkem rngB with ⟨-, e, -, hrefuse⟩ |
     ⟨p, -, -, h3, -, h5, -, -, h8, -⟩
   · rw [hrefuse] at hcallB
     cases hcallB
@@ -827,9 +829,11 @@ theorem initiator_first_send_responder_successor_hypotheses [Tacenta.SessionUnit
           (arrayOf q.ratchetBytes) (arrayOf q.dhOut) dSend (oracleB.dhPublic dB) dB) ∧
       lifecycle.Session.invariant sB' = ok true ∧
       Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng
+    bytes s' rng' hcall
   obtain ⟨output, hcall', hdr, hcases⟩ := Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes rc
     crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen
-    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest hdraws
+    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest hdraws
   rw [hcall] at hcall'
   cases hcall'
   rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, hkg, bytes', hres, -, -, tripleNext, messageKey,

@@ -396,7 +396,8 @@ only. -/
 theorem second_model_step (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (mA : Model.Lifecycle.Session) (rkA prk k1 k2 dSend x newPub candPub c : Key) (a : Model.Braid.Auth)
     (dk ekVector : Model.Braid.Bytes) (enc : Model.Braid.Encoder)
-    (hbraid : mA.braid = .keysSampled 1 a dk ekVector enc) (pt : Model.Lifecycle.Bytes) :
+    (hbraid : mA.braid = .keysSampled 1 a dk ekVector enc) (pt : Model.Lifecycle.Bytes)
+    (hlen : pt.length ≤ Model.Lifecycle.maxPlaintextLen) :
     Model.Lifecycle.encrypt view oracle (replyReceiptSession mA rkA prk k1 k2 dSend x newPub candPub c) pt =
       { session := { replyReceiptSession mA rkA prk k1 k2 dSend x newPub candPub c with
           triple := initiatorAfterSecond rkA prk k1 k2 dSend x newPub candPub
@@ -404,7 +405,7 @@ theorem second_model_step (view : Model.Lifecycle.CodewordView) (oracle : Model.
         result := .ok (secondFrame view oracle mA.identityAd (.keysSampled 1 a dk ekVector enc) candPub
           (secondKey rkA k1 dSend x) enc.nextChunk.1 pt)
         oracle := oracle } := by
-  simp [Model.Lifecycle.encrypt, Model.Lifecycle.agreementFailed, Model.Lifecycle.sendAgreement,
+  simp [Model.Lifecycle.encrypt, Nat.not_lt.mpr hlen, Model.Lifecycle.agreementFailed, Model.Lifecycle.sendAgreement,
     Model.Lifecycle.braidSendNeedsDraw, Model.Braid.send, Model.Lifecycle.braidFailed,
     Model.Lifecycle.sparseOutputOf, Model.Braid.BraidState.epoch, replyReceiptSession, hbraid,
     second_send_key, Model.Lifecycle.compositeOf, Model.Lifecycle.compositeTypeOf, secondFrame,
@@ -496,7 +497,8 @@ message and the agreement at `keysSampled` epoch 1, holding `dk`, `ekVector` and
 theorem first_send_model_session_encoder {E : Type} {rcE : rand_core_1.RngCore E}
     {crcE : rand_core_1.CryptoRng E} (dh : DhView) (view : Model.Lifecycle.CodewordView)
     (oracle : Model.Lifecycle.Oracle) (q : InitiatorSecretParts rcE crcE our bundle)
-    (plaintext : Model.Lifecycle.Bytes) (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
+    (plaintext : Model.Lifecycle.Bytes) (hlen : plaintext.length ≤ Model.Lifecycle.maxPlaintextLen)
+    (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key)
     (hdraws : oracle.draws = d1 :: d2 :: rest) (dk ekSeed ekVector : Model.Braid.Bytes)
     (hkg : oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = some (dk, ekSeed, ekVector)) :
     (Model.Lifecycle.encrypt view oracle (establishedModelOf dh q.session) plaintext).session =
@@ -506,7 +508,7 @@ theorem first_send_model_session_encoder {E : Type} {rcE : rand_core_1.RngCore E
         braid := .keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector
           ⟨headerSource oracle.braidKem (Tacenta.SessionUnitBraidT3.AuthOf q.auth) ekSeed ekVector, 1⟩ } := by
   obtain ⟨-, hc⟩ := Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_model_cases dh view oracle
-    q.toInitiatorOutputParts plaintext d1 d2 rest hdraws
+    q.toInitiatorOutputParts plaintext hlen d1 d2 rest hdraws
   rcases hc with ⟨hnone, -⟩ | ⟨dk', ekSeed', ekVector', hkg', tripleNext, header, mk, chunk, encoder, pending,
     htriple, hnc, -, -, hsess⟩
   · rw [hkg] at hnone; cases hnone
@@ -595,9 +597,11 @@ theorem initiator_second_send_after_reply [Tacenta.SessionUnitT1.DerivedKeysMode
     (ptB : alloc.vec.Vec U8) (sB' : lifecycle.Session) (storeB' : lifecycle.PrekeyStore) (rngB' : F)
     (hcallB : lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =
       ok (core.result.Result.Ok (sB', ptB), storeB', rngB'))
-    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max) (rngR : F)
+    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max)
+    (hfitR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length + 150 ≤ Model.Lifecycle.maxRatchetFrameLen) (rngR : F)
     (hfreshB : oracleB.dhPublic dB ≠ arrayOf q.peerRatchetBytes)
-    (ptS : Slice Std.U8) (hroomS : 102 + (ptS.val.length + 48) ≤ Usize.max) :
+    (ptS : Slice Std.U8) (hroomS : 102 + (ptS.val.length + 48) ≤ Usize.max)
+    (hlenS : (Tacenta.UnitLifecycleT3.sliceOf ptS).length ≤ Model.Lifecycle.maxPlaintextLen) :
     ∃ (dSend x : Model.Lifecycle.Key) (bytesR : alloc.vec.Vec Std.U8) (sB'' : lifecycle.Session)
       (ptA : alloc.vec.Vec Std.U8) (s'' : lifecycle.Session) (rngA' : R) (dk ekSeed ekVector : Model.Braid.Bytes),
       oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = some (dk, ekSeed, ekVector) ∧
@@ -657,24 +661,29 @@ theorem initiator_second_send_after_reply [Tacenta.SessionUnitT1.DerivedKeysMode
                 (arrayOf q.sparseReceive) dSend x (oracleB.dhPublic dB) (oracle.dhPublic dA)
               braid := .keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector
                 ⟨headerSource oracle.braidKem (Tacenta.SessionUnitBraidT3.AuthOf q.auth) ekSeed ekVector, 2⟩ }) := by
+  have hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+    rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
+    simp only [Model.Lifecycle.maxPlaintextLen]; omega
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng
+    bytes s' rng' hcall
   -- the initiator's receipt of the reply, on the run
   obtain ⟨dSend, x, bytesR, sB'', ptA, s'', rngA', hagreeB, hx, hcallR, -, hcallA, hpt, hdr, hpend, -, hsess⟩ :=
     initiator_receives_reply rc crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec
       codewordView hz80 hz32 hzKeys hgen hsizes hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h q hq
       plaintext hroom rng htrace d1 d2 rest hdraws bytes s' rng' hcall contractsA agreementsA dA restA hdrawA rcB
       crcB contracts hpub hsym hcon haead hrt hoeq traceB oracleB oracleOfB braidB agreements ourB storeB hpublish
-      hidentity hdistinct hkem rngB htraceB dB restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR rngR hfreshB
+      hidentity hdistinct hkem rngB htraceB dB restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR hfitR rngR hfreshB
   -- the key generation of the first send, on the same call
   obtain ⟨output, hcall', -, hcases⟩ := Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes rc
     crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen
-    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest hdraws
+    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest hdraws
   rw [hcall] at hcall'
   cases hcall'
   rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, hkg, -⟩
   · cases hres
   subst hq
   -- the model session the receipt started from: its agreement emits the header's second chunk next
-  have hmA := first_send_model_session_encoder dh view oracle q (sliceOf plaintext) d1 d2 rest
+  have hmA := first_send_model_session_encoder dh view oracle q (sliceOf plaintext) hfits d1 d2 rest
     (htrace.symm.trans hdraws) dk ekSeed ekVector hkg
   have hbraid : (Model.Lifecycle.encrypt view oracle (establishedModelOf dh q.session) (sliceOf plaintext)).session.braid =
       .keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector
@@ -687,7 +696,7 @@ theorem initiator_second_send_after_reply [Tacenta.SessionUnitT1.DerivedKeysMode
   have hM := second_model_step view { oracle with draws := restA }
     (Model.Lifecycle.encrypt view oracle (establishedModelOf dh q.session) (sliceOf plaintext)).session
     (arrayOf q.rootKey) (arrayOf q.sparseRoot) (arrayOf q.sparseSend) (arrayOf q.sparseReceive) dSend x
-    (oracleB.dhPublic dB) (oracle.dhPublic dA) dA _ _ _ _ hbraid (sliceOf ptS)
+    (oracleB.dhPublic dB) (oracle.dhPublic dA) dA _ _ _ _ hbraid (sliceOf ptS) hlenS
   rw [hadA, secondFrame_with_draws] at hM
   have hdraw : Model.Lifecycle.braidSendNeedsDraw
       (replyReceiptSession
@@ -1191,26 +1200,28 @@ info: Tacenta.UnitLifecycleInitiatorSecondSend.second_model_step : ∀ (view : M
   (enc : Model.Braid.Encoder),
   mA.braid = Model.Braid.BraidState.keysSampled 1 a dk ekVector enc →
     ∀ (pt : Model.Lifecycle.Bytes),
-      Model.Lifecycle.encrypt view oracle
-          (Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession mA rkA prk k1 k2 dSend x newPub candPub c)
-          pt =
-        {
-          session :=
-            have __src :=
-              Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession mA rkA prk k1 k2 dSend x newPub candPub c;
-            {
-              triple :=
-                Tacenta.UnitLifecycleInitiatorSecondSend.initiatorAfterSecond rkA prk k1 k2 dSend x newPub candPub,
-              braid := Model.Braid.BraidState.keysSampled 1 a dk ekVector enc.nextChunk.2,
-              ratchetPrivate := __src.ratchetPrivate, identityAd := __src.identityAd,
-              ourIdentityPublic := __src.ourIdentityPublic, peerIdentityPublic := __src.peerIdentityPublic,
-              pendingInitial := __src.pendingInitial, establishedEphemeral := __src.establishedEphemeral },
-          result :=
-            Except.ok
-              (Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame view oracle mA.identityAd
-                (Model.Braid.BraidState.keysSampled 1 a dk ekVector enc) candPub
-                (Tacenta.UnitLifecycleInitiatorSecondSend.secondKey rkA k1 dSend x) enc.nextChunk.1 pt),
-          oracle := oracle }
+      List.length pt ≤ Model.Lifecycle.maxPlaintextLen →
+        Model.Lifecycle.encrypt view oracle
+            (Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession mA rkA prk k1 k2 dSend x newPub candPub c)
+            pt =
+          {
+            session :=
+              have __src :=
+                Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession mA rkA prk k1 k2 dSend x newPub candPub
+                  c;
+              {
+                triple :=
+                  Tacenta.UnitLifecycleInitiatorSecondSend.initiatorAfterSecond rkA prk k1 k2 dSend x newPub candPub,
+                braid := Model.Braid.BraidState.keysSampled 1 a dk ekVector enc.nextChunk.2,
+                ratchetPrivate := __src.ratchetPrivate, identityAd := __src.identityAd,
+                ourIdentityPublic := __src.ourIdentityPublic, peerIdentityPublic := __src.peerIdentityPublic,
+                pendingInitial := __src.pendingInitial, establishedEphemeral := __src.establishedEphemeral },
+            result :=
+              Except.ok
+                (Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame view oracle mA.identityAd
+                  (Model.Braid.BraidState.keysSampled 1 a dk ekVector enc) candPub
+                  (Tacenta.UnitLifecycleInitiatorSecondSend.secondKey rkA k1 dSend x) enc.nextChunk.1 pt),
+            oracle := oracle }
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleInitiatorSecondSend.second_model_step
@@ -1260,30 +1271,32 @@ info: @Tacenta.UnitLifecycleInitiatorSecondSend.first_send_model_session_encoder
   {bundle : lifecycle.PublishedBundle} {E : Type} {rcE : rand_core_1.RngCore E} {crcE : rand_core_1.CryptoRng E}
   (dh : Tacenta.UnitLifecycleT3.DhView) (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
   (q : Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rcE crcE our bundle)
-  (plaintext : Model.Lifecycle.Bytes) (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
-  oracle.draws = d1 :: d2 :: rest →
-    ∀ (dk ekSeed ekVector : Model.Braid.Bytes),
-      oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = some (dk, ekSeed, ekVector) →
-        (Model.Lifecycle.encrypt view oracle
-              (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) plaintext).session =
-          have __src := Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session;
-          {
-            triple :=
-              Tacenta.UnitLifecycleResponderFirstReceipt.senderAfterFirst
-                (Tacenta.UnitLifecycleT3.arrayOf q.ratchetBytes) (Tacenta.UnitLifecycleT3.arrayOf q.peerRatchetBytes)
-                (Tacenta.UnitLifecycleT3.arrayOf q.rootKey) (Tacenta.UnitLifecycleT3.arrayOf q.sendChain)
-                (Tacenta.UnitLifecycleT3.arrayOf q.sparseRoot) (Tacenta.UnitLifecycleT3.arrayOf q.sparseSend)
-                (Tacenta.UnitLifecycleT3.arrayOf q.sparseReceive),
-            braid :=
-              Model.Braid.BraidState.keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector
-                {
-                  source :=
-                    Tacenta.UnitLifecycleResponderFirstReceipt.headerSource oracle.braidKem
-                      (Tacenta.SessionUnitBraidT3.AuthOf q.auth) ekSeed ekVector,
-                  next := 1 },
-            ratchetPrivate := __src.ratchetPrivate, identityAd := __src.identityAd,
-            ourIdentityPublic := __src.ourIdentityPublic, peerIdentityPublic := __src.peerIdentityPublic,
-            pendingInitial := __src.pendingInitial, establishedEphemeral := __src.establishedEphemeral }
+  (plaintext : Model.Lifecycle.Bytes),
+  List.length plaintext ≤ Model.Lifecycle.maxPlaintextLen →
+    ∀ (d1 d2 : Model.Lifecycle.Key) (rest : List Model.Lifecycle.Key),
+      oracle.draws = d1 :: d2 :: rest →
+        ∀ (dk ekSeed ekVector : Model.Braid.Bytes),
+          oracle.braidKem.keyGen (Model.Lifecycle.braidRandomness (d1 ++ d2)) = some (dk, ekSeed, ekVector) →
+            (Model.Lifecycle.encrypt view oracle
+                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) plaintext).session =
+              have __src := Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session;
+              {
+                triple :=
+                  Tacenta.UnitLifecycleResponderFirstReceipt.senderAfterFirst
+                    (Tacenta.UnitLifecycleT3.arrayOf q.ratchetBytes)
+                    (Tacenta.UnitLifecycleT3.arrayOf q.peerRatchetBytes) (Tacenta.UnitLifecycleT3.arrayOf q.rootKey)
+                    (Tacenta.UnitLifecycleT3.arrayOf q.sendChain) (Tacenta.UnitLifecycleT3.arrayOf q.sparseRoot)
+                    (Tacenta.UnitLifecycleT3.arrayOf q.sparseSend) (Tacenta.UnitLifecycleT3.arrayOf q.sparseReceive),
+                braid :=
+                  Model.Braid.BraidState.keysSampled 1 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector
+                    {
+                      source :=
+                        Tacenta.UnitLifecycleResponderFirstReceipt.headerSource oracle.braidKem
+                          (Tacenta.SessionUnitBraidT3.AuthOf q.auth) ekSeed ekVector,
+                      next := 1 },
+                ratchetPrivate := __src.ratchetPrivate, identityAd := __src.identityAd,
+                ourIdentityPublic := __src.ourIdentityPublic, peerIdentityPublic := __src.peerIdentityPublic,
+                pendingInitial := __src.pendingInitial, establishedEphemeral := __src.establishedEphemeral }
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleInitiatorSecondSend.first_send_model_session_encoder
@@ -1404,193 +1417,120 @@ info: @Tacenta.UnitLifecycleInitiatorSecondSend.initiator_second_send_after_repl
                                                                                                                   ((↑ptR).length +
                                                                                                                     48) ≤
                                                                                                                 Usize.max →
-                                                                                                              ∀
-                                                                                                                (rngR :
-                                                                                                                  F),
-                                                                                                                oracleB.dhPublic
-                                                                                                                      dB ≠
-                                                                                                                    Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                      q.peerRatchetBytes →
-                                                                                                                  ∀
-                                                                                                                    (ptS :
-                                                                                                                      Slice
-                                                                                                                        U8),
-                                                                                                                    102 +
-                                                                                                                          ((↑ptS).length +
-                                                                                                                            48) ≤
-                                                                                                                        Usize.max →
-                                                                                                                      ∃
-                                                                                                                        dSend
-                                                                                                                        x
-                                                                                                                        bytesR
-                                                                                                                        sB''
-                                                                                                                        ptA
-                                                                                                                        s''
-                                                                                                                        rngA'
-                                                                                                                        dk
-                                                                                                                        ekSeed
-                                                                                                                        ekVector,
-                                                                                                                        oracle.braidKem.keyGen
-                                                                                                                              (Model.Lifecycle.braidRandomness
-                                                                                                                                (d1 ++
-                                                                                                                                  d2)) =
-                                                                                                                            some
-                                                                                                                              (dk,
-                                                                                                                                ekSeed,
-                                                                                                                                ekVector) ∧
-                                                                                                                          oracleB.dhAgree
-                                                                                                                                dB
-                                                                                                                                (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                  q.ratchetBytes) =
-                                                                                                                              some
-                                                                                                                                dSend ∧
-                                                                                                                            oracle.dhAgree
-                                                                                                                                  dA
-                                                                                                                                  (oracleB.dhPublic
-                                                                                                                                    dB) =
+                                                                                                              List.length
+                                                                                                                      (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                        ptR) +
+                                                                                                                    150 ≤
+                                                                                                                  Model.Lifecycle.maxRatchetFrameLen →
+                                                                                                                ∀
+                                                                                                                  (rngR :
+                                                                                                                    F),
+                                                                                                                  oracleB.dhPublic
+                                                                                                                        dB ≠
+                                                                                                                      Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                        q.peerRatchetBytes →
+                                                                                                                    ∀
+                                                                                                                      (ptS :
+                                                                                                                        Slice
+                                                                                                                          U8),
+                                                                                                                      102 +
+                                                                                                                            ((↑ptS).length +
+                                                                                                                              48) ≤
+                                                                                                                          Usize.max →
+                                                                                                                        List.length
+                                                                                                                              (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                ptS) ≤
+                                                                                                                            Model.Lifecycle.maxPlaintextLen →
+                                                                                                                          ∃
+                                                                                                                            dSend
+                                                                                                                            x
+                                                                                                                            bytesR
+                                                                                                                            sB''
+                                                                                                                            ptA
+                                                                                                                            s''
+                                                                                                                            rngA'
+                                                                                                                            dk
+                                                                                                                            ekSeed
+                                                                                                                            ekVector,
+                                                                                                                            oracle.braidKem.keyGen
+                                                                                                                                  (Model.Lifecycle.braidRandomness
+                                                                                                                                    (d1 ++
+                                                                                                                                      d2)) =
                                                                                                                                 some
-                                                                                                                                  x ∧
-                                                                                                                              lifecycle.Session.encrypt
-                                                                                                                                    rcB
-                                                                                                                                    crcB
-                                                                                                                                    sB'
-                                                                                                                                    ptR
-                                                                                                                                    rngR =
-                                                                                                                                  ok
-                                                                                                                                    (core.result.Result.Ok
-                                                                                                                                        bytesR,
-                                                                                                                                      sB'',
-                                                                                                                                      rngR) ∧
-                                                                                                                                lifecycle.Session.decrypt
-                                                                                                                                      rc
-                                                                                                                                      crc
-                                                                                                                                      s'
-                                                                                                                                      bytesR.deref
-                                                                                                                                      rng' =
-                                                                                                                                    ok
-                                                                                                                                      (core.result.Result.Ok
-                                                                                                                                          ptA,
-                                                                                                                                        s'',
-                                                                                                                                        rngA') ∧
-                                                                                                                                  ↑ptA =
-                                                                                                                                      ↑ptR ∧
-                                                                                                                                    trace
-                                                                                                                                          rngA' =
-                                                                                                                                        restA ∧
-                                                                                                                                      s''.pending_initial =
-                                                                                                                                          none ∧
-                                                                                                                                        Tacenta.UnitLifecycleT3.SessionRefines
-                                                                                                                                            dh
-                                                                                                                                            oracle.braidKem
-                                                                                                                                            s''
-                                                                                                                                            (Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
-                                                                                                                                              (Model.Lifecycle.encrypt
-                                                                                                                                                  view
-                                                                                                                                                  oracle
-                                                                                                                                                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                                                                                    dh
-                                                                                                                                                    s)
-                                                                                                                                                  (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                                    plaintext)).session
-                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                q.rootKey)
-                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                q.sparseRoot)
-                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                q.sparseSend)
-                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                q.sparseReceive)
-                                                                                                                                              dSend
-                                                                                                                                              x
-                                                                                                                                              (oracleB.dhPublic
-                                                                                                                                                dB)
-                                                                                                                                              (oracle.dhPublic
-                                                                                                                                                dA)
-                                                                                                                                              dA) ∧
-                                                                                                                                          Model.Lifecycle.braidSendNeedsDraw
+                                                                                                                                  (dk,
+                                                                                                                                    ekSeed,
+                                                                                                                                    ekVector) ∧
+                                                                                                                              oracleB.dhAgree
+                                                                                                                                    dB
+                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                      q.ratchetBytes) =
+                                                                                                                                  some
+                                                                                                                                    dSend ∧
+                                                                                                                                oracle.dhAgree
+                                                                                                                                      dA
+                                                                                                                                      (oracleB.dhPublic
+                                                                                                                                        dB) =
+                                                                                                                                    some
+                                                                                                                                      x ∧
+                                                                                                                                  lifecycle.Session.encrypt
+                                                                                                                                        rcB
+                                                                                                                                        crcB
+                                                                                                                                        sB'
+                                                                                                                                        ptR
+                                                                                                                                        rngR =
+                                                                                                                                      ok
+                                                                                                                                        (core.result.Result.Ok
+                                                                                                                                            bytesR,
+                                                                                                                                          sB'',
+                                                                                                                                          rngR) ∧
+                                                                                                                                    lifecycle.Session.decrypt
+                                                                                                                                          rc
+                                                                                                                                          crc
+                                                                                                                                          s'
+                                                                                                                                          bytesR.deref
+                                                                                                                                          rng' =
+                                                                                                                                        ok
+                                                                                                                                          (core.result.Result.Ok
+                                                                                                                                              ptA,
+                                                                                                                                            s'',
+                                                                                                                                            rngA') ∧
+                                                                                                                                      ↑ptA =
+                                                                                                                                          ↑ptR ∧
+                                                                                                                                        trace
+                                                                                                                                              rngA' =
+                                                                                                                                            restA ∧
+                                                                                                                                          s''.pending_initial =
+                                                                                                                                              none ∧
+                                                                                                                                            Tacenta.UnitLifecycleT3.SessionRefines
+                                                                                                                                                dh
+                                                                                                                                                oracle.braidKem
+                                                                                                                                                s''
                                                                                                                                                 (Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
-                                                                                                                                                    (Model.Lifecycle.encrypt
-                                                                                                                                                        view
-                                                                                                                                                        oracle
-                                                                                                                                                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                                                                                          dh
-                                                                                                                                                          s)
-                                                                                                                                                        (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                                          plaintext)).session
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.rootKey)
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.sparseRoot)
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.sparseSend)
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.sparseReceive)
-                                                                                                                                                    dSend
-                                                                                                                                                    x
-                                                                                                                                                    (oracleB.dhPublic
-                                                                                                                                                      dB)
-                                                                                                                                                    (oracle.dhPublic
-                                                                                                                                                      dA)
-                                                                                                                                                    dA).braid =
-                                                                                                                                              false ∧
-                                                                                                                                            Model.Lifecycle.encrypt
-                                                                                                                                                  view
-                                                                                                                                                  {
-                                                                                                                                                    draws :=
-                                                                                                                                                      restA,
-                                                                                                                                                    braidKem :=
-                                                                                                                                                      oracle.braidKem,
-                                                                                                                                                    dhPublic :=
-                                                                                                                                                      oracle.dhPublic,
-                                                                                                                                                    dhAgree :=
-                                                                                                                                                      oracle.dhAgree,
-                                                                                                                                                    identityValid :=
-                                                                                                                                                      oracle.identityValid,
-                                                                                                                                                    aeadSeal :=
-                                                                                                                                                      oracle.aeadSeal,
-                                                                                                                                                    aeadOpen :=
-                                                                                                                                                      oracle.aeadOpen,
-                                                                                                                                                    kemValid :=
-                                                                                                                                                      oracle.kemValid,
-                                                                                                                                                    kemEncaps :=
-                                                                                                                                                      oracle.kemEncaps,
-                                                                                                                                                    kemDecaps :=
-                                                                                                                                                      oracle.kemDecaps,
-                                                                                                                                                    sigVerify :=
-                                                                                                                                                      oracle.sigVerify,
-                                                                                                                                                    sigSign :=
-                                                                                                                                                      oracle.sigSign }
-                                                                                                                                                  (Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
-                                                                                                                                                    (Model.Lifecycle.encrypt
-                                                                                                                                                        view
-                                                                                                                                                        oracle
-                                                                                                                                                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                                                                                          dh
-                                                                                                                                                          s)
-                                                                                                                                                        (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                                          plaintext)).session
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.rootKey)
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.sparseRoot)
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.sparseSend)
-                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                      q.sparseReceive)
-                                                                                                                                                    dSend
-                                                                                                                                                    x
-                                                                                                                                                    (oracleB.dhPublic
-                                                                                                                                                      dB)
-                                                                                                                                                    (oracle.dhPublic
-                                                                                                                                                      dA)
+                                                                                                                                                  (Model.Lifecycle.encrypt
+                                                                                                                                                      view
+                                                                                                                                                      oracle
+                                                                                                                                                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                                                                                        dh
+                                                                                                                                                        s)
+                                                                                                                                                      (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                        plaintext)).session
+                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                    q.rootKey)
+                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                    q.sparseRoot)
+                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                    q.sparseSend)
+                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                    q.sparseReceive)
+                                                                                                                                                  dSend
+                                                                                                                                                  x
+                                                                                                                                                  (oracleB.dhPublic
+                                                                                                                                                    dB)
+                                                                                                                                                  (oracle.dhPublic
                                                                                                                                                     dA)
-                                                                                                                                                  (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                                    ptS) =
-                                                                                                                                                {
-                                                                                                                                                  session :=
-                                                                                                                                                    have
-                                                                                                                                                      __src :=
-                                                                                                                                                      Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
+                                                                                                                                                  dA) ∧
+                                                                                                                                              Model.Lifecycle.braidSendNeedsDraw
+                                                                                                                                                    (Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
                                                                                                                                                         (Model.Lifecycle.encrypt
                                                                                                                                                             view
                                                                                                                                                             oracle
@@ -1613,260 +1553,276 @@ info: @Tacenta.UnitLifecycleInitiatorSecondSend.initiator_second_send_after_repl
                                                                                                                                                           dB)
                                                                                                                                                         (oracle.dhPublic
                                                                                                                                                           dA)
-                                                                                                                                                        dA;
-                                                                                                                                                    {
-                                                                                                                                                      triple :=
-                                                                                                                                                        Tacenta.UnitLifecycleInitiatorSecondSend.initiatorAfterSecond
-                                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.rootKey)
-                                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.sparseRoot)
-                                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.sparseSend)
-                                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.sparseReceive)
-                                                                                                                                                          dSend
-                                                                                                                                                          x
-                                                                                                                                                          (oracleB.dhPublic
-                                                                                                                                                            dB)
-                                                                                                                                                          (oracle.dhPublic
-                                                                                                                                                            dA),
-                                                                                                                                                      braid :=
-                                                                                                                                                        Model.Braid.BraidState.keysSampled
-                                                                                                                                                          1
-                                                                                                                                                          (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                            q.auth)
-                                                                                                                                                          dk
-                                                                                                                                                          ekVector
-                                                                                                                                                          {
-                                                                                                                                                            source :=
-                                                                                                                                                              Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
-                                                                                                                                                                oracle.braidKem
-                                                                                                                                                                (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                                  q.auth)
-                                                                                                                                                                ekSeed
-                                                                                                                                                                ekVector,
-                                                                                                                                                            next :=
-                                                                                                                                                              2 },
-                                                                                                                                                      ratchetPrivate :=
-                                                                                                                                                        __src.ratchetPrivate,
-                                                                                                                                                      identityAd :=
-                                                                                                                                                        __src.identityAd,
-                                                                                                                                                      ourIdentityPublic :=
-                                                                                                                                                        __src.ourIdentityPublic,
-                                                                                                                                                      peerIdentityPublic :=
-                                                                                                                                                        __src.peerIdentityPublic,
-                                                                                                                                                      pendingInitial :=
-                                                                                                                                                        __src.pendingInitial,
-                                                                                                                                                      establishedEphemeral :=
-                                                                                                                                                        __src.establishedEphemeral },
-                                                                                                                                                  result :=
-                                                                                                                                                    Except.ok
-                                                                                                                                                      (Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame
-                                                                                                                                                        view
-                                                                                                                                                        oracle
-                                                                                                                                                        (Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                                          q.identityAd)
-                                                                                                                                                        (Model.Braid.BraidState.keysSampled
-                                                                                                                                                          1
-                                                                                                                                                          (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                            q.auth)
-                                                                                                                                                          dk
-                                                                                                                                                          ekVector
-                                                                                                                                                          {
-                                                                                                                                                            source :=
-                                                                                                                                                              Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
-                                                                                                                                                                oracle.braidKem
-                                                                                                                                                                (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                                  q.auth)
-                                                                                                                                                                ekSeed
-                                                                                                                                                                ekVector,
-                                                                                                                                                            next :=
-                                                                                                                                                              1 })
+                                                                                                                                                        dA).braid =
+                                                                                                                                                  false ∧
+                                                                                                                                                Model.Lifecycle.encrypt
+                                                                                                                                                      view
+                                                                                                                                                      {
+                                                                                                                                                        draws :=
+                                                                                                                                                          restA,
+                                                                                                                                                        braidKem :=
+                                                                                                                                                          oracle.braidKem,
+                                                                                                                                                        dhPublic :=
+                                                                                                                                                          oracle.dhPublic,
+                                                                                                                                                        dhAgree :=
+                                                                                                                                                          oracle.dhAgree,
+                                                                                                                                                        identityValid :=
+                                                                                                                                                          oracle.identityValid,
+                                                                                                                                                        aeadSeal :=
+                                                                                                                                                          oracle.aeadSeal,
+                                                                                                                                                        aeadOpen :=
+                                                                                                                                                          oracle.aeadOpen,
+                                                                                                                                                        kemValid :=
+                                                                                                                                                          oracle.kemValid,
+                                                                                                                                                        kemEncaps :=
+                                                                                                                                                          oracle.kemEncaps,
+                                                                                                                                                        kemDecaps :=
+                                                                                                                                                          oracle.kemDecaps,
+                                                                                                                                                        sigVerify :=
+                                                                                                                                                          oracle.sigVerify,
+                                                                                                                                                        sigSign :=
+                                                                                                                                                          oracle.sigSign }
+                                                                                                                                                      (Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
+                                                                                                                                                        (Model.Lifecycle.encrypt
+                                                                                                                                                            view
+                                                                                                                                                            oracle
+                                                                                                                                                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                                                                                              dh
+                                                                                                                                                              s)
+                                                                                                                                                            (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                              plaintext)).session
+                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                          q.rootKey)
+                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                          q.sparseRoot)
+                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                          q.sparseSend)
+                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                          q.sparseReceive)
+                                                                                                                                                        dSend
+                                                                                                                                                        x
+                                                                                                                                                        (oracleB.dhPublic
+                                                                                                                                                          dB)
                                                                                                                                                         (oracle.dhPublic
                                                                                                                                                           dA)
-                                                                                                                                                        (Tacenta.UnitLifecycleInitiatorSecondSend.secondKey
-                                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.rootKey)
-                                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.sparseSend)
-                                                                                                                                                          dSend
-                                                                                                                                                          x)
-                                                                                                                                                        {
-                                                                                                                                                          source :=
-                                                                                                                                                            Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
-                                                                                                                                                              oracle.braidKem
-                                                                                                                                                              (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                                q.auth)
-                                                                                                                                                              ekSeed
-                                                                                                                                                              ekVector,
-                                                                                                                                                          index :=
-                                                                                                                                                            1 }
-                                                                                                                                                        (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                                          ptS)),
-                                                                                                                                                  oracle :=
+                                                                                                                                                        dA)
+                                                                                                                                                      (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                        ptS) =
                                                                                                                                                     {
-                                                                                                                                                      draws :=
-                                                                                                                                                        restA,
-                                                                                                                                                      braidKem :=
-                                                                                                                                                        oracle.braidKem,
-                                                                                                                                                      dhPublic :=
-                                                                                                                                                        oracle.dhPublic,
-                                                                                                                                                      dhAgree :=
-                                                                                                                                                        oracle.dhAgree,
-                                                                                                                                                      identityValid :=
-                                                                                                                                                        oracle.identityValid,
-                                                                                                                                                      aeadSeal :=
-                                                                                                                                                        oracle.aeadSeal,
-                                                                                                                                                      aeadOpen :=
-                                                                                                                                                        oracle.aeadOpen,
-                                                                                                                                                      kemValid :=
-                                                                                                                                                        oracle.kemValid,
-                                                                                                                                                      kemEncaps :=
-                                                                                                                                                        oracle.kemEncaps,
-                                                                                                                                                      kemDecaps :=
-                                                                                                                                                        oracle.kemDecaps,
-                                                                                                                                                      sigVerify :=
-                                                                                                                                                        oracle.sigVerify,
-                                                                                                                                                      sigSign :=
-                                                                                                                                                        oracle.sigSign } } ∧
-                                                                                                                                              (s''.invariant =
-                                                                                                                                                  ok
-                                                                                                                                                    true →
-                                                                                                                                                Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
-                                                                                                                                                    s'' →
-                                                                                                                                                  ∃
-                                                                                                                                                    bytes2
-                                                                                                                                                    s''',
-                                                                                                                                                    lifecycle.Session.encrypt
-                                                                                                                                                          rc
-                                                                                                                                                          crc
-                                                                                                                                                          s''
-                                                                                                                                                          ptS
-                                                                                                                                                          rngA' =
-                                                                                                                                                        ok
-                                                                                                                                                          (core.result.Result.Ok
-                                                                                                                                                              bytes2,
-                                                                                                                                                            s''',
-                                                                                                                                                            rngA') ∧
-                                                                                                                                                      s''' =
-                                                                                                                                                          {
-                                                                                                                                                            triple :=
-                                                                                                                                                              s'''.triple,
-                                                                                                                                                            braid :=
-                                                                                                                                                              s'''.braid,
-                                                                                                                                                            ratchet_private :=
-                                                                                                                                                              s''.ratchet_private,
-                                                                                                                                                            identity_ad :=
-                                                                                                                                                              s''.identity_ad,
-                                                                                                                                                            our_identity_public :=
-                                                                                                                                                              s''.our_identity_public,
-                                                                                                                                                            peer_identity_public :=
-                                                                                                                                                              s''.peer_identity_public,
-                                                                                                                                                            pending_initial :=
-                                                                                                                                                              s''.pending_initial,
-                                                                                                                                                            established_ephemeral :=
-                                                                                                                                                              s''.established_ephemeral } ∧
-                                                                                                                                                        s'''.pending_initial =
-                                                                                                                                                            none ∧
-                                                                                                                                                          Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                                                bytes2 =
-                                                                                                                                                              Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame
+                                                                                                                                                      session :=
+                                                                                                                                                        have
+                                                                                                                                                          __src :=
+                                                                                                                                                          Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
+                                                                                                                                                            (Model.Lifecycle.encrypt
                                                                                                                                                                 view
                                                                                                                                                                 oracle
-                                                                                                                                                                (Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                                                  q.identityAd)
-                                                                                                                                                                (Model.Braid.BraidState.keysSampled
-                                                                                                                                                                  1
-                                                                                                                                                                  (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                                    q.auth)
-                                                                                                                                                                  dk
-                                                                                                                                                                  ekVector
-                                                                                                                                                                  {
-                                                                                                                                                                    source :=
-                                                                                                                                                                      Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
-                                                                                                                                                                        oracle.braidKem
-                                                                                                                                                                        (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                                          q.auth)
-                                                                                                                                                                        ekSeed
-                                                                                                                                                                        ekVector,
-                                                                                                                                                                    next :=
-                                                                                                                                                                      1 })
-                                                                                                                                                                (oracle.dhPublic
-                                                                                                                                                                  dA)
-                                                                                                                                                                (Tacenta.UnitLifecycleInitiatorSecondSend.secondKey
-                                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                    q.rootKey)
-                                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                    q.sparseSend)
-                                                                                                                                                                  dSend
-                                                                                                                                                                  x)
-                                                                                                                                                                {
-                                                                                                                                                                  source :=
-                                                                                                                                                                    Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
-                                                                                                                                                                      oracle.braidKem
-                                                                                                                                                                      (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                                                        q.auth)
-                                                                                                                                                                      ekSeed
-                                                                                                                                                                      ekVector,
-                                                                                                                                                                  index :=
-                                                                                                                                                                    1 }
+                                                                                                                                                                (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                                                                                                  dh
+                                                                                                                                                                  s)
                                                                                                                                                                 (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                                                  ptS) ∧
-                                                                                                                                                            Tacenta.UnitLifecycleT3.SessionRefines
-                                                                                                                                                              dh
-                                                                                                                                                              oracle.braidKem
-                                                                                                                                                              s'''
-                                                                                                                                                              (have
-                                                                                                                                                                __src :=
-                                                                                                                                                                Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
-                                                                                                                                                                  (Model.Lifecycle.encrypt
-                                                                                                                                                                      view
-                                                                                                                                                                      oracle
-                                                                                                                                                                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                                                                                                        dh
-                                                                                                                                                                        s)
-                                                                                                                                                                      (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                                                        plaintext)).session
-                                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                    q.rootKey)
-                                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                    q.sparseRoot)
-                                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                    q.sparseSend)
-                                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                    q.sparseReceive)
-                                                                                                                                                                  dSend
-                                                                                                                                                                  x
-                                                                                                                                                                  (oracleB.dhPublic
-                                                                                                                                                                    dB)
-                                                                                                                                                                  (oracle.dhPublic
-                                                                                                                                                                    dA)
-                                                                                                                                                                  dA;
+                                                                                                                                                                  plaintext)).session
+                                                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                              q.rootKey)
+                                                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                              q.sparseRoot)
+                                                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                              q.sparseSend)
+                                                                                                                                                            (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                              q.sparseReceive)
+                                                                                                                                                            dSend
+                                                                                                                                                            x
+                                                                                                                                                            (oracleB.dhPublic
+                                                                                                                                                              dB)
+                                                                                                                                                            (oracle.dhPublic
+                                                                                                                                                              dA)
+                                                                                                                                                            dA;
+                                                                                                                                                        {
+                                                                                                                                                          triple :=
+                                                                                                                                                            Tacenta.UnitLifecycleInitiatorSecondSend.initiatorAfterSecond
+                                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                q.rootKey)
+                                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                q.sparseRoot)
+                                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                q.sparseSend)
+                                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                q.sparseReceive)
+                                                                                                                                                              dSend
+                                                                                                                                                              x
+                                                                                                                                                              (oracleB.dhPublic
+                                                                                                                                                                dB)
+                                                                                                                                                              (oracle.dhPublic
+                                                                                                                                                                dA),
+                                                                                                                                                          braid :=
+                                                                                                                                                            Model.Braid.BraidState.keysSampled
+                                                                                                                                                              1
+                                                                                                                                                              (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                q.auth)
+                                                                                                                                                              dk
+                                                                                                                                                              ekVector
                                                                                                                                                               {
-                                                                                                                                                                triple :=
-                                                                                                                                                                  Tacenta.UnitLifecycleInitiatorSecondSend.initiatorAfterSecond
-                                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                      q.rootKey)
-                                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                      q.sparseRoot)
-                                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                      q.sparseSend)
-                                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                                      q.sparseReceive)
-                                                                                                                                                                    dSend
-                                                                                                                                                                    x
-                                                                                                                                                                    (oracleB.dhPublic
-                                                                                                                                                                      dB)
-                                                                                                                                                                    (oracle.dhPublic
-                                                                                                                                                                      dA),
-                                                                                                                                                                braid :=
-                                                                                                                                                                  Model.Braid.BraidState.keysSampled
-                                                                                                                                                                    1
+                                                                                                                                                                source :=
+                                                                                                                                                                  Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+                                                                                                                                                                    oracle.braidKem
                                                                                                                                                                     (Tacenta.SessionUnitBraidT3.AuthOf
                                                                                                                                                                       q.auth)
-                                                                                                                                                                    dk
-                                                                                                                                                                    ekVector
+                                                                                                                                                                    ekSeed
+                                                                                                                                                                    ekVector,
+                                                                                                                                                                next :=
+                                                                                                                                                                  2 },
+                                                                                                                                                          ratchetPrivate :=
+                                                                                                                                                            __src.ratchetPrivate,
+                                                                                                                                                          identityAd :=
+                                                                                                                                                            __src.identityAd,
+                                                                                                                                                          ourIdentityPublic :=
+                                                                                                                                                            __src.ourIdentityPublic,
+                                                                                                                                                          peerIdentityPublic :=
+                                                                                                                                                            __src.peerIdentityPublic,
+                                                                                                                                                          pendingInitial :=
+                                                                                                                                                            __src.pendingInitial,
+                                                                                                                                                          establishedEphemeral :=
+                                                                                                                                                            __src.establishedEphemeral },
+                                                                                                                                                      result :=
+                                                                                                                                                        Except.ok
+                                                                                                                                                          (Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame
+                                                                                                                                                            view
+                                                                                                                                                            oracle
+                                                                                                                                                            (Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                                              q.identityAd)
+                                                                                                                                                            (Model.Braid.BraidState.keysSampled
+                                                                                                                                                              1
+                                                                                                                                                              (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                q.auth)
+                                                                                                                                                              dk
+                                                                                                                                                              ekVector
+                                                                                                                                                              {
+                                                                                                                                                                source :=
+                                                                                                                                                                  Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+                                                                                                                                                                    oracle.braidKem
+                                                                                                                                                                    (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                      q.auth)
+                                                                                                                                                                    ekSeed
+                                                                                                                                                                    ekVector,
+                                                                                                                                                                next :=
+                                                                                                                                                                  1 })
+                                                                                                                                                            (oracle.dhPublic
+                                                                                                                                                              dA)
+                                                                                                                                                            (Tacenta.UnitLifecycleInitiatorSecondSend.secondKey
+                                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                q.rootKey)
+                                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                q.sparseSend)
+                                                                                                                                                              dSend
+                                                                                                                                                              x)
+                                                                                                                                                            {
+                                                                                                                                                              source :=
+                                                                                                                                                                Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+                                                                                                                                                                  oracle.braidKem
+                                                                                                                                                                  (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                    q.auth)
+                                                                                                                                                                  ekSeed
+                                                                                                                                                                  ekVector,
+                                                                                                                                                              index :=
+                                                                                                                                                                1 }
+                                                                                                                                                            (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                              ptS)),
+                                                                                                                                                      oracle :=
+                                                                                                                                                        {
+                                                                                                                                                          draws :=
+                                                                                                                                                            restA,
+                                                                                                                                                          braidKem :=
+                                                                                                                                                            oracle.braidKem,
+                                                                                                                                                          dhPublic :=
+                                                                                                                                                            oracle.dhPublic,
+                                                                                                                                                          dhAgree :=
+                                                                                                                                                            oracle.dhAgree,
+                                                                                                                                                          identityValid :=
+                                                                                                                                                            oracle.identityValid,
+                                                                                                                                                          aeadSeal :=
+                                                                                                                                                            oracle.aeadSeal,
+                                                                                                                                                          aeadOpen :=
+                                                                                                                                                            oracle.aeadOpen,
+                                                                                                                                                          kemValid :=
+                                                                                                                                                            oracle.kemValid,
+                                                                                                                                                          kemEncaps :=
+                                                                                                                                                            oracle.kemEncaps,
+                                                                                                                                                          kemDecaps :=
+                                                                                                                                                            oracle.kemDecaps,
+                                                                                                                                                          sigVerify :=
+                                                                                                                                                            oracle.sigVerify,
+                                                                                                                                                          sigSign :=
+                                                                                                                                                            oracle.sigSign } } ∧
+                                                                                                                                                  (s''.invariant =
+                                                                                                                                                      ok
+                                                                                                                                                        true →
+                                                                                                                                                    Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                                                                                        s'' →
+                                                                                                                                                      ∃
+                                                                                                                                                        bytes2
+                                                                                                                                                        s''',
+                                                                                                                                                        lifecycle.Session.encrypt
+                                                                                                                                                              rc
+                                                                                                                                                              crc
+                                                                                                                                                              s''
+                                                                                                                                                              ptS
+                                                                                                                                                              rngA' =
+                                                                                                                                                            ok
+                                                                                                                                                              (core.result.Result.Ok
+                                                                                                                                                                  bytes2,
+                                                                                                                                                                s''',
+                                                                                                                                                                rngA') ∧
+                                                                                                                                                          s''' =
+                                                                                                                                                              {
+                                                                                                                                                                triple :=
+                                                                                                                                                                  s'''.triple,
+                                                                                                                                                                braid :=
+                                                                                                                                                                  s'''.braid,
+                                                                                                                                                                ratchet_private :=
+                                                                                                                                                                  s''.ratchet_private,
+                                                                                                                                                                identity_ad :=
+                                                                                                                                                                  s''.identity_ad,
+                                                                                                                                                                our_identity_public :=
+                                                                                                                                                                  s''.our_identity_public,
+                                                                                                                                                                peer_identity_public :=
+                                                                                                                                                                  s''.peer_identity_public,
+                                                                                                                                                                pending_initial :=
+                                                                                                                                                                  s''.pending_initial,
+                                                                                                                                                                established_ephemeral :=
+                                                                                                                                                                  s''.established_ephemeral } ∧
+                                                                                                                                                            s'''.pending_initial =
+                                                                                                                                                                none ∧
+                                                                                                                                                              Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                                                    bytes2 =
+                                                                                                                                                                  Tacenta.UnitLifecycleInitiatorSecondSend.secondFrame
+                                                                                                                                                                    view
+                                                                                                                                                                    oracle
+                                                                                                                                                                    (Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                                                      q.identityAd)
+                                                                                                                                                                    (Model.Braid.BraidState.keysSampled
+                                                                                                                                                                      1
+                                                                                                                                                                      (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                        q.auth)
+                                                                                                                                                                      dk
+                                                                                                                                                                      ekVector
+                                                                                                                                                                      {
+                                                                                                                                                                        source :=
+                                                                                                                                                                          Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+                                                                                                                                                                            oracle.braidKem
+                                                                                                                                                                            (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                              q.auth)
+                                                                                                                                                                            ekSeed
+                                                                                                                                                                            ekVector,
+                                                                                                                                                                        next :=
+                                                                                                                                                                          1 })
+                                                                                                                                                                    (oracle.dhPublic
+                                                                                                                                                                      dA)
+                                                                                                                                                                    (Tacenta.UnitLifecycleInitiatorSecondSend.secondKey
+                                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                        q.rootKey)
+                                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                        q.sparseSend)
+                                                                                                                                                                      dSend
+                                                                                                                                                                      x)
                                                                                                                                                                     {
                                                                                                                                                                       source :=
                                                                                                                                                                         Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
@@ -1875,20 +1831,86 @@ info: @Tacenta.UnitLifecycleInitiatorSecondSend.initiator_second_send_after_repl
                                                                                                                                                                             q.auth)
                                                                                                                                                                           ekSeed
                                                                                                                                                                           ekVector,
-                                                                                                                                                                      next :=
-                                                                                                                                                                        2 },
-                                                                                                                                                                ratchetPrivate :=
-                                                                                                                                                                  __src.ratchetPrivate,
-                                                                                                                                                                identityAd :=
-                                                                                                                                                                  __src.identityAd,
-                                                                                                                                                                ourIdentityPublic :=
-                                                                                                                                                                  __src.ourIdentityPublic,
-                                                                                                                                                                peerIdentityPublic :=
-                                                                                                                                                                  __src.peerIdentityPublic,
-                                                                                                                                                                pendingInitial :=
-                                                                                                                                                                  __src.pendingInitial,
-                                                                                                                                                                establishedEphemeral :=
-                                                                                                                                                                  __src.establishedEphemeral }))
+                                                                                                                                                                      index :=
+                                                                                                                                                                        1 }
+                                                                                                                                                                    (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                                      ptS) ∧
+                                                                                                                                                                Tacenta.UnitLifecycleT3.SessionRefines
+                                                                                                                                                                  dh
+                                                                                                                                                                  oracle.braidKem
+                                                                                                                                                                  s'''
+                                                                                                                                                                  (have
+                                                                                                                                                                    __src :=
+                                                                                                                                                                    Tacenta.UnitLifecycleResponderReplyReceipt.replyReceiptSession
+                                                                                                                                                                      (Model.Lifecycle.encrypt
+                                                                                                                                                                          view
+                                                                                                                                                                          oracle
+                                                                                                                                                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                                                                                                            dh
+                                                                                                                                                                            s)
+                                                                                                                                                                          (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                                            plaintext)).session
+                                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                        q.rootKey)
+                                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                        q.sparseRoot)
+                                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                        q.sparseSend)
+                                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                        q.sparseReceive)
+                                                                                                                                                                      dSend
+                                                                                                                                                                      x
+                                                                                                                                                                      (oracleB.dhPublic
+                                                                                                                                                                        dB)
+                                                                                                                                                                      (oracle.dhPublic
+                                                                                                                                                                        dA)
+                                                                                                                                                                      dA;
+                                                                                                                                                                  {
+                                                                                                                                                                    triple :=
+                                                                                                                                                                      Tacenta.UnitLifecycleInitiatorSecondSend.initiatorAfterSecond
+                                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                          q.rootKey)
+                                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                          q.sparseRoot)
+                                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                          q.sparseSend)
+                                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                          q.sparseReceive)
+                                                                                                                                                                        dSend
+                                                                                                                                                                        x
+                                                                                                                                                                        (oracleB.dhPublic
+                                                                                                                                                                          dB)
+                                                                                                                                                                        (oracle.dhPublic
+                                                                                                                                                                          dA),
+                                                                                                                                                                    braid :=
+                                                                                                                                                                      Model.Braid.BraidState.keysSampled
+                                                                                                                                                                        1
+                                                                                                                                                                        (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                          q.auth)
+                                                                                                                                                                        dk
+                                                                                                                                                                        ekVector
+                                                                                                                                                                        {
+                                                                                                                                                                          source :=
+                                                                                                                                                                            Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+                                                                                                                                                                              oracle.braidKem
+                                                                                                                                                                              (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                                                                q.auth)
+                                                                                                                                                                              ekSeed
+                                                                                                                                                                              ekVector,
+                                                                                                                                                                          next :=
+                                                                                                                                                                            2 },
+                                                                                                                                                                    ratchetPrivate :=
+                                                                                                                                                                      __src.ratchetPrivate,
+                                                                                                                                                                    identityAd :=
+                                                                                                                                                                      __src.identityAd,
+                                                                                                                                                                    ourIdentityPublic :=
+                                                                                                                                                                      __src.ourIdentityPublic,
+                                                                                                                                                                    peerIdentityPublic :=
+                                                                                                                                                                      __src.peerIdentityPublic,
+                                                                                                                                                                    pendingInitial :=
+                                                                                                                                                                      __src.pendingInitial,
+                                                                                                                                                                    establishedEphemeral :=
+                                                                                                                                                                      __src.establishedEphemeral }))
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleInitiatorSecondSend.initiator_second_send_after_reply

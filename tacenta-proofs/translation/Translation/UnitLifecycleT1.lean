@@ -234,6 +234,54 @@ theorem message_type_no_panic (bytes : Slice U8) :
   unfold serialization.message_type
   step*
 
+/-! The size rule (message-format.md, Message size). Each step below returns: the
+only subtraction, `frame_len - start`, sits under `start <= frame_len`; the four
+indexed reads sit under `len >= 72`; and `84 + kem_len` is a `checked_add`. -/
+
+@[step]
+theorem nested_ratchet_len_no_panic (frameLen : Usize) (k : U32) :
+    serialization.nested_ratchet_len frameLen k ⦃ fun _ => True ⦄ := by
+  unfold serialization.nested_ratchet_len
+  simp only [lift, bind_tc_ok]
+  rcases Usize.checked_add serialization.INITIAL_FIXED_LEN (UScalar.cast .Usize k) with _ | start
+  · simp
+  · simp only
+    split
+    · step*
+    · simp
+
+@[step]
+theorem frame_too_long_no_panic (frameLen : Usize) (initial : Bool) (kem : Option U32) :
+    serialization.frame_too_long frameLen initial kem ⦃ fun _ => True ⦄ := by
+  unfold serialization.frame_too_long serialization.ratchet_span_of
+  split
+  · simp
+  · by_cases hi : initial = true
+    · rcases Option.eq_none_or_eq_some kem with hk | ⟨k, hk⟩
+      · simp [hi, hk]
+      · simp only [hi, hk, if_true]
+        step*
+    · simp only [Bool.not_eq_true] at hi
+      simp [hi]
+
+@[step]
+theorem initial_kem_len_no_panic (bytes : Slice U8) :
+    serialization.initial_kem_len bytes ⦃ fun _ => True ⦄ := by
+  unfold serialization.initial_kem_len
+  simp only [serialization.INITIAL_KEM_LEN_END]
+  step*
+
+/-- `check_frame_size`, the size rule every receiving entry runs first, returns
+on every byte string. -/
+@[step]
+theorem check_frame_size_no_panic (bytes : Slice U8) :
+    serialization.check_frame_size bytes ⦃ fun _ => True ⦄ := by
+  unfold serialization.check_frame_size
+  step with message_type_no_panic bytes
+  rcases o with _ | mt
+  · step*
+  · rcases mt with _ | _ <;> step*
+
 @[step]
 theorem decode_initial_no_panic (bytes : Slice U8) :
     tacenta_wire.decode_initial bytes ⦃ fun _ => True ⦄ :=

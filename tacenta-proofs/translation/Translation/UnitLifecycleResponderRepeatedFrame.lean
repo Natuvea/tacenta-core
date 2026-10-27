@@ -275,8 +275,10 @@ theorem responder_first_frame_repeat_refused [Tacenta.SessionUnitT1.DerivedKeysM
         ok (core.result.Result.Err (lifecycle.Error.Triple (tacenta_triple.TripleError.Classical
           tacenta_ratchet.RatchetError.OutOfOrder)), sB', rngB3) ∧
       traceB rngB3 = restB2 := by
+  have hsize := Tacenta.UnitLifecycleEstablishResponder.establish_responder_ok_fits rcB crcB ourB storeB
+    msg rngB _ _ _ hcallB
   rcases responder_first_frame_prepares rcB crcB contracts hpub hsym hrt hct hbound codec q pending hpend _ msg
-      hmsg ourB storeB hpublish hidentity hdistinct hkem rngB with ⟨-, e, -, hrefuse⟩ |
+      hmsg hsize ourB storeB hpublish hidentity hdistinct hkem rngB with ⟨-, e, -, hrefuse⟩ |
     ⟨p, -, -, h3, -, h5, h6, -, h8, -⟩
   · rw [hrefuse] at hcallB
     cases hcallB
@@ -436,7 +438,7 @@ theorem responder_first_frame_repeat_refused [Tacenta.SessionUnitT1.DerivedKeysM
   have hmsgInner : (Tacenta.SessionUnitWireInitialT3.initialOf p.decoded).ratchetMessage = sliceOf p.message := rfl
   obtain ⟨out, hout, hstepOut⟩ := Tacenta.UnitLifecycleT3.decrypt_initial_repeat_agreement_refusal_exact rcB crcB
     traceB dh codec oracleB.braidKem aview oracleB2 { oracleB with draws := restB2 } sB2 mB msg rngB2 rngB3
-    p.ephemeralCopy p.decoded _ _ mB hrel hdr htype p.hDecode hestablished hidentity' hsame hmodelSame hinner2
+    p.ephemeralCopy p.decoded _ _ mB hrel hdr hsize htype p.hDecode hestablished hidentity' hsame hmodelSame hinner2
     (by rw [hmsgInner]; exact hM aview) (by rw [hmsgInner]; exact hstep)
   -- the model's public step, at every view
   obtain ⟨-, -, -, hrepeat⟩ := Tacenta.UnitLifecycleT3.repeated_initial_agreement_checks_refine oracleB2 dh codec
@@ -444,7 +446,7 @@ theorem responder_first_frame_repeat_refused [Tacenta.SessionUnitT1.DerivedKeysM
   have hdecodeRel := Tacenta.UnitLifecycleT3.decode_initial_refines_lifecycle msg
   rw [p.hDecode] at hdecodeRel
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracleB2 mB (sliceOf msg)
-    (Tacenta.SessionUnitWireInitialT3.initialOf p.decoded)
+    (Tacenta.SessionUnitWireInitialT3.initialOf p.decoded) hsize
     (Tacenta.UnitLifecycleT3.message_type_refines_initial msg htype) hdecodeRel hrepeat
   have hD : ∀ viewB, Model.Lifecycle.decrypt viewB oracleB2 mB (sliceOf msg) =
       ⟨mB, .error (.triple (.classical .outOfOrder)), oracleB3⟩ := by
@@ -558,9 +560,11 @@ theorem initiator_first_send_responder_repeat_refused [Tacenta.SessionUnitT1.Der
         ok (core.result.Result.Err (lifecycle.Error.Triple (tacenta_triple.TripleError.Classical
           tacenta_ratchet.RatchetError.OutOfOrder)), sB', rngB3) ∧
       traceB rngB3 = restB2 := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng
+    bytes s' rng' hcall
   obtain ⟨output, hcall', hdr, hcases⟩ := Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes rc
     crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen
-    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest hdraws
+    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest hdraws
   rw [hcall] at hcall'
   cases hcall'
   rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, hkg, bytes', hres, -, -, tripleNext, messageKey,
@@ -671,7 +675,13 @@ theorem first_send_repeat_refused_reachable (K : Model.Braid.Kem) (dh : DhView)
     H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen hsizes H.kemCiphertextLen
     H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session H.established q rfl emptyPlaintext H.room seed
     H.trace_eq _ _ _ (Tacenta.UnitLifecycleEstablishedEncrypt.byteTrace_two seed (by omega)) bytes s' rng'
-    hcall byteRng byteCrc contracts hpub hsym hcon haead hrt L.optionEq byteTrace oracle oracleOfB ag ourB
+    hcall
+    (Tacenta.UnitLifecycleEstablishedEncrypt.first_message_fits H.aead H.dhCodec H.kemCiphertextLen
+      H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session H.established byteRng byteCrc
+      emptyPlaintext seed bytes s' rng'
+      (by simp [Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext,
+        Model.Lifecycle.maxRatchetFrameLen_value]) hcall)
+    byteRng byteCrc contracts hpub hsym hcon haead hrt L.optionEq byteTrace oracle oracleOfB ag ourB
     storeB hpublish hidentity hdistinct hkem hhead seed htraceB d1 (d2 :: rest2) hdrB
   have hdr2 : byteTrace rngB' = d2 :: rest2 := by
     rcases hdisj with ⟨-, e, -, hrefuse⟩ |

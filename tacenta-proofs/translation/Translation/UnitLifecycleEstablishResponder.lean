@@ -131,6 +131,9 @@ structure ResponderPreparedParts (our : lifecycle.Identity) (store : lifecycle.P
   ourPublic : tacenta_boundary.dh.PublicKeyBytes
   identityAd : alloc.vec.Vec U8
   ephemeralCopy : alloc.vec.Vec U8
+  /-- The size rule admitted the message (message-format.md, Message size): the first step of
+      `establish_responder`, before the decoder. -/
+  hSize : serialization.check_frame_size msg = ok (core.result.Result.Ok ())
   hDecode : tacenta_wire.decode_initial msg = ok (core.result.Result.Ok decoded)
   hSigned : lifecycle.responder_signed_prekey_secret store decoded.signed_prekey_id =
     ok (core.result.Result.Ok signedSecret)
@@ -927,6 +930,12 @@ theorem establish_responder_cases {R : Type} (rc : rand_core_1.RngCore R) (crc :
           out = (core.result.Result.Ok (inner.2.1, pt), store', inner.2.2))) := by
   unfold lifecycle.establish_responder at h
   replace h := bind_eq_ok_inv h
+  obtain ⟨rs, hrs, h⟩ := h
+  rcases rs with ⟨⟩ | es
+  swap
+  · simp at h; exact Or.inl ⟨_, Or.inl ⟨_, rfl⟩, h.symm⟩
+  simp only at h
+  replace h := bind_eq_ok_inv h
   obtain ⟨r0, hr0, h⟩ := h
   rcases r0 with decoded | e0
   swap
@@ -1050,7 +1059,7 @@ theorem establish_responder_cases {R : Type} (rc : rand_core_1.RngCore R) (crc :
     { decoded, signedSecret, kemSlot, lastResort := lr1, peerIdentity, peerEphemeral, oneTime,
       kemSecret, kemSecretZ, signedBytes, signedPrekey, shared, secretZ, secret, replay,
       tripleSecret, ratchetPublic, ratchetBytes, triple, braidSecret, braid, ratchetPrivate,
-      ourPublic, identityAd, ephemeralCopy, hDecode := hr0, hSigned := hr1, hSlot := hr2,
+      ourPublic, identityAd, ephemeralCopy, hSize := hrs, hDecode := hr0, hSigned := hr1, hSlot := hr2,
       hCurve := hr3, hOneTime := hr4, hDecaps := hr5, hKemSecretZ, hSignedBytes, hSignedPrekey,
       hShared, hSecretZ, hSecret, hReplay := hr6, hTripleSecret, hRatchetPublic, hRatchetBytes,
       hTriple, hBraidSecret, hBraid, hRatchetPrivate, hOurPublic, hIdentityAd, hEphemeralCopy }
@@ -1312,6 +1321,19 @@ def successMessage (zeroEph : Bool) (ct frame : Slice U8) (hct : ct.val.length �
     (hframe : frame.val.length ≤ 4096) : Slice U8 :=
   Tacenta.UnitSatisfiabilityBraidStates.sliceOfBytes (successBytes zeroEph ct frame)
     (successBytes_le zeroEph ct frame hct hframe)
+
+/-- `successMessage` passes the size rule: it is at most 84 + 4096 + 4096 bytes, within
+`MAX_RATCHET_FRAME_LEN`. -/
+theorem successMessage_fits (zeroEph : Bool) (ct frame : Slice U8) (hct : ct.val.length ≤ 4096)
+    (hframe : frame.val.length ≤ 4096) :
+    serialization.check_frame_size (successMessage zeroEph ct frame hct hframe) =
+      ok (core.result.Result.Ok ()) := by
+  apply Tacenta.UnitLifecycleT3.check_frame_size_admits_of_le
+  have h := successBytes_length zeroEph ct frame
+  simp only [successMessage, Tacenta.UnitSatisfiabilityBraidStates.sliceOfBytes,
+    Tacenta.UnitSatisfiabilityBraidAgreements.bytesOf, List.length_map,
+    Model.Lifecycle.maxRatchetFrameLen_value]
+  omega
 
 /-- The translated `decode_initial` accepts `successMessage`, and its result is the model's decode of
 those bytes. -/
@@ -1607,6 +1629,7 @@ theorem responder_prepared_inhabited {R : Type} (rc : rand_core_1.RngCore R)
       secretZ := z2, secret := shared, replay := some fp, tripleSecret := sl, ratchetPublic := rp,
       ratchetBytes := rb, triple := triple, braidSecret := sl, braid := braid, ratchetPrivate := sp,
       ourPublic := op, identityAd := ad, ephemeralCopy := ec,
+      hSize := successMessage_fits false (alloc.vec.Vec.deref ct) frame hctlen hframe,
       hDecode := hd, hSigned := hSigned, hSlot := hSlot, hCurve := hCurve, hOneTime := hOneTime,
       hDecaps := hDecaps, hKemSecretZ := hz1, hSignedBytes := hzsd, hSignedPrekey := hsp,
       hShared := ⟨ik, ss, hik, hz1d, hshared⟩, hSecretZ := hz2, hSecret := hz2d, hReplay := hreplay,
@@ -1631,6 +1654,47 @@ theorem establish_responder_returns {R : Type}
       headroom)
   exact ⟨out, hout⟩
 
+/-- **The size refusal on `establish_responder`, exactly**: for every identity, prekey store, source and
+message the size rule refuses (message-format.md, Message size), the call returns `Decode(TooLong)` with
+the prekey store (its one-time keys and its last-resort replay record included) and the source as given,
+and the model's `establishResponder` refuses with `decode tooLong` with its store and oracle unchanged.
+No other hypothesis: a message that is also malformed, names unknown prekeys or replays a recorded
+last-resort message is included. -/
+theorem establish_responder_frame_too_long_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (our : lifecycle.Identity) (modelIdentity : Model.Lifecycle.Identity)
+    (store : lifecycle.PrekeyStore) (modelStore : Model.Lifecycle.PrekeyStore)
+    (msg : Slice U8) (rng : R)
+    (hlong : Model.Lifecycle.frameTooLong (Tacenta.UnitLifecycleT3.sliceOf msg) = true) :
+    lifecycle.establish_responder rngCore cryptoRng our store msg rng =
+        ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong), store, rng) ∧
+      Model.Lifecycle.establishResponder view oracle modelIdentity modelStore
+          (Tacenta.UnitLifecycleT3.sliceOf msg) =
+        { store := modelStore, result := .error (.decode .tooLong), oracle := oracle } := by
+  constructor
+  · unfold lifecycle.establish_responder
+    rw [Tacenta.UnitLifecycleT3.check_frame_size_refuses msg hlong]
+    rfl
+  · exact Model.Lifecycle.establishResponder_frame_too_long view oracle modelIdentity modelStore
+      (Tacenta.UnitLifecycleT3.sliceOf msg) hlong
+
+/-- A call to `establish_responder` that established a session was given a message the size rule
+admits: a message it refuses is refused first. -/
+theorem establish_responder_ok_fits {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (our : lifecycle.Identity) (store : lifecycle.PrekeyStore) (msg : Slice U8) (rng : R)
+    (v : lifecycle.Session × alloc.vec.Vec U8) (store' : lifecycle.PrekeyStore) (rng' : R)
+    (h : lifecycle.establish_responder rngCore cryptoRng our store msg rng =
+      ok (core.result.Result.Ok v, store', rng')) :
+    Model.Lifecycle.frameTooLong (Tacenta.UnitLifecycleT3.sliceOf msg) = false := by
+  cases hlong : Model.Lifecycle.frameTooLong (Tacenta.UnitLifecycleT3.sliceOf msg) with
+  | false => rfl
+  | true =>
+      unfold lifecycle.establish_responder at h
+      rw [Tacenta.UnitLifecycleT3.check_frame_size_refuses msg hlong] at h
+      simp at h
+
 /-- **`Decode(TooShort)` is returned, with no hypothesis, at every prekey store**: for every identity, store
 and source, a message of fewer than two bytes is refused as `Decode(TooShort)`, with the store and the source
 as given.  A store value is exhibited only under `ResponderSuccessShape` (`responder_prepared_inhabited`). -/
@@ -1643,7 +1707,9 @@ theorem establish_responder_short_message_refused {R : Type}
   have hlt : Slice.len msg < 2#usize := by
     simp only [Slice.len]
     scalar_tac
-  simp [lifecycle.establish_responder, tacenta_wire.decode_initial, hlt]
+  have hsize := Tacenta.UnitLifecycleT3.check_frame_size_admits_of_le msg
+    (by rw [Model.Lifecycle.maxRatchetFrameLen_value]; omega)
+  simp [lifecycle.establish_responder, hsize, tacenta_wire.decode_initial, hlt]
 
 /-- **Once the prepare phase has succeeded, the call is the inner receive followed by the commit**: for
 every parts value `p` of an input (so for every input that reaches the inner receive), `establish_responder`
@@ -1679,7 +1745,7 @@ theorem establish_responder_at_parts {R : Type} (rngCore : rand_core_1.RngCore R
   have hbr := p.hBraid
   rw [p.braidSecret_eq] at hbr
   unfold lifecycle.establish_responder
-  rw [p.hDecode]
+  rw [p.hSize, p.hDecode]
   simp only [Aeneas.Std.bind_tc_ok, p.hSigned, p.hSlot, core.result.Result.Insts.CoreOpsTry.branch,
     Tacenta.UnitLifecycleT1.copy_bool_eq]
   try dsimp only [Aeneas.Std.uncurry]
@@ -1719,7 +1785,7 @@ theorem establish_responder_unknown_prekey_refused {R : Type}
       ok (core.result.Result.Err lifecycle.Error.UnknownPrekeyId) := by
     simp [lifecycle.responder_signed_prekey_secret, hne, hprev]
   unfold lifecycle.establish_responder
-  rw [hd]
+  rw [successMessage_fits, hd]
   simp only [Aeneas.Std.bind_tc_ok, hs, core.result.Result.Insts.CoreOpsTry.branch]
   rfl
 
@@ -1762,7 +1828,7 @@ theorem establish_responder_legacy_refused {R : Type}
       ok (core.result.Result.Err lifecycle.Error.LegacyLastResortRecord) := by
     simp [lifecycle.responder_kem_slot, hdkid, hkid, hcontains]
   unfold lifecycle.establish_responder
-  rw [hd]
+  rw [successMessage_fits, hd]
   simp only [Aeneas.Std.bind_tc_ok, hs, hk, core.result.Result.Insts.CoreOpsTry.branch]
   rfl
 
@@ -2003,7 +2069,7 @@ theorem establish_responder_noncontributory_refused {R : Type} (rc : rand_core_1
       core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual]
   refine ⟨store, successMessage true (alloc.vec.Vec.deref ct) frame hctlen hframe, ?_⟩
   unfold lifecycle.establish_responder
-  rw [hd]
+  rw [successMessage_fits, hd]
   simp only [Aeneas.Std.bind_tc_ok, hSigned, hSlot, core.result.Result.Insts.CoreOpsTry.branch,
     Tacenta.UnitLifecycleT1.copy_bool_eq]
   try dsimp only [Aeneas.Std.uncurry]
@@ -2204,7 +2270,7 @@ theorem establish_responder_replay_refused {R : Type} (rc : rand_core_1.RngCore 
   obtain ⟨ik, enc, hik, henc, hss⟩ := p.hShared
   refine ⟨store', msg, by simp [store', seen, Tacenta.UnitHeadroomSatisfiable.vecOf], ?_⟩
   unfold lifecycle.establish_responder
-  rw [p.hDecode]
+  rw [p.hSize, p.hDecode]
   simp only [Aeneas.Std.bind_tc_ok, hSigned, hSlot, core.result.Result.Insts.CoreOpsTry.branch,
     Tacenta.UnitLifecycleT1.copy_bool_eq]
   try dsimp only [Aeneas.Std.uncurry]
@@ -2299,7 +2365,7 @@ theorem establish_responder_record_full_refused {R : Type} (rc : rand_core_1.Rng
   obtain ⟨ik, enc, hik, henc, hss⟩ := p.hShared
   refine ⟨store', msg, by rw [hseenv, List.length_replicate], ?_⟩
   unfold lifecycle.establish_responder
-  rw [p.hDecode]
+  rw [p.hSize, p.hDecode]
   simp only [Aeneas.Std.bind_tc_ok, hSigned, hSlot, core.result.Result.Insts.CoreOpsTry.branch,
     Tacenta.UnitLifecycleT1.copy_bool_eq]
   try dsimp only [Aeneas.Std.uncurry]
@@ -5362,6 +5428,9 @@ fields:
   Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts.ourPublic : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes
   Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts.identityAd : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8
   Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts.ephemeralCopy : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8
+  Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts.hSize : tacenta_session_unit.serialization.check_frame_size
+        msg =
+      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ())
   Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts.hDecode : tacenta_session_unit.tacenta_wire.decode_initial
         msg =
       Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok self.decoded)
@@ -5455,6 +5524,9 @@ constructor:
     (ratchetPrivate : tacenta_session_unit.tacenta_boundary.dh.PrivateKey)
     (ourPublic : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes)
     (identityAd ephemeralCopy : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8)
+    (hSize :
+      tacenta_session_unit.serialization.check_frame_size msg =
+        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()))
     (hDecode :
       tacenta_session_unit.tacenta_wire.decode_initial msg =
         Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok decoded))

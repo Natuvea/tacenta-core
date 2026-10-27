@@ -266,13 +266,20 @@ theorem establish_responder_err_leaves_store {R : Type}
 
 /-! ## `encrypt` -/
 
-/-- The first two binds and the check of the agreement's next state are taken by hand because that
-check is the one place a refusal writes; the rest is the generic walk. -/
+/-- The sender's rule, the first two binds and the check of the agreement's next state are taken by
+hand because that check is the one place a refusal writes; the rest is the generic walk. -/
 theorem encrypt_frame {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (self : lifecycle.Session) (plaintext : Slice U8) (rng : R) :
     Post (EncryptFrame self) (lifecycle.Session.encrypt rc crc self plaintext rng) := by
   unfold lifecycle.Session.encrypt
+  by_cases hlong : Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN
+  · simp only [hlong, if_true]
+    intro r s' rng' h
+    simp only [ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    exact ⟨fun e he => Or.inl rfl, fun v hv => by cases hv⟩
+  simp only [hlong, if_false]
   apply Post.bind; intro guard _
   split
   · apply Post.leaf
@@ -354,11 +361,57 @@ theorem braid_failed_of_failed_state :
 theorem encrypt_refuses_failed_agreement {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (self : lifecycle.Session) (plaintext : Slice U8) (rng : R)
+    (hlen : plaintext.val.length ≤ serialization.MAX_PLAINTEXT_LEN.val)
     (h : tacenta_braid.Braid.failed self.braid = ok true) :
     lifecycle.Session.encrypt rc crc self plaintext rng =
       ok (core.result.Result.Err lifecycle.Error.AgreementFailed, self, rng) := by
   unfold lifecycle.Session.encrypt
-  simp [h]
+  have hle : ¬ (Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN) := by scalar_tac
+  simp [hle, h]
+
+/-- The sender's rule refuses first: a plaintext longer than `MAX_PLAINTEXT_LEN` is
+`PlaintextTooLong` with the session and the random source returned unchanged, whatever the
+session (a failed agreement included). The complement of the length premise of
+`encrypt_refuses_failed_agreement`. -/
+theorem encrypt_refuses_long_plaintext {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (self : lifecycle.Session) (plaintext : Slice U8) (rng : R)
+    (hlong : serialization.MAX_PLAINTEXT_LEN.val < plaintext.val.length) :
+    lifecycle.Session.encrypt rc crc self plaintext rng =
+      ok (core.result.Result.Err lifecycle.Error.PlaintextTooLong, self, rng) := by
+  unfold lifecycle.Session.encrypt
+  have hgt : Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN := by scalar_tac
+  simp [hgt]
+
+/-- The size rule refuses first on `decrypt`: when `check_frame_size` refuses, `decrypt` returns
+`Decode(TooLong)` with the session and the random source unchanged, whatever the session (a
+failed agreement included) and whatever else the frame is. -/
+theorem decrypt_refuses_long_frame {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (self : lifecycle.Session) (message : Slice U8) (rng : R)
+    (hsize : serialization.check_frame_size message =
+      ok (core.result.Result.Err tacenta_wire.DecodeError.TooLong)) :
+    lifecycle.Session.decrypt rc crc self message rng =
+      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong),
+        self, rng) := by
+  unfold lifecycle.Session.decrypt
+  rw [hsize]
+  rfl
+
+/-- The size rule refuses first on `establish_responder`: the prekey store (one-time keys and the
+last-resort replay record included) and the random source are returned unchanged. -/
+theorem establish_responder_refuses_long_frame {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (identity : lifecycle.Identity) (store : lifecycle.PrekeyStore)
+    (message : Slice U8) (rng : R)
+    (hsize : serialization.check_frame_size message =
+      ok (core.result.Result.Err tacenta_wire.DecodeError.TooLong)) :
+    lifecycle.establish_responder rc crc identity store message rng =
+      ok (core.result.Result.Err (lifecycle.Error.Decode tacenta_wire.DecodeError.TooLong),
+        store, rng) := by
+  unfold lifecycle.establish_responder
+  rw [hsize]
+  rfl
 
 theorem decrypt_ratchet_refuses_failed_agreement {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
@@ -380,7 +433,15 @@ theorem decrypt_empty_message_refuses_failed_agreement {R : Type}
   have hmt : serialization.message_type (⟨[], by scalar_tac⟩ : Slice U8) = ok none := by
     unfold serialization.message_type
     simp [Slice.len]
+  have hsize : serialization.check_frame_size (⟨[], by scalar_tac⟩ : Slice U8) =
+      ok (core.result.Result.Ok ()) := by
+    unfold serialization.check_frame_size
+    rw [hmt]
+    simp [serialization.frame_too_long, serialization.ratchet_span_of, Slice.len,
+      serialization.MAX_INITIAL_FRAME_LEN, serialization.MAX_RATCHET_FRAME_LEN]
   unfold lifecycle.Session.decrypt
+  rw [hsize]
+  simp only [bind_tc_ok]
   rw [hmt]
   simp only [bind_tc_ok]
   have hdr := decrypt_ratchet_refuses_failed_agreement rc crc self

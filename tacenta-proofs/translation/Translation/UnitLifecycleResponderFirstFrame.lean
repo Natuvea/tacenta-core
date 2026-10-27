@@ -1036,6 +1036,7 @@ refusal, with the store and the source as given. -/
 theorem establish_responder_slot_refused {E : Type} (rcB : rand_core_1.RngCore E)
     (crcB : rand_core_1.CryptoRng E) (ourB : lifecycle.Identity) (store : lifecycle.PrekeyStore)
     (msg : Slice U8) (rng : E) (d : tacenta_wire.DecodedInitial)
+    (hsz : serialization.check_frame_size msg = ok (core.result.Result.Ok ()))
     (hd : tacenta_wire.decode_initial msg = ok (core.result.Result.Ok d))
     (zs : zeroize.Zeroizing (Array U8 32#usize))
     (hs : lifecycle.responder_signed_prekey_secret store d.signed_prekey_id = ok (core.result.Result.Ok zs))
@@ -1043,7 +1044,7 @@ theorem establish_responder_slot_refused {E : Type} (rcB : rand_core_1.RngCore E
     (hk : lifecycle.responder_kem_slot store d.kem_prekey_id = ok (core.result.Result.Err e)) :
     lifecycle.establish_responder rcB crcB ourB store msg rng = ok (core.result.Result.Err e, store, rng) := by
   unfold lifecycle.establish_responder
-  rw [hd]
+  rw [hsz, hd]
   simp only [Aeneas.Std.bind_tc_ok, hs, hk, core.result.Result.Insts.CoreOpsTry.branch]
   rfl
 
@@ -1052,6 +1053,7 @@ refusal, with the store and the source as given. -/
 theorem establish_responder_replay_refused_at {E : Type} (rcB : rand_core_1.RngCore E)
     (crcB : rand_core_1.CryptoRng E) (ourB : lifecycle.Identity) (store : lifecycle.PrekeyStore)
     (msg : Slice U8) (rng : E) (d : tacenta_wire.DecodedInitial)
+    (hsz : serialization.check_frame_size msg = ok (core.result.Result.Ok ()))
     (hd : tacenta_wire.decode_initial msg = ok (core.result.Result.Ok d))
     (zs : zeroize.Zeroizing (Array U8 32#usize))
     (hs : lifecycle.responder_signed_prekey_secret store d.signed_prekey_id = ok (core.result.Result.Ok zs))
@@ -1079,7 +1081,7 @@ theorem establish_responder_replay_refused_at {E : Type} (rcB : rand_core_1.RngC
       ok (core.result.Result.Err e)) :
     lifecycle.establish_responder rcB crcB ourB store msg rng = ok (core.result.Result.Err e, store, rng) := by
   unfold lifecycle.establish_responder
-  rw [hd]
+  rw [hsz, hd]
   simp only [Aeneas.Std.bind_tc_ok, hs, hslot, core.result.Result.Insts.CoreOpsTry.branch,
     Tacenta.UnitLifecycleT1.copy_bool_eq]
   try dsimp only [Aeneas.Std.uncurry]
@@ -1097,6 +1099,7 @@ theorem parts_of_steps {E : Type} (rcB : rand_core_1.RngCore E)
     (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
     (ourB : lifecycle.Identity) (store : lifecycle.PrekeyStore) (msg : Slice U8)
     (d : tacenta_wire.DecodedInitial)
+    (hsz : serialization.check_frame_size msg = ok (core.result.Result.Ok ()))
     (hd : tacenta_wire.decode_initial msg = ok (core.result.Result.Ok d))
     (zs : zeroize.Zeroizing (Array U8 32#usize))
     (hs : lifecycle.responder_signed_prekey_secret store d.signed_prekey_id = ok (core.result.Result.Ok zs))
@@ -1150,7 +1153,7 @@ theorem parts_of_steps {E : Type} (rcB : rand_core_1.RngCore E)
       signedPrekey := spk, shared := sh, secretZ := shz, secret := shb, replay := r, tripleSecret := sl,
       ratchetPublic := rp, ratchetBytes := rb, triple := triple, braidSecret := sl, braid := braid,
       ratchetPrivate := spk, ourPublic := op, identityAd := ad, ephemeralCopy := ec,
-      hDecode := hd, hSigned := hs, hSlot := hslot, hCurve := hcurve, hOneTime := hone, hDecaps := hdec,
+      hSize := hsz, hDecode := hd, hSigned := hs, hSlot := hslot, hCurve := hcurve, hOneTime := hone, hDecaps := hdec,
       hKemSecretZ := hksz, hSignedBytes := hsb, hSignedPrekey := hspk,
       hShared := ⟨ik, enc, hik, henc, hsh⟩, hSecretZ := hshz, hSecret := hshb, hReplay := hrep,
       hTripleSecret := hsl, hRatchetPublic := hrp, hRatchetBytes := hrb, hTriple := htriple,
@@ -1200,6 +1203,7 @@ theorem responder_first_frame_prepares {E : Type} (rcB : rand_core_1.RngCore E)
     (frame : Model.Lifecycle.Bytes) (msg : Slice U8)
     (hmsg : sliceOf msg = Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
       (establishedModelOf dh q.session) pending frame)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf msg) = false)
     (ourB : lifecycle.Identity) (storeB : lifecycle.PrekeyStore)
     (hpublish : lifecycle.PrekeyStore.publish storeB = ok bundle)
     (hidentity : lifecycle.Identity.public ourB = ok storeB.identity_public)
@@ -1214,6 +1218,7 @@ theorem responder_first_frame_prepares {E : Type} (rcB : rand_core_1.RngCore E)
         p.peerEphemeral = q.ephemeralPublic ∧ p.kemSecret = q.kemSecret ∧
         sliceOf (ResponderPreparedParts.message p) = frame ∧
         (p.lastResort = true ↔ bundle.kem_prekey_id = storeB.kem_id) := by
+  have hsz := Tacenta.UnitLifecycleT3.check_frame_size_admits msg hsize
   have hz := contracts.decrypt.braid.zeroizingArray
   have hdh := contracts.decrypt.dhCodec
   obtain ⟨d, hd, hdsid, hdoid, hdkid, hdct, hdmsg, hdid, hdeph⟩ :=
@@ -1272,7 +1277,7 @@ theorem responder_first_frame_prepares {E : Type} (rcB : rand_core_1.RngCore E)
     by_cases hleg : storeB.kem_id ∈ storeB.legacy_last_resort_blocked.val
     · rw [if_pos hleg] at hslot
       exact Or.inl ⟨hkid, _, Or.inl ⟨rfl, hleg⟩,
-        establish_responder_slot_refused rcB crcB ourB storeB msg rngB d hd zs hSigned _ hslot⟩
+        establish_responder_slot_refused rcB crcB ourB storeB msg rngB d hsz hd zs hSigned _ hslot⟩
     · rw [if_neg hleg] at hslot
       have hDecaps := decapsulate_current storeB _ q.kemSecret hdec
       obtain ⟨r6, hr6, -⟩ := Std.WP.spec_imp_exists
@@ -1287,12 +1292,12 @@ theorem responder_first_frame_prepares {E : Type} (rcB : rand_core_1.RngCore E)
             · obtain ⟨hnx, hne', n, hn, hle⟩ := hne
               rw [hdkid, hkid] at hn
               exact Or.inr (Or.inr ⟨rfl, ⟨fp, hfp, hnx⟩, hne', n, hn, hle⟩)
-          exact establish_responder_replay_refused_at rcB crcB ourB storeB msg rngB d hd zs hSigned _ _ hslot
+          exact establish_responder_replay_refused_at rcB crcB ourB storeB msg rngB d hsz hd zs hSigned _ _ hslot
             _ _ hCurve otk hOneTime _ hDecaps _ q.hKemSecretZ _ hzsd spk hspkB ikB hikB _ q.hEncapsulated
             _ hShared _ hshz _ hshb e hr6
       | Ok r =>
           obtain ⟨p, hpd, hplr, hppi, hppe, -, hpks, -, hpsh, hpsec, hpts, hpbs⟩ :=
-            parts_of_steps rcB contracts ourB storeB msg d hd zs hSigned _ _ hslot _ _ hCurve otk hOneTime _
+            parts_of_steps rcB contracts ourB storeB msg d hsz hd zs hSigned _ _ hslot _ _ hCurve otk hOneTime _
               hDecaps _ q.hKemSecretZ _ hzsd spk hspkB ikB hikB _ q.hEncapsulated _ hShared _ hshz _ hshb r
               hr6 _ q.hSharedSlice
           refine Or.inr ⟨p, hpsh, hpsec, hpts, hpbs, hppi, hppe, hpks, ?_, ?_⟩
@@ -1312,7 +1317,7 @@ theorem responder_first_frame_prepares {E : Type} (rcB : rand_core_1.RngCore E)
         ok (core.result.Result.Ok none) := by
       simp [lifecycle.responder_replay_fingerprint]
     obtain ⟨p, hpd, hplr, hppi, hppe, -, hpks, -, hpsh, hpsec, hpts, hpbs⟩ :=
-      parts_of_steps rcB contracts ourB storeB msg d hd zs hSigned _ _ hslot _ _ hCurve otk hOneTime _
+      parts_of_steps rcB contracts ourB storeB msg d hsz hd zs hSigned _ _ hslot _ _ hCurve otk hOneTime _
         hDecaps _ q.hKemSecretZ _ hzsd spk hspkB ikB hikB _ q.hEncapsulated _ hShared _ hshz _ hshb none
         hr6 _ q.hSharedSlice
     refine Or.inr ⟨p, hpsh, hpsec, hpts, hpbs, hppi, hppe, hpks, ?_, ?_⟩
@@ -1341,6 +1346,7 @@ theorem responder_first_frame_admissible {E : Type} (rcB : rand_core_1.RngCore E
     (frame : Model.Lifecycle.Bytes) (msg : Slice U8)
     (hmsg : sliceOf msg = Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
       (establishedModelOf dh q.session) pending frame)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf msg) = false)
     (ourB : lifecycle.Identity) (storeB : lifecycle.PrekeyStore)
     (hpublish : lifecycle.PrekeyStore.publish storeB = ok bundle)
     (hidentity : lifecycle.Identity.public ourB = ok storeB.identity_public)
@@ -1359,7 +1365,7 @@ theorem responder_first_frame_admissible {E : Type} (rcB : rand_core_1.RngCore E
         Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom p.session ∧
         SessionRefines dh K p.session (Tacenta.UnitLifecycleEstablishResponder.responderModelOf dh p) := by
   rcases responder_first_frame_prepares rcB crcB contracts hpub hsym hrt hct hbound codec q pending hpend
-      frame msg hmsg ourB storeB hpublish hidentity hdistinct hkem rngB with hl |
+      frame msg hmsg hsize ourB storeB hpublish hidentity hdistinct hkem rngB with hl |
     ⟨p, h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
   · exact Or.inl hl
   · exact Or.inr ⟨p, h1, h2, h3, h4, h5, h6, h7, h8, h9,
@@ -1408,6 +1414,7 @@ theorem first_send_responder_prepares [Tacenta.SessionUnitT1.DerivedKeysModel] {
     (rest : List Model.Lifecycle.Key) (hdraws : trace rng = d1 :: d2 :: rest)
     (bytes : alloc.vec.Vec Std.U8) (s' : lifecycle.Session) (rng' : R)
     (hcall : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok bytes, s', rng'))
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf (alloc.vec.Vec.deref bytes)) = false)
     (rcB : rand_core_1.RngCore F) (crcB : rand_core_1.CryptoRng F)
     (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
     (hpub : DhPublicValid) (hsym : DhAgreeSymmetric)
@@ -1435,9 +1442,11 @@ theorem first_send_responder_prepares [Tacenta.SessionUnitT1.DerivedKeysModel] {
           lifecycle.Session.invariant p.session = ok true ∧
           Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom p.session ∧
           SessionRefines dh K p.session (Tacenta.UnitLifecycleEstablishResponder.responderModelOf dh p) := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng bytes s' rng'
+    hcall
   obtain ⟨output, hcall', -, hcases⟩ := Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes rc
     crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen
-    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest hdraws
+    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest hdraws
   rw [hcall] at hcall'
   cases hcall'
   rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, -, bytes', hres, -, -, tripleNext, messageKey,
@@ -1447,7 +1456,7 @@ theorem first_send_responder_prepares [Tacenta.SessionUnitT1.DerivedKeysModel] {
     subst hres
     subst hq
     exact ⟨messageKey, chunk, responder_first_frame_admissible rcB crcB contracts hpub hsym hrt hct hbound
-      hoeq agreements codec q pending hpend _ (alloc.vec.Vec.deref bytes) hwire ourB storeB hpublish
+      hoeq agreements codec q pending hpend _ (alloc.vec.Vec.deref bytes) hwire hsize ourB storeB hpublish
       hidentity hdistinct hkem rngB⟩
 
 /-! ## The statements the reach rests on, and one interpretation of every law -/
@@ -1929,7 +1938,8 @@ theorem first_send_responder_reachable (K : Model.Braid.Kem) (dh : DhView)
     byteRng byteCrc byteTrace dh kem Tacenta.UnitLifecycleRepair.witnessView oracle H.braid H.triple H.aead
     H.dhCodec H.oracleOf H.codec H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen
     H.kemCiphertextLen H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session H.established
-    emptyPlaintext H.room seed H.trace_eq _ _ _
+    emptyPlaintext H.room (by simp [Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext,
+      Tacenta.UnitLifecycleT3.sliceOf]) seed H.trace_eq _ _ _
     (Tacenta.UnitLifecycleEstablishedEncrypt.byteTrace_two seed (by omega))
   rw [Tacenta.UnitLifecycleEstablishedEncrypt.two_draws_of_64 seed hseed] at hcases
   obtain ⟨res, s', rng'⟩ := output
@@ -1960,7 +1970,13 @@ theorem first_send_responder_reachable (K : Model.Braid.Kem) (dh : DhView)
     H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen H.kemCiphertextLen
     H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session h q rfl emptyPlaintext H.room seed
     H.trace_eq _ _ _ (Tacenta.UnitLifecycleEstablishedEncrypt.byteTrace_two seed (by omega)) bytes s' rng'
-    hcall byteRng byteCrc contracts hpub hsym hrt L.optionEq ag ourB storeB hpublish hidentity hdistinct
+    hcall
+    (Tacenta.UnitLifecycleEstablishedEncrypt.first_message_fits H.aead H.dhCodec H.kemCiphertextLen
+      H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session h byteRng byteCrc emptyPlaintext
+      seed bytes s' rng'
+      (by simp [Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext,
+        Model.Lifecycle.maxRatchetFrameLen_value]) hcall)
+    byteRng byteCrc contracts hpub hsym hrt L.optionEq ag ourB storeB hpublish hidentity hdistinct
     hkem seed
   rcases hdisj with ⟨-, e, hrefuse, -⟩ | ⟨p, hpsh, -, -, -, hppi, hppe, -, hpmsg, -, hinv, hhead, hrel⟩
   · exfalso
@@ -3616,15 +3632,16 @@ info: @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_slot_refused
   (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
   (ourB : tacenta_session_unit.lifecycle.Identity) (store : tacenta_session_unit.lifecycle.PrekeyStore)
   (msg : Aeneas.Std.Slice Aeneas.Std.U8) (rng : E) (d : tacenta_session_unit.tacenta_wire.DecodedInitial),
-  tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
-    ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-      tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
-          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
-        ∀ (e : tacenta_session_unit.lifecycle.Error),
-          tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
-              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e) →
-            tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB store msg rng =
-              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e, store, rng)
+  tacenta_session_unit.serialization.check_frame_size msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) →
+    tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
+      ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+        tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
+            Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
+          ∀ (e : tacenta_session_unit.lifecycle.Error),
+            tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
+                Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e) →
+              tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB store msg rng =
+                Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err e, store, rng)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_slot_refused
@@ -3634,61 +3651,62 @@ info: @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_replay_refus
   (rcB : tacenta_session_unit.rand_core_1.RngCore E) (crcB : tacenta_session_unit.rand_core_1.CryptoRng E)
   (ourB : tacenta_session_unit.lifecycle.Identity) (store : tacenta_session_unit.lifecycle.PrekeyStore)
   (msg : Aeneas.Std.Slice Aeneas.Std.U8) (rng : E) (d : tacenta_session_unit.tacenta_wire.DecodedInitial),
-  tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
-    ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-      tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
-          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
-        ∀ (slot : tacenta_session_unit.lifecycle.KemKeySlot) (lr : Bool),
-          tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
-              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (slot, lr)) →
-            ∀ (pi pe : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
-              tacenta_session_unit.lifecycle.responder_curve_inputs d.identity.deref d.ephemeral.deref =
-                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (pi, pe)) →
-                ∀ (otk : Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
-                  tacenta_session_unit.lifecycle.responder_one_time_key store d.one_time_prekey_id =
-                      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok otk) →
-                    ∀ (ks : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                      tacenta_session_unit.lifecycle.responder_decapsulate store slot d.kem_ciphertext.deref =
-                          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ks) →
-                        ∀ (ksz : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-                          tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 ks =
-                              Aeneas.Std.Result.ok ksz →
-                            ∀ (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                              tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                                    Tacenta.UnitLifecycleEstablishResponder.z32 zs =
-                                  Aeneas.Std.Result.ok sb →
-                                ∀ (spk : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
-                                  tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes sb =
-                                      Aeneas.Std.Result.ok spk →
-                                    ∀ (ik : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
-                                      ourB.dh_key = Aeneas.Std.Result.ok ik →
-                                        ∀ (enc : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                                          tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                                                Tacenta.UnitLifecycleEstablishResponder.z32 ksz =
-                                              Aeneas.Std.Result.ok enc →
-                                            ∀ (sh : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                                              tacenta_session_unit.responder_shared_secret ik spk otk pi pe enc =
-                                                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok sh) →
-                                                ∀
-                                                  (shz :
-                                                    tacenta_session_unit.zeroize.Zeroizing
-                                                      (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-                                                  tacenta_session_unit.zeroize.Zeroizing.new
-                                                        Tacenta.UnitLifecycleEstablishResponder.z32 sh =
-                                                      Aeneas.Std.Result.ok shz →
-                                                    ∀ (shb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                                                      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                                                            Tacenta.UnitLifecycleEstablishResponder.z32 shz =
-                                                          Aeneas.Std.Result.ok shb →
-                                                        ∀ (e : tacenta_session_unit.lifecycle.Error),
-                                                          tacenta_session_unit.lifecycle.responder_replay_fingerprint
-                                                                store d.kem_prekey_id shb lr =
-                                                              Aeneas.Std.Result.ok
-                                                                (Aeneas.Std.core.result.Result.Err e) →
-                                                            tacenta_session_unit.lifecycle.establish_responder rcB crcB
-                                                                ourB store msg rng =
-                                                              Aeneas.Std.Result.ok
-                                                                (Aeneas.Std.core.result.Result.Err e, store, rng)
+  tacenta_session_unit.serialization.check_frame_size msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) →
+    tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
+      ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+        tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
+            Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
+          ∀ (slot : tacenta_session_unit.lifecycle.KemKeySlot) (lr : Bool),
+            tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
+                Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (slot, lr)) →
+              ∀ (pi pe : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+                tacenta_session_unit.lifecycle.responder_curve_inputs d.identity.deref d.ephemeral.deref =
+                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (pi, pe)) →
+                  ∀ (otk : Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                    tacenta_session_unit.lifecycle.responder_one_time_key store d.one_time_prekey_id =
+                        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok otk) →
+                      ∀ (ks : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                        tacenta_session_unit.lifecycle.responder_decapsulate store slot d.kem_ciphertext.deref =
+                            Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ks) →
+                          ∀ (ksz : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                            tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 ks =
+                                Aeneas.Std.Result.ok ksz →
+                              ∀ (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                      Tacenta.UnitLifecycleEstablishResponder.z32 zs =
+                                    Aeneas.Std.Result.ok sb →
+                                  ∀ (spk : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                    tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes sb =
+                                        Aeneas.Std.Result.ok spk →
+                                      ∀ (ik : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                        ourB.dh_key = Aeneas.Std.Result.ok ik →
+                                          ∀ (enc : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                            tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                  Tacenta.UnitLifecycleEstablishResponder.z32 ksz =
+                                                Aeneas.Std.Result.ok enc →
+                                              ∀ (sh : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                                tacenta_session_unit.responder_shared_secret ik spk otk pi pe enc =
+                                                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok sh) →
+                                                  ∀
+                                                    (shz :
+                                                      tacenta_session_unit.zeroize.Zeroizing
+                                                        (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                                                    tacenta_session_unit.zeroize.Zeroizing.new
+                                                          Tacenta.UnitLifecycleEstablishResponder.z32 sh =
+                                                        Aeneas.Std.Result.ok shz →
+                                                      ∀ (shb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                                        tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                              Tacenta.UnitLifecycleEstablishResponder.z32 shz =
+                                                            Aeneas.Std.Result.ok shb →
+                                                          ∀ (e : tacenta_session_unit.lifecycle.Error),
+                                                            tacenta_session_unit.lifecycle.responder_replay_fingerprint
+                                                                  store d.kem_prekey_id shb lr =
+                                                                Aeneas.Std.Result.ok
+                                                                  (Aeneas.Std.core.result.Result.Err e) →
+                                                              tacenta_session_unit.lifecycle.establish_responder rcB
+                                                                  crcB ourB store msg rng =
+                                                                Aeneas.Std.Result.ok
+                                                                  (Aeneas.Std.core.result.Result.Err e, store, rng)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_replay_refused_at
@@ -3699,72 +3717,73 @@ info: @Tacenta.UnitLifecycleResponderFirstFrame.parts_of_steps : ∀ {E : Type}
   (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB) (ourB : tacenta_session_unit.lifecycle.Identity)
   (store : tacenta_session_unit.lifecycle.PrekeyStore) (msg : Aeneas.Std.Slice Aeneas.Std.U8)
   (d : tacenta_session_unit.tacenta_wire.DecodedInitial),
-  tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
-    ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-      tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
-          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
-        ∀ (slot : tacenta_session_unit.lifecycle.KemKeySlot) (lr : Bool),
-          tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
-              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (slot, lr)) →
-            ∀ (pi pe : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
-              tacenta_session_unit.lifecycle.responder_curve_inputs d.identity.deref d.ephemeral.deref =
-                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (pi, pe)) →
-                ∀ (otk : Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
-                  tacenta_session_unit.lifecycle.responder_one_time_key store d.one_time_prekey_id =
-                      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok otk) →
-                    ∀ (ks : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                      tacenta_session_unit.lifecycle.responder_decapsulate store slot d.kem_ciphertext.deref =
-                          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ks) →
-                        ∀ (ksz : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-                          tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 ks =
-                              Aeneas.Std.Result.ok ksz →
-                            ∀ (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                              tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                                    Tacenta.UnitLifecycleEstablishResponder.z32 zs =
-                                  Aeneas.Std.Result.ok sb →
-                                ∀ (spk : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
-                                  tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes sb =
-                                      Aeneas.Std.Result.ok spk →
-                                    ∀ (ik : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
-                                      ourB.dh_key = Aeneas.Std.Result.ok ik →
-                                        ∀ (enc : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                                          tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                                                Tacenta.UnitLifecycleEstablishResponder.z32 ksz =
-                                              Aeneas.Std.Result.ok enc →
-                                            ∀ (sh : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                                              tacenta_session_unit.responder_shared_secret ik spk otk pi pe enc =
-                                                  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok sh) →
-                                                ∀
-                                                  (shz :
-                                                    tacenta_session_unit.zeroize.Zeroizing
-                                                      (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-                                                  tacenta_session_unit.zeroize.Zeroizing.new
-                                                        Tacenta.UnitLifecycleEstablishResponder.z32 sh =
-                                                      Aeneas.Std.Result.ok shz →
-                                                    ∀ (shb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
-                                                      tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                                                            Tacenta.UnitLifecycleEstablishResponder.z32 shz =
-                                                          Aeneas.Std.Result.ok shb →
-                                                        ∀ (r : Option (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
-                                                          tacenta_session_unit.lifecycle.responder_replay_fingerprint
-                                                                store d.kem_prekey_id shb lr =
-                                                              Aeneas.Std.Result.ok
-                                                                (Aeneas.Std.core.result.Result.Ok r) →
-                                                            ∀ (sl : Aeneas.Std.Slice Aeneas.Std.U8),
-                                                              Tacenta.UnitLifecycleEstablishResponder.fullSlice shb =
-                                                                  Aeneas.Std.Result.ok sl →
-                                                                ∃ p,
-                                                                  p.decoded = d ∧
-                                                                    p.lastResort = lr ∧
-                                                                      p.peerIdentity = pi ∧
-                                                                        p.peerEphemeral = pe ∧
-                                                                          p.oneTime = otk ∧
-                                                                            p.kemSecret = ks ∧
-                                                                              p.signedPrekey = spk ∧
-                                                                                p.shared = sh ∧
-                                                                                  p.secret = shb ∧
-                                                                                    p.tripleSecret = sl ∧
-                                                                                      p.braidSecret = sl
+  tacenta_session_unit.serialization.check_frame_size msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) →
+    tacenta_session_unit.tacenta_wire.decode_initial msg = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok d) →
+      ∀ (zs : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+        tacenta_session_unit.lifecycle.responder_signed_prekey_secret store d.signed_prekey_id =
+            Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok zs) →
+          ∀ (slot : tacenta_session_unit.lifecycle.KemKeySlot) (lr : Bool),
+            tacenta_session_unit.lifecycle.responder_kem_slot store d.kem_prekey_id =
+                Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (slot, lr)) →
+              ∀ (pi pe : tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes),
+                tacenta_session_unit.lifecycle.responder_curve_inputs d.identity.deref d.ephemeral.deref =
+                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (pi, pe)) →
+                  ∀ (otk : Option tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                    tacenta_session_unit.lifecycle.responder_one_time_key store d.one_time_prekey_id =
+                        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok otk) →
+                      ∀ (ks : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                        tacenta_session_unit.lifecycle.responder_decapsulate store slot d.kem_ciphertext.deref =
+                            Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ks) →
+                          ∀ (ksz : tacenta_session_unit.zeroize.Zeroizing (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                            tacenta_session_unit.zeroize.Zeroizing.new Tacenta.UnitLifecycleEstablishResponder.z32 ks =
+                                Aeneas.Std.Result.ok ksz →
+                              ∀ (sb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                      Tacenta.UnitLifecycleEstablishResponder.z32 zs =
+                                    Aeneas.Std.Result.ok sb →
+                                  ∀ (spk : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                    tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes sb =
+                                        Aeneas.Std.Result.ok spk →
+                                      ∀ (ik : tacenta_session_unit.tacenta_boundary.dh.PrivateKey),
+                                        ourB.dh_key = Aeneas.Std.Result.ok ik →
+                                          ∀ (enc : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                            tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                  Tacenta.UnitLifecycleEstablishResponder.z32 ksz =
+                                                Aeneas.Std.Result.ok enc →
+                                              ∀ (sh : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                                tacenta_session_unit.responder_shared_secret ik spk otk pi pe enc =
+                                                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok sh) →
+                                                  ∀
+                                                    (shz :
+                                                      tacenta_session_unit.zeroize.Zeroizing
+                                                        (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                                                    tacenta_session_unit.zeroize.Zeroizing.new
+                                                          Tacenta.UnitLifecycleEstablishResponder.z32 sh =
+                                                        Aeneas.Std.Result.ok shz →
+                                                      ∀ (shb : Aeneas.Std.Array Aeneas.Std.U8 32#usize),
+                                                        tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                                              Tacenta.UnitLifecycleEstablishResponder.z32 shz =
+                                                            Aeneas.Std.Result.ok shb →
+                                                          ∀ (r : Option (Aeneas.Std.Array Aeneas.Std.U8 32#usize)),
+                                                            tacenta_session_unit.lifecycle.responder_replay_fingerprint
+                                                                  store d.kem_prekey_id shb lr =
+                                                                Aeneas.Std.Result.ok
+                                                                  (Aeneas.Std.core.result.Result.Ok r) →
+                                                              ∀ (sl : Aeneas.Std.Slice Aeneas.Std.U8),
+                                                                Tacenta.UnitLifecycleEstablishResponder.fullSlice shb =
+                                                                    Aeneas.Std.Result.ok sl →
+                                                                  ∃ p,
+                                                                    p.decoded = d ∧
+                                                                      p.lastResort = lr ∧
+                                                                        p.peerIdentity = pi ∧
+                                                                          p.peerEphemeral = pe ∧
+                                                                            p.oneTime = otk ∧
+                                                                              p.kemSecret = ks ∧
+                                                                                p.signedPrekey = spk ∧
+                                                                                  p.shared = sh ∧
+                                                                                    p.secret = shb ∧
+                                                                                      p.tripleSecret = sl ∧
+                                                                                        p.braidSecret = sl
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderFirstFrame.parts_of_steps
@@ -3791,31 +3810,33 @@ info: @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_prepares :
                           Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
                             (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) pending
                             frame →
-                        ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
-                          (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
-                          storeB.publish = Aeneas.Std.Result.ok bundle →
-                            ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
-                              Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB →
-                                Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB bundle.kem_prekey_id
-                                    q.kemCiphertext q.kemSecret →
-                                  ∀ (rngB : E),
-                                    (bundle.kem_prekey_id = storeB.kem_id ∧
-                                        ∃ e,
-                                          Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal storeB q.sharedBytes e ∧
-                                            tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB storeB msg
-                                                rngB =
-                                              Aeneas.Std.Result.ok
-                                                (Aeneas.Std.core.result.Result.Err e, storeB, rngB)) ∨
-                                      ∃ p,
-                                        p.shared = q.shared ∧
-                                          p.secret = q.sharedBytes ∧
-                                            p.tripleSecret = q.sharedSlice ∧
-                                              p.braidSecret = q.sharedSlice ∧
-                                                p.peerIdentity = q.ourPublic ∧
-                                                  p.peerEphemeral = q.ephemeralPublic ∧
-                                                    p.kemSecret = q.kemSecret ∧
-                                                      Tacenta.UnitLifecycleT3.sliceOf p.message = frame ∧
-                                                        (p.lastResort = true ↔ bundle.kem_prekey_id = storeB.kem_id)
+                        Model.Lifecycle.frameTooLong (Tacenta.UnitLifecycleT3.sliceOf msg) = false →
+                          ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                            (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
+                            storeB.publish = Aeneas.Std.Result.ok bundle →
+                              ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
+                                Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB →
+                                  Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB bundle.kem_prekey_id
+                                      q.kemCiphertext q.kemSecret →
+                                    ∀ (rngB : E),
+                                      (bundle.kem_prekey_id = storeB.kem_id ∧
+                                          ∃ e,
+                                            Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal storeB q.sharedBytes
+                                                e ∧
+                                              tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB storeB
+                                                  msg rngB =
+                                                Aeneas.Std.Result.ok
+                                                  (Aeneas.Std.core.result.Result.Err e, storeB, rngB)) ∨
+                                        ∃ p,
+                                          p.shared = q.shared ∧
+                                            p.secret = q.sharedBytes ∧
+                                              p.tripleSecret = q.sharedSlice ∧
+                                                p.braidSecret = q.sharedSlice ∧
+                                                  p.peerIdentity = q.ourPublic ∧
+                                                    p.peerEphemeral = q.ephemeralPublic ∧
+                                                      p.kemSecret = q.kemSecret ∧
+                                                        Tacenta.UnitLifecycleT3.sliceOf p.message = frame ∧
+                                                          (p.lastResort = true ↔ bundle.kem_prekey_id = storeB.kem_id)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_prepares
@@ -3846,40 +3867,41 @@ info: @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_admissible
                                 Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
                                   (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh q.session) pending
                                   frame →
-                              ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
-                                (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
-                                storeB.publish = Aeneas.Std.Result.ok bundle →
-                                  ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
-                                    Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB →
-                                      Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB
-                                          bundle.kem_prekey_id q.kemCiphertext q.kemSecret →
-                                        ∀ (rngB : E),
-                                          (bundle.kem_prekey_id = storeB.kem_id ∧
-                                              ∃ e,
-                                                Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal storeB
-                                                    q.sharedBytes e ∧
-                                                  tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB
-                                                      storeB msg rngB =
-                                                    Aeneas.Std.Result.ok
-                                                      (Aeneas.Std.core.result.Result.Err e, storeB, rngB)) ∨
-                                            ∃ p,
-                                              p.shared = q.shared ∧
-                                                p.secret = q.sharedBytes ∧
-                                                  p.tripleSecret = q.sharedSlice ∧
-                                                    p.braidSecret = q.sharedSlice ∧
-                                                      p.peerIdentity = q.ourPublic ∧
-                                                        p.peerEphemeral = q.ephemeralPublic ∧
-                                                          p.kemSecret = q.kemSecret ∧
-                                                            Tacenta.UnitLifecycleT3.sliceOf p.message = frame ∧
-                                                              (p.lastResort = true ↔
-                                                                  bundle.kem_prekey_id = storeB.kem_id) ∧
-                                                                p.session.invariant = Aeneas.Std.Result.ok true ∧
-                                                                  Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
-                                                                      p.session ∧
-                                                                    Tacenta.UnitLifecycleT3.SessionRefines dh K
-                                                                      p.session
-                                                                      (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
-                                                                        dh p)
+                              Model.Lifecycle.frameTooLong (Tacenta.UnitLifecycleT3.sliceOf msg) = false →
+                                ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                                  (storeB : tacenta_session_unit.lifecycle.PrekeyStore),
+                                  storeB.publish = Aeneas.Std.Result.ok bundle →
+                                    ourB.public = Aeneas.Std.Result.ok storeB.identity_public →
+                                      Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct storeB →
+                                        Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees storeB
+                                            bundle.kem_prekey_id q.kemCiphertext q.kemSecret →
+                                          ∀ (rngB : E),
+                                            (bundle.kem_prekey_id = storeB.kem_id ∧
+                                                ∃ e,
+                                                  Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal storeB
+                                                      q.sharedBytes e ∧
+                                                    tacenta_session_unit.lifecycle.establish_responder rcB crcB ourB
+                                                        storeB msg rngB =
+                                                      Aeneas.Std.Result.ok
+                                                        (Aeneas.Std.core.result.Result.Err e, storeB, rngB)) ∨
+                                              ∃ p,
+                                                p.shared = q.shared ∧
+                                                  p.secret = q.sharedBytes ∧
+                                                    p.tripleSecret = q.sharedSlice ∧
+                                                      p.braidSecret = q.sharedSlice ∧
+                                                        p.peerIdentity = q.ourPublic ∧
+                                                          p.peerEphemeral = q.ephemeralPublic ∧
+                                                            p.kemSecret = q.kemSecret ∧
+                                                              Tacenta.UnitLifecycleT3.sliceOf p.message = frame ∧
+                                                                (p.lastResort = true ↔
+                                                                    bundle.kem_prekey_id = storeB.kem_id) ∧
+                                                                  p.session.invariant = Aeneas.Std.Result.ok true ∧
+                                                                    Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                        p.session ∧
+                                                                      Tacenta.UnitLifecycleT3.SessionRefines dh K
+                                                                        p.session
+                                                                        (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
+                                                                          dh p)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderFirstFrame.responder_first_frame_admissible
@@ -3931,78 +3953,84 @@ info: @Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares : 
                                                         rng =
                                                       Aeneas.Std.Result.ok
                                                         (Aeneas.Std.core.result.Result.Ok bytes, s', rng') →
-                                                    ∀ (rcB : tacenta_session_unit.rand_core_1.RngCore F)
-                                                      (crcB : tacenta_session_unit.rand_core_1.CryptoRng F)
-                                                      (contracts :
-                                                        Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
-                                                      Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
-                                                        Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
-                                                          Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
-                                                            Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
-                                                                @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
-                                                              ∀ {K : Model.Braid.Kem},
-                                                                Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements
-                                                                    K →
-                                                                  ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
-                                                                    (storeB :
-                                                                      tacenta_session_unit.lifecycle.PrekeyStore),
-                                                                    storeB.publish = Aeneas.Std.Result.ok bundleA →
-                                                                      ourB.public =
-                                                                          Aeneas.Std.Result.ok storeB.identity_public →
-                                                                        Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
-                                                                            storeB →
-                                                                          Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
-                                                                              storeB bundleA.kem_prekey_id
-                                                                              q.kemCiphertext q.kemSecret →
-                                                                            ∀ (rngB : F),
-                                                                              ∃ messageKey chunk,
-                                                                                (bundleA.kem_prekey_id = storeB.kem_id ∧
-                                                                                    ∃ e,
-                                                                                      Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal
-                                                                                          storeB q.sharedBytes e ∧
-                                                                                        tacenta_session_unit.lifecycle.establish_responder
-                                                                                            rcB crcB ourB storeB
-                                                                                            bytes.deref rngB =
-                                                                                          Aeneas.Std.Result.ok
-                                                                                            (Aeneas.Std.core.result.Result.Err
-                                                                                                e,
-                                                                                              storeB, rngB)) ∨
-                                                                                  ∃ p,
-                                                                                    p.shared = q.shared ∧
-                                                                                      p.secret = q.sharedBytes ∧
-                                                                                        p.tripleSecret = q.sharedSlice ∧
-                                                                                          p.braidSecret =
+                                                    Model.Lifecycle.frameTooLong
+                                                          (Tacenta.UnitLifecycleT3.sliceOf bytes.deref) =
+                                                        false →
+                                                      ∀ (rcB : tacenta_session_unit.rand_core_1.RngCore F)
+                                                        (crcB : tacenta_session_unit.rand_core_1.CryptoRng F)
+                                                        (contracts :
+                                                          Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+                                                        Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+                                                          Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+                                                            Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+                                                              Tacenta.UnitHeadroomInvariant.OptionEqU64Shape
+                                                                  @tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+                                                                ∀ {K : Model.Braid.Kem},
+                                                                  Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements
+                                                                      K →
+                                                                    ∀ (ourB : tacenta_session_unit.lifecycle.Identity)
+                                                                      (storeB :
+                                                                        tacenta_session_unit.lifecycle.PrekeyStore),
+                                                                      storeB.publish = Aeneas.Std.Result.ok bundleA →
+                                                                        ourB.public =
+                                                                            Aeneas.Std.Result.ok
+                                                                              storeB.identity_public →
+                                                                          Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+                                                                              storeB →
+                                                                            Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
+                                                                                storeB bundleA.kem_prekey_id
+                                                                                q.kemCiphertext q.kemSecret →
+                                                                              ∀ (rngB : F),
+                                                                                ∃ messageKey chunk,
+                                                                                  (bundleA.kem_prekey_id =
+                                                                                        storeB.kem_id ∧
+                                                                                      ∃ e,
+                                                                                        Tacenta.UnitLifecycleResponderFirstFrame.StoreRefusal
+                                                                                            storeB q.sharedBytes e ∧
+                                                                                          tacenta_session_unit.lifecycle.establish_responder
+                                                                                              rcB crcB ourB storeB
+                                                                                              bytes.deref rngB =
+                                                                                            Aeneas.Std.Result.ok
+                                                                                              (Aeneas.Std.core.result.Result.Err
+                                                                                                  e,
+                                                                                                storeB, rngB)) ∨
+                                                                                    ∃ p,
+                                                                                      p.shared = q.shared ∧
+                                                                                        p.secret = q.sharedBytes ∧
+                                                                                          p.tripleSecret =
                                                                                               q.sharedSlice ∧
-                                                                                            p.peerIdentity =
-                                                                                                q.ourPublic ∧
-                                                                                              p.peerEphemeral =
-                                                                                                  q.ephemeralPublic ∧
-                                                                                                p.kemSecret =
-                                                                                                    q.kemSecret ∧
-                                                                                                  Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                        p.message =
-                                                                                                      Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
-                                                                                                        view oracle
-                                                                                                        (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
-                                                                                                          dh s)
-                                                                                                        (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                          plaintext)
-                                                                                                        messageKey
-                                                                                                        chunk ∧
-                                                                                                    (p.lastResort =
-                                                                                                          true ↔
-                                                                                                        bundleA.kem_prekey_id =
-                                                                                                          storeB.kem_id) ∧
-                                                                                                      p.session.invariant =
-                                                                                                          Aeneas.Std.Result.ok
-                                                                                                            true ∧
-                                                                                                        Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
-                                                                                                            p.session ∧
-                                                                                                          Tacenta.UnitLifecycleT3.SessionRefines
-                                                                                                            dh K
-                                                                                                            p.session
-                                                                                                            (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
-                                                                                                              dh p)
+                                                                                            p.braidSecret =
+                                                                                                q.sharedSlice ∧
+                                                                                              p.peerIdentity =
+                                                                                                  q.ourPublic ∧
+                                                                                                p.peerEphemeral =
+                                                                                                    q.ephemeralPublic ∧
+                                                                                                  p.kemSecret =
+                                                                                                      q.kemSecret ∧
+                                                                                                    Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                          p.message =
+                                                                                                        Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame
+                                                                                                          view oracle
+                                                                                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                                                                            dh s)
+                                                                                                          (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                            plaintext)
+                                                                                                          messageKey
+                                                                                                          chunk ∧
+                                                                                                      (p.lastResort =
+                                                                                                            true ↔
+                                                                                                          bundleA.kem_prekey_id =
+                                                                                                            storeB.kem_id) ∧
+                                                                                                        p.session.invariant =
+                                                                                                            Aeneas.Std.Result.ok
+                                                                                                              true ∧
+                                                                                                          Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                                              p.session ∧
+                                                                                                            Tacenta.UnitLifecycleT3.SessionRefines
+                                                                                                              dh K
+                                                                                                              p.session
+                                                                                                              (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
+                                                                                                                dh p)
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleResponderFirstFrame.first_send_responder_prepares
