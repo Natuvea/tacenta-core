@@ -186,9 +186,11 @@ MUTANTS = [
      [("    agType := .none\n    agChunk := none }\n", "    agType := .hdr\n    agChunk := none }\n")],
      r"agType := Model\.CompositeHeader\.AgreementType\.none, agChunk := none \}\)\)\) =\n    Model\.CompositeHeader\.encodeMessage\n      \{ dh := newPub, pn := 0, n := 0, pqEpoch := 0, pqN := 1, agEpoch := 1,\n        agType := Model\.CompositeHeader\.AgreementType\.hdr, agChunk := none \}", ['reply_model_step']),
     ('module', 'model-step-claimed-without-the-pending-premise',
-     [("    (ec prk k1 k2 a4 d dSend newPub c : Key) (hpend : mB.pendingInitial = none) (pt : Model.Lifecycle.Bytes) :\n",
-       "    (ec prk k1 k2 a4 d dSend newPub c : Key) (hpend : True) (pt : Model.Lifecycle.Bytes) :\n")],
-     r"hpend : True\npt : Model\.Lifecycle\.Bytes\n⊢ \(match mB\.pendingInitial with\n    \| none =>", ['reply_model_step']),
+     [("    (ec prk k1 k2 a4 d dSend newPub c : Key) (hpend : mB.pendingInitial = none) (pt : Model.Lifecycle.Bytes)\n"
+       "    (hlen : pt.length ≤ Model.Lifecycle.maxPlaintextLen) :\n",
+       "    (ec prk k1 k2 a4 d dSend newPub c : Key) (hpend : True) (pt : Model.Lifecycle.Bytes)\n"
+       "    (hlen : pt.length ≤ Model.Lifecycle.maxPlaintextLen) :\n")],
+     r"hpend : True\npt : Model\.Lifecycle\.Bytes\nhlen : [^\n]*\n⊢ \(match mB\.pendingInitial with\n    \| none =>", ['reply_model_step']),
     # statement-shape check
     ('module', 'reach-call-claimed-to-leave-the-seed',
      [(REACH_CALL, REACH_CALL.replace("sB'', rngB') ∧", "sB'', seed) ∧"))],

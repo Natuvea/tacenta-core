@@ -140,7 +140,7 @@ REPLY_REL = ("        (replyReceiptSession\n"
 REPLY_FRESH = "    (hfreshB : oracleB.dhPublic dB ≠ arrayOf q.peerRatchetBytes) :\n"
 
 REG_TAIL = ("      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by\n"
-            "  rcases responder_first_frame_prepares")
+            "  have hsize := Tacenta.UnitLifecycleEstablishResponder.establish_responder_ok_fits rcB crcB ourB storeB\n")
 
 SPQR_HEAD = "theorem spqr_receive_inOrder {st : Model.SparseRatchet.State} {e n : Nat}\n"
 
