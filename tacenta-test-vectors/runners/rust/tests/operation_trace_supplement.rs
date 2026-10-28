@@ -177,6 +177,7 @@ fn establish(
 struct Pair {
     alice: Session,
     bob: Session,
+    store: PrekeyStore,
 }
 
 fn pair(rng: &mut Stream) -> Pair {
@@ -191,7 +192,7 @@ fn pair(rng: &mut Stream) -> Pair {
         .expect("fixture: first message");
     let (bob, _) =
         establish_responder(&bob_id, &mut store, &initial, rng).expect("fixture: responder");
-    Pair { alice, bob }
+    Pair { alice, bob, store }
 }
 
 /// Bob's session after an authenticated receive moved its Braid to Failed: one bit of its stored Braid MAC key
@@ -325,6 +326,65 @@ fn drive(trace: &Trace) -> Vec<Observed> {
             let second = receive(&mut bob, &repeat, &mut rng);
             vec![first, second]
         }
+        "receive-on-failed-session-in-order" => {
+            let mut p = pair(&mut rng);
+            let mut bob = failed(&mut p, &mut rng);
+            let store_before = p.store.to_bytes().to_vec();
+            let repeat = p.alice.encrypt(b"repeat", &mut rng).expect("repeat");
+            let d = decode_initial(&repeat).expect("the repeat decodes");
+            let mut short = vec![0u8; 50];
+            short[..2].copy_from_slice(&[0x01, 0x01]);
+            let mut no_curve = repeat.clone();
+            no_curve[2] = 0x00;
+            let other_id = Identity::generate(&mut rng);
+            let bundle = p.store.publish();
+            let mut other = establish_initiator(
+                &other_id,
+                &bundle,
+                &Expectation::first_contact(&[]),
+                &mut rng,
+            )
+            .expect("another initiator");
+            let other_first = other.encrypt(b"other", &mut rng).expect("other first");
+            let od = decode_initial(&other_first).expect("decodes");
+            let unknown = 0xdead_beef;
+            let other_unknown = encode_initial(
+                &od.identity,
+                &od.ephemeral,
+                &od.kem_ciphertext,
+                unknown,
+                unknown,
+                unknown,
+                &od.message,
+            );
+            let repeat_unknown = encode_initial(
+                &d.identity,
+                &d.ephemeral,
+                &d.kem_ciphertext,
+                unknown,
+                unknown,
+                unknown,
+                &d.message,
+            );
+            let frames = [
+                short,
+                d.message.clone(),
+                no_curve,
+                other_unknown,
+                repeat_unknown,
+                repeat,
+            ];
+            let mut out: Vec<Observed> = frames
+                .iter()
+                .map(|f| receive(&mut bob, f, &mut rng))
+                .collect();
+            // A session's receive reads no prekey store: Bob's is checked to be as it was.
+            let store_changed = p.store.to_bytes().as_slice() != store_before.as_slice();
+            for o in &mut out {
+                o.store_changed = store_changed;
+            }
+            out
+        }
         other => panic!("operation_trace_supplement: no driver for trace {other}"),
     }
 }
@@ -384,6 +444,7 @@ fn the_supplement_traces_agree_with_tacenta_core() {
             "control-plaintext-too-long-wrongly-accepted",
             "establish-responder-frame-too-long",
             "receive-frame-too-long-before-agreement-failed",
+            "receive-on-failed-session-in-order",
             "receive-ratchet-frame-too-long",
             "receive-repeated-initial-nested-too-long",
             "send-plaintext-too-long-before-agreement-failed",

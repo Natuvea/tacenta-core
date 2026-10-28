@@ -89,6 +89,7 @@ SUPPLEMENT_REQUIRED = {
     "receive-ratchet-frame-too-long",
     "receive-repeated-initial-nested-too-long",
     "receive-frame-too-long-before-agreement-failed",
+    "receive-on-failed-session-in-order",
     "control-plaintext-too-long-wrongly-accepted",
 }
 SUPPLEMENT_PROVENANCE = "Not independently authored"

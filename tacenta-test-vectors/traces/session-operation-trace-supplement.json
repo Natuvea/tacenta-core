@@ -284,6 +284,123 @@
       ]
     },
     {
+      "id": "receive-on-failed-session-in-order",
+      "comment": "Supplement trace 7: within the size bounds, a session whose agreement has failed refuses in the specified order (mlkem-braid.md, Failure, the order of a failed session's receive refusals): a frame that is not an initial frame meets AgreementFailed before any decode, even when it is malformed; an initial frame meets its decode failure or NotARepeatedInitial first, prekey identifiers named or not; only a repeat meets AgreementFailed. Every refusal leaves the session and Bob's prekey store unchanged and draws nothing.",
+      "fixtures": {
+        "bob-failed": "Bob's responder session after an authenticated receive moved its Braid to Failed; Bob's prekey store beside it",
+        "short-ratchet-frame": "a 50-byte frame with the version byte and the ratchet type byte and zeros after: too short to decode",
+        "alice-repeat-inner": "the ratchet message inside alice-repeat, given as a frame of its own: a well-formed ratchet message",
+        "alice-repeat-no-curve": "alice-repeat with the curve byte of its identity cleared, which the initial-message decoder refuses",
+        "other-initial-unknown-prekeys": "another handshake's first initial message to Bob, re-wrapped to name prekey identifiers 0xdeadbeef that no store holds",
+        "alice-repeat-unknown-prekeys": "alice-repeat re-wrapped to name prekey identifiers 0xdeadbeef: still a repeat, since a session compares only identity and ephemeral",
+        "alice-repeat": "Alice's initial message for that session, a repeat of the one that established it"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "short-ratchet-frame"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat-inner"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat-no-curve"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "other-initial-unknown-prekeys"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "NotARepeatedInitial"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat-unknown-prekeys"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        }
+      ]
+    },
+    {
       "id": "control-plaintext-too-long-wrongly-accepted",
       "comment": "Control: declares that a send of MAX_PLAINTEXT_LEN + 1 bytes on an established session is accepted. Every consumer must report this trace as failing.",
       "fixtures": {

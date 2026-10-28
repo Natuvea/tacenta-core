@@ -2425,6 +2425,61 @@ theorem prepareResponder_admitted_unknown_signed_prekey (oracle : Oracle)
     prepareResponder oracle identity store message = .error .unknownPrekeyId := by
   simp [prepareResponder, hs, hd, hk]
 
+/-! ### A failed session's receive refusals, in order (mlkem-braid.md, Failure)
+
+Within the size bounds, a session whose agreement has failed refuses a frame
+that is not an initial frame with `agreementFailed` before decoding it; an
+initial frame is decoded and compared with the session's own initial message
+first, so it meets a decode refusal or `notARepeatedInitial` before
+`agreementFailed`, which only a genuine repeat reaches. Each returns the
+session and the oracle unchanged, so no random value is drawn. -/
+
+/-- A frame that is not an initial frame, within the bounds, on a failed
+    session: `agreementFailed`, whatever its bytes (a malformed or unrecognised
+    frame included), before any decode. -/
+theorem decrypt_failed_not_initial (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (hs : frameTooLong message = false)
+    (hi : messageType message ≠ some .initial) (hf : agreementFailed session = true) :
+    decrypt view oracle session message =
+      { session, result := .error .agreementFailed, oracle } := by
+  simp [decrypt, dispatchDecrypt_passthrough oracle session message hs hi, decryptRatchet, hf]
+
+/-- An initial frame the initial-message decoder refuses, within the bounds:
+    that decode refusal, whether or not the agreement has failed. -/
+theorem decrypt_initial_decode_refusal_any (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (reason : DecodeRefusal)
+    (hs : frameTooLong message = false) (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .error reason) :
+    decrypt view oracle session message =
+      { session, result := .error (.decode reason), oracle } :=
+  decrypt_dispatch_refusal_keeps_state view oracle session message _
+    (dispatchDecrypt_decode_refusal oracle session message reason hs ht hd)
+
+/-- An initial frame that decodes and is not the session's repeat, within the
+    bounds: `notARepeatedInitial`, whether or not the agreement has failed. -/
+theorem decrypt_initial_not_repeat_any (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (initial : Model.Messages.Initial)
+    (hs : frameTooLong message = false) (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hr : repeatedInitial oracle session initial = false) :
+    decrypt view oracle session message =
+      { session, result := .error .notARepeatedInitial, oracle } :=
+  decrypt_dispatch_refusal_keeps_state view oracle session message _
+    (dispatchDecrypt_not_repeat oracle session message initial hs ht hd hr)
+
+/-- A genuine repeat on a failed session, within the bounds: `agreementFailed`,
+    before its inner ratchet message is decoded. -/
+theorem decrypt_failed_repeat (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (initial : Model.Messages.Initial)
+    (hs : frameTooLong message = false) (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hr : repeatedInitial oracle session initial = true)
+    (hf : agreementFailed session = true) :
+    decrypt view oracle session message =
+      { session, result := .error .agreementFailed, oracle } := by
+  simp [decrypt, dispatchDecrypt_repeat oracle session message initial hs ht hd hr,
+    decryptRatchet, hf]
+
 /-! ### Precedence on the send (message-format.md, Message size, the sender's rule)
 
 `encrypt_plaintext_too_long` holds for every session, a terminal one included;

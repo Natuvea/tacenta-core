@@ -40,7 +40,8 @@ expected_tests() {
         a_rewrapped_repeat_with_an_empty_kem_ciphertext_cannot_carry_an_oversized_ratchet_message \
         an_oversized_input_is_refused_as_too_long_whatever_else_is_wrong_with_it \
         a_frame_the_rule_admits_keeps_its_existing_refusal \
-        a_terminal_session_refuses_oversized_inputs_as_too_long
+        a_terminal_session_refuses_oversized_inputs_as_too_long \
+        a_terminal_session_refuses_in_the_specified_order_within_the_bounds
       ;;
     message_size_preflight)
       printf '%s\n' \

@@ -82,8 +82,15 @@ The committed supplement must contain:
    a ratchet message one byte over `MAX_RATCHET_FRAME_LEN`, refused, then the
    genuine repeat accepted;
 6. a receive on a session whose agreement has failed, refusing an oversized
-   frame as too long (`decode-failure`) rather than as `AgreementFailed`; and
-7. a control the consumer must fail: an oversized plaintext declared accepted.
+   frame as too long (`decode-failure`) rather than as `AgreementFailed`;
+7. within the bounds, on a session whose agreement has failed, the order
+   mlkem-braid.md, Failure, fixes: a malformed and a well-formed frame that is
+   not an initial frame refused with `AgreementFailed`, a malformed initial
+   frame refused as a decode failure, another handshake's initial frame naming
+   unknown prekeys refused as `NotARepeatedInitial`, and the repeat, with and
+   without unknown prekey identifiers, refused with `AgreementFailed`, each
+   with no change and no draw; and
+8. a control the consumer must fail: an oversized plaintext declared accepted.
 
 ## Who reads it
 

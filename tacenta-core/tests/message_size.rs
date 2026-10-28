@@ -550,3 +550,132 @@ fn a_terminal_session_refuses_oversized_inputs_as_too_long() {
         Err(LifecycleError::AgreementFailed)
     );
 }
+
+/// Within the bounds, a session whose agreement has failed reports the specified order (mlkem-braid.md,
+/// Failure, "The order of a failed session's receive refusals"): a frame that is not an initial frame meets
+/// `AgreementFailed` before it is decoded; an initial frame is decoded and compared with the session's own initial
+/// message first, so a malformed one is a decode failure and another handshake's is `NotARepeatedInitial`; only a
+/// repeat, its prekey identifiers changed or not, meets `AgreementFailed`. Each refusal draws nothing and leaves the
+/// session and the prekey store (its one-time prekeys and replay record included) byte-for-byte as they were.
+#[test]
+fn a_terminal_session_refuses_in_the_specified_order_within_the_bounds() {
+    let mut r = Counting::new(12);
+    let mut p = pending_pair(&mut r);
+    // Fail Bob's Braid as the terminal test above does.
+    let mut saved = p.bob.export().to_vec();
+    let triple_len = u32::from_be_bytes(saved[1..5].try_into().unwrap()) as usize;
+    let braid = 1 + 4 + triple_len + 4;
+    saved[braid + 2 + 8 + 32] ^= 0x01;
+    p.bob = Session::import(&saved).expect("import");
+    let mut i = 0u8;
+    while !p.bob.agreement_failed() {
+        let m = p.alice.encrypt(&[i], &mut r).unwrap();
+        p.bob
+            .decrypt(&m, &mut r)
+            .expect("accepted until the refusals begin");
+        i += 1;
+        assert!(i < 8, "the agreement did not fail");
+    }
+    let store_before = p.bob_prekeys.to_bytes().to_vec();
+    let repeat = p.alice.encrypt(b"repeat", &mut r).unwrap();
+    let d = decode_initial(&repeat).expect("the repeat decodes");
+
+    let mut cases: Vec<(&str, Vec<u8>, LifecycleError)> = Vec::new();
+    // Not initial frames: AgreementFailed before any decode, malformed or not.
+    let mut short_ratchet = vec![0u8; 50];
+    short_ratchet[..2].copy_from_slice(&[0x01, 0x01]);
+    cases.push((
+        "a ratchet frame too short to decode",
+        short_ratchet,
+        LifecycleError::AgreementFailed,
+    ));
+    let mut unknown_version = vec![0u8; 200];
+    unknown_version[..2].copy_from_slice(&[0x02, 0x01]);
+    cases.push((
+        "an unknown version byte",
+        unknown_version,
+        LifecycleError::AgreementFailed,
+    ));
+    cases.push((
+        "a well-formed ratchet message, the repeat's own inner one",
+        d.message.clone(),
+        LifecycleError::AgreementFailed,
+    ));
+    // Initial frames: the decoder and the repeat check come first.
+    let mut no_curve = repeat.clone();
+    no_curve[2] = 0x00;
+    cases.push((
+        "the repeat with its identity's curve byte cleared",
+        no_curve,
+        LifecycleError::Decode(DecodeError::WrongType),
+    ));
+    cases.push((
+        "an initial frame too short for its KEM length",
+        repeat[..71].to_vec(),
+        LifecycleError::Decode(DecodeError::TooShort),
+    ));
+    let other_id = sessions::Identity::generate(&mut r);
+    let bundle = p.bob_prekeys.publish();
+    let mut other =
+        establish_initiator(&other_id, &bundle, &Expectation::first_contact(&[]), &mut r).unwrap();
+    let other_first = other.encrypt(b"other", &mut r).unwrap();
+    let od = decode_initial(&other_first).unwrap();
+    cases.push((
+        "another handshake's initial message",
+        other_first.clone(),
+        LifecycleError::NotARepeatedInitial,
+    ));
+    cases.push((
+        "another handshake's initial message naming prekeys no store holds",
+        encode_initial(
+            &od.identity,
+            &od.ephemeral,
+            &od.kem_ciphertext,
+            0xdead_beef,
+            0xdead_beef,
+            0xdead_beef,
+            &od.message,
+        ),
+        LifecycleError::NotARepeatedInitial,
+    ));
+    cases.push((
+        "the repeat naming prekeys no store holds, still a repeat",
+        encode_initial(
+            &d.identity,
+            &d.ephemeral,
+            &d.kem_ciphertext,
+            0xdead_beef,
+            0xdead_beef,
+            0xdead_beef,
+            &d.message,
+        ),
+        LifecycleError::AgreementFailed,
+    ));
+    cases.push((
+        "the genuine repeat",
+        repeat.clone(),
+        LifecycleError::AgreementFailed,
+    ));
+
+    for (what, frame, expected) in cases {
+        assert_eq!(
+            check_frame_size(&frame),
+            Ok(()),
+            "{what}: within the bounds"
+        );
+        let before = p.bob.export().to_vec();
+        let calls = r.calls;
+        assert_eq!(p.bob.decrypt(&frame, &mut r), Err(expected), "{what}");
+        assert_eq!(r.calls, calls, "{what}: no random draw");
+        assert_eq!(
+            p.bob.export().to_vec(),
+            before,
+            "{what}: the session is unchanged"
+        );
+        assert_eq!(
+            p.bob_prekeys.to_bytes().to_vec(),
+            store_before,
+            "{what}: the prekey store is unchanged"
+        );
+    }
+}

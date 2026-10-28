@@ -18,7 +18,9 @@
 //!   with that decoder's own error; when it does, the live session refuses an initial frame as not its repeat,
 //!   and the store refuses it at the signed-prekey lookup (the store holds no prekey these frames name, 0 or
 //!   0xdeadbeef). A frame that is not an initial frame always meets the initial-message decoder's refusal on
-//!   establishment.
+//!   establishment. On the session whose agreement has failed the runner requires the specified order
+//!   (mlkem-braid.md, Failure): `AgreementFailed` for a frame that is not an initial frame, before any decode,
+//!   and for an initial frame its decoder's refusal or `NotARepeatedInitial`, with no call to the random source.
 
 use std::sync::OnceLock;
 
@@ -222,6 +224,26 @@ pub(crate) fn check(v: &Vector) -> Result<(), String> {
             if !outcome.unchanged {
                 return Err(format!("{name}'s refusal changed it"));
             }
+        }
+        // On the session whose agreement has failed, the specified order (mlkem-braid.md, Failure): a frame
+        // that is not an initial frame meets AgreementFailed before any decode; an initial frame meets its
+        // decoder's refusal, or NotARepeatedInitial (none of these frames is that session's repeat). No draw.
+        let terminal_want = match (&initial_decode, initial) {
+            (_, false) => LifecycleError::AgreementFailed,
+            (Some(e), true) => LifecycleError::Decode(*e),
+            (None, true) => LifecycleError::NotARepeatedInitial,
+        };
+        if terminal.result.as_ref().err() != Some(&terminal_want) {
+            return Err(format!(
+                "the terminal session gave {:?}, not {terminal_want:?}",
+                terminal.result.as_ref().err()
+            ));
+        }
+        if terminal.calls != 0 {
+            return Err(format!(
+                "the terminal session's refusal read the random source ({} calls)",
+                terminal.calls
+            ));
         }
         // The refusal each frame had without the rule.
         let live_error = live.result.as_ref().err();

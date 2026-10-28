@@ -286,6 +286,15 @@ message**: the frames are mostly zeros and none of them authenticates.
   sessions and store unchanged, and no call to the random source. The layout
   names no session state, so the terminal session is the runner's fixture,
   not part of the vector.
+- **On the terminal session**, every admitted vector must meet the order
+  mlkem-braid.md, Failure, states for a failed session within the bounds: a
+  frame that is not an initial frame is refused with `AgreementFailed` before
+  it is decoded, whatever `decodes` says; an initial frame is refused by its
+  decoder when `decodes` is `00`, and as `NotARepeatedInitial` when it is
+  `01` (none of these frames is that session's repeat); no call to the random
+  source and no change. The same order on real frames, the repeat included,
+  is in `tacenta-core/tests/message_size.rs` and in the operation-trace
+  supplement's `receive-on-failed-session-in-order`.
 - **What no vector here pins:** acceptance of a real message at exactly
   `MAX_PLAINTEXT_LEN`, and the sender's rule. A plaintext of that length is a
   megabyte and a real frame carries a tag the model cannot compute, so both
