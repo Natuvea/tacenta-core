@@ -16,7 +16,7 @@ the log of the `translation` job for `dea57eaf`. The mutation counts in `ASSURAN
 `tacenta-proofs/GATE-MUTATION-RECORD.md`, except the cases of `check-session-satisfiability-negatives.sh`, which are those of the script at this tree. The reads were tool-assisted (see the next paragraph) and were not
 made by anyone independent of the maintainer. This assessment did not
 run every acceptance criterion of every closed gap row. `GAP-REGISTER.md` and
-`ASSURANCE-OBLIGATIONS.md` carry their own stamps. The pin counts in practice 2, the Session row, the readiness section and the Gate 2 count, and the trust-base sentences beside them, are those of the tree after #215, the `SessionBraidReceiveVacuity` change, the repair of the decoder hypothesis, the inhabitation modules and the `DispatchEvidenceVacuity` change, not of `dea57eaf`. The pin counts and the rows `DISPATCH-EVIDENCE-VACUITY`, `E2E-01`, `E2E-04` and `E2E-04-SAME-EPHEMERAL-MODEL` are those of the tree after the integration of the session contract branch (2026-10-02), not of `dea57eaf`, and the pin counts are those of this branch's head after the derivation of the `decrypt_ratchet` run bounds (2026-10-16); on main they were those of the tree after the joint decision of the clauses of `OracleOf` and the merge of #242 (2026-10-14). The reads of those rows were made by the author, and no reviewer independent of the maintainer has read them. Pull request #210 (a
+`ASSURANCE-OBLIGATIONS.md` carry their own stamps. The pin counts in practice 2, the Session row, the readiness section and the Gate 2 count, and the trust-base sentences beside them, are those of the tree after #215, the `SessionBraidReceiveVacuity` change, the repair of the decoder hypothesis, the inhabitation modules and the `DispatchEvidenceVacuity` change, and, for the Gate 2 count, the tree of 2026-10-28, not of `dea57eaf`. The pin counts and the rows `DISPATCH-EVIDENCE-VACUITY`, `E2E-01`, `E2E-04` and `E2E-04-SAME-EPHEMERAL-MODEL` are those of the tree after the integration of the session contract branch (2026-10-02), not of `dea57eaf`, and the pin counts are those of this branch's head after the derivation of the `decrypt_ratchet` run bounds (2026-10-16); on main they were those of the tree after the joint decision of the clauses of `OracleOf` and the merge of #242 (2026-10-14). The reads of those rows were made by the author, and no reviewer independent of the maintainer has read them. Pull request #210 (a
 specification page) merged after `dea57eaf`, and neither it nor pull request #211
 is covered by the assessment. The closure of `E2E-07` (#214) was made afterwards and is covered only by its register row. So is the closure of `HL-R1-SPARSE-TRANSLATION`, made on 2026-10-03 on one Linux x86_64 regeneration (an emulated run by the maintainer's tool-assisted session, not independent), whose record is in `tacenta-proofs/REPRODUCING.md`, and so is the row `HL-R1-SPARSE-READER`, added the same day. In this record, "hosted" means run by GitHub
 Actions. On a push to `main`, the `proofs` job and the one job of the
@@ -84,14 +84,25 @@ supplies; the open only with overflow checks) and where, on 32 bits, it is reach
 changed. The corrections were made by the author
 with tool assistance; no reader independent of the maintainer has read them.
 
+On 2026-10-28, provenance and review statements were corrected and nothing else was re-read: the key derivation's
+provenance in the paragraph of 2026-10-22 above and in practice 3 no longer states a reading of the three Rust files by
+the maintainer, which no record in this repository supports, and states the recorded authorship and the review recorded
+on #272; the readiness section says that the first engagement (the review of `d2dc386`) is an unverified project
+assertion and that the earlier citations of an external review, in commits of 2026-09-09, have no source identified in
+this repository, and counts neither as assurance; practice 9 says the P6 operation reader was written and run by a
+related party; and the gate 2 count includes `READER-INDEPENDENCE`, which became BLOCKING that day because Jie Sun, who
+wrote and ran the P6 operation reader, is a director of Natuvea Ltd, so a related party, while tagged text calls that
+reader independent. No level or tick changed. The corrections were made with tool assistance under the maintainer's
+account; no reader independent of the maintainer has read them.
+
 Parts of this project are written and reviewed with tool assistance. The
 README's "Development assistance" section says how, and that tool-assisted
 checks and reviews are evidence of what they ran, not independent review.
 
 The readiness gates below are not met. Gate 1 is not met: practice 5 is
 BLOCKING in `ASSURANCE-OBLIGATIONS.md`, and the ML-KEM Braid row is below its L4
-target. Gate 2 is not met: five rows are open at BLOCKING in `GAP-REGISTER.md`
-(SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY, E2E-01, which stays open and BLOCKING
+target. Gate 2 is not met: six rows are open at BLOCKING in `GAP-REGISTER.md`
+(SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY, READER-INDEPENDENCE, BLOCKING since 2026-10-28 while independence claims the repository does not support remain, E2E-01, which stays open and BLOCKING
 until its acceptance is met, whatever the tacenta.com home page says, and G14-03 and G14-06, two findings of the fourteenth reader pass that vectors
 rely on, open until a later pass reads the text that decides them; HL-R1-SPARSE-READER closed on that pass), and the rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
 `ASSURANCE-OBLIGATIONS.md`. On 2026-10-01 the maintainer recorded two decisions: HL-IMP-01 is closed, because the
@@ -192,9 +203,9 @@ auditing a ledger that is still moving wastes the engagement.
 | 3 | The claims ledger has been verified claim by claim, by a reader who did not write it, since its last change | a recorded review naming the reading |
 | 4 | Every gate has been shown to fail when what it checks is broken, and none reports green when it cannot run | each gate's mutation record |
 
-**Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards and `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY` were opened after that).
+**Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards and `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY` were opened after that; `READER-INDEPENDENCE` became BLOCKING on 2026-10-28).
 - Gate 1 is not met. Practice 5 is BLOCKING in `ASSURANCE-OBLIGATIONS.md` (MU-03), and the ML-KEM Braid row reads L3 against an L4 target.
-- Gate 2 is not met. `GAP-REGISTER.md` has five rows open at BLOCKING, two of them findings of the fourteenth reader pass (`G14-03`, `G14-06`); `HL-R1-SPARSE-READER`, the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`, closed on that pass; and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence. `HL-R1-SPARSE-TRANSLATION` was closed on 2026-10-03 on one Linux x86_64 regeneration of the translation (an emulated run by the maintainer's tool-assisted session, not independent; `tacenta-proofs/REPRODUCING.md` records it).
+- Gate 2 is not met. `GAP-REGISTER.md` has six rows open at BLOCKING, two of them findings of the fourteenth reader pass (`G14-03`, `G14-06`) and one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28; `HL-R1-SPARSE-READER`, the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`, closed on that pass; and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence. `HL-R1-SPARSE-TRANSLATION` was closed on 2026-10-03 on one Linux x86_64 regeneration of the translation (an emulated run by the maintainer's tool-assisted session, not independent; `tacenta-proofs/REPRODUCING.md` records it).
 - Gate 3 has not been requested ([P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md)). No recorded review by a reader who did not write the ledger exists.
 - Gate 4 is not met. "Where the negative controls run" in [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) lists which gates have a control that runs in CI, which run only locally and which have none, and names the gates whose control a single edit survived.
 

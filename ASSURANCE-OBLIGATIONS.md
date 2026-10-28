@@ -4,6 +4,7 @@ Current inventory for P1 of the assurance execution plan. This file makes the
 remaining readiness work assessable; it is not evidence that the work is done.
 
 Last assessed: 2026-09-30, at `dea57eaff4e516b6f56df08f7ced44d0ee87d024`, for the gate evidence inventory and the rows that cite it. The rest of this file was last assessed on 2026-09-14, at `c7499a9b6fedb9d211198671848c1e3acbe592af`. The Gate 2 row was re-read on 2026-09-30 against `GAP-REGISTER.md` after `SESSION-CONTRACT-VACUITY` was added, and again on 2026-10-01 after `DISPATCH-EVIDENCE-VACUITY` was added. On 2026-10-22, for identity records (ADR-0009), the Gate 2 row was re-read against `GAP-REGISTER.md` after reader pass 14, and the requirement count of the practice 8 row, the revisit triggers of the MU-01 and Session rows and the zones of the authentication-boundary row were updated, by their author with tool assistance and no independent reader.
+On 2026-10-28 the Gate 2 row's count was updated when `READER-INDEPENDENCE` moved to BLOCKING, with tool assistance under the maintainer's account and no independent reader.
 
 ## Gate classes
 
@@ -420,9 +421,10 @@ than security requirements.
   Gap register must have no open BLOCKING rows and no unresolved AMBIGUOUS rows.
   After `E2E-07` was closed on the run at `75387aa9` and `HL-R1-SPARSE-TRANSLATION` on one Linux x86_64 regeneration of 2026-10-03 (an emulated run by the maintainer's tool-assisted session,
   not independent),
-  five rows are open at BLOCKING in the register,
+  six rows are open at BLOCKING in the register,
   two of them findings of the fourteenth reader pass (`G14-03`,
   `G14-06`),
+  and one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28 while independence claims the repository does not support remain,
   while `HL-R1-SPARSE-READER`,
   the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`,
   closed on that pass (`HL-IMP-01` was closed and `INV-01` classified NONBLOCKING by recorded decisions on 2026-10-01),
