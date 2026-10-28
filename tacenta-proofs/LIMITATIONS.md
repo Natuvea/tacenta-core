@@ -4304,6 +4304,59 @@ That a message `encrypt` returns passes the size rule is shown only under `AeadS
 `KemCiphertextLenBound`, with the narrower lengths above; the outcome of the reply routes for reply plaintexts of 1,048,561
 to 1,048,575 bytes is not shown.
 
+### The preservation results: three assumed laws, conditional, and what stays open
+
+The preservation results (`UnitLifecycleEncryptPreserve`, `UnitLifecycleDecryptPreserve`) take three laws that no
+theorem proves of the shipping code. The results that take them are conditional intermediate results: the laws are not
+accepted as trust, and nothing that depends on them is closed by them. Each has a register row
+(`PRESERVE-LAW-ENCAPS1-SIZES`, `PRESERVE-LAW-KEYPAIR-EK-VECTOR-LEN`, `PRESERVE-LAW-ENCAPSULATE2-LEN`) that no recorded
+decision closes.
+
+- **`Encaps1SizesOf K` (ASSUMED).** Every `ct1` the model KEM's `encaps1` returns has `K.ct1Size` bytes, for every
+  randomness, seed and header hash. Domain: every call of the model KEM's `encaps1`, so every `HeaderReceived` session
+  the relation relates to a model session, a stored or imported one included. Dependent theorems:
+  `braid_send_headerReceived`, `encrypt_keeps_invariant_headerReceived`, `encrypt_keeps_invariant`,
+  `encrypt_keeps_invariant_of_witness` and `encrypt_keeps_invariant_of_contracts`
+  (`encrypt_keeps_invariant_unless_sampling` does without it). Consistency evidence: the toy KEM `toyKemR`
+  (`encaps1Sizes_toyKemR`), consistency only. Of the shipping wrapper it holds by reading (`encapsulate1` copies the
+  `value` of libcrux 0.0.10's `Ciphertext1`, a `[u8; C1_SIZE]` array of 1408 bytes for ML-KEM-1024; one crate test
+  call), which is not a proof. To discharge it: prove it at the KEM model read off the wrapper (`wrapperKem` in
+  `UnitKemWrapperModel`) from a wrapper law that `encapsulate1` returns `CT1_LEN` bytes, that law first reviewed against
+  libcrux 0.0.10 and then proved, or the wrapper's `encapsulate1` translated, or the length proved of the verified
+  ML-KEM crate's `encapsulate1` with that crate adopted as the boundary.
+- **`KeyPairEkVectorLen` (ASSUMED).** For every `IncrementalKeyPair`, `ek_vector` returns `EK_VECTOR_LEN` bytes. Domain:
+  every key pair, including one restored by `IncrementalKeyPair::from_bytes` from a stored or imported session, not only
+  a generated one (`LawGeneratedKeyPair` covers generated key pairs only). Dependent theorems:
+  `step_receive_keysSampled`, `step_receive_inv`, `braid_receive_keeps_invariant`, `decrypt_ratchet_keeps_invariant`,
+  `decrypt_keeps_invariant`, `decrypt_keeps_invariant_model_step`, `prepared_receive_keeps_invariant`,
+  `establish_responder_keeps_invariant`, `initiator_receives_reply_via_general` and `responder_first_frame_via_general`.
+  Consistency evidence: it holds in `Interp.modelT3` (`modelT3_keyPairEkVectorLen`), consistency only. Of the shipping
+  wrapper it holds by reading (`ek_vector` copies the slice libcrux 0.0.10's `pk2` returns, `pk2_len()` bytes of the
+  fixed-size key pair, and `EK_VECTOR_LEN` is `pk2_len()`; one crate test call), which is not a proof. To discharge it:
+  translate the wrapper's `ek_vector` into the verified zone so the length is read off translated code, or state a
+  wrapper law reviewed against libcrux 0.0.10's `pk2` and then prove it.
+- **`Encapsulate2Len` (ASSUMED).** A `ct2` that `encapsulate2` returns as `Ok` has `CT2_LEN` bytes, for every state and
+  vector. Domain: every `EncapsState`, including one restored by `EncapsState::from_bytes` from a stored or imported
+  session; a refusal is not constrained. Dependent theorems: `finish_encaps_inv`, `step_receive_ct1Sampled`,
+  `step_receive_ekReceivedCt1Sampled`, `step_receive_ct1Acknowledged`, `step_receive_inv`,
+  `braid_receive_keeps_invariant`, `decrypt_ratchet_keeps_invariant`, `decrypt_keeps_invariant`,
+  `decrypt_keeps_invariant_model_step`, `prepared_receive_keeps_invariant`, `establish_responder_keeps_invariant`,
+  `initiator_receives_reply_via_general` and `responder_first_frame_via_general`. Consistency evidence: it holds in
+  `Interp.modelT3` (`modelT3_encapsulate2Len`), consistency only. Of the shipping wrapper it holds by reading
+  (`encapsulate2` returns the `value` of libcrux 0.0.10's `Ciphertext2`, a `[u8; C2_SIZE]` array of 160 bytes for
+  ML-KEM-1024, and `CT2_LEN` is 160; one crate test call), which is not a proof. To discharge it: translate the
+  wrapper's `encapsulate2` with libcrux's output length as a reviewed law then proved, or prove the length of the
+  verified ML-KEM crate's second encapsulation half with that crate adopted as the boundary.
+
+**What stays open (register row `PRESERVATION-GAPS`).** Preservation is not complete. Out-of-order receives (a stored
+key used, a message skipped on either chain, an eviction from a full store) are covered by no preservation result. The
+counter budget at a session `Session::import` returns is not stated: `Session::invariant` does not give it. The relation
+after each call is a hypothesis of every step theorem, derived only in the encrypt composition and on the three
+exhibiting runs. No run reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`.
+Receive preservation is not composed with the decrypt refinement. The exhibiting runs are single runs in strict
+alternation: an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary accepted
+stored state.
+
 ## The erasure coding's field is proved
 
 `Model.Gf65536` implements GF(2^16), which the post-quantum agreement's chunking

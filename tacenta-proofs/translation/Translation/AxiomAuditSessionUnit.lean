@@ -268,14 +268,15 @@ the counter budget at every agreement state, the two that draw included, given t
 composed with the encrypt refinement, under the existing KEM records and one assumed size law, `Encaps1SizesOf`;
 and every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole budget, with no law.
 Not shown: a successful receive outside the in-order scope, the step at `HeaderReceived` on a run, or that the
-shipping KEM meets the laws.
+shipping KEM meets the laws; the law is assumed, not accepted as trust.
 `UnitLifecycleDecryptPreserve.lean`: `Session::decrypt` and `decrypt_ratchet` keep `Session::invariant` and spend
 at most one unit of the counter budget at every agreement state and every agreement transition, with or without the
 agreement's output, given the relation after the call and a model step in the in-order scope with the output, under
 existing records and two assumed length laws of the KEM wrapper, `KeyPairEkVectorLen` and `Encapsulate2Len`; the
 translated `Braid::receive` keeps `Braid::invariant` at every state; every session `establish_responder` returns is
 its inner receive's and keeps the invariant given the same of that receive.  Not shown: a receive outside the in-order scope,
-a receive with a transition or an output on a run, or that the shipping KEM meets the laws.
+a receive with a transition or an output on a run, the budget at an imported session, the composition with the decrypt
+refinement, or that the shipping KEM meets the laws, which are assumed and not accepted as trust.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

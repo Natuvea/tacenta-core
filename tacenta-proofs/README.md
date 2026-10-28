@@ -106,8 +106,11 @@ whole budget, with no law; a successful `decrypt` and `decrypt_ratchet` at every
 without the agreement's output, keeping `Session::invariant` and spending one unit of that budget, given the relation
 after the call and a model step in the in-order scope, under existing records and two new assumed length laws of the KEM
 wrapper, its premises exhibited at `KeysSampled` on the reply's run and with a transition or output on no run, and every
-session `establish_responder` returns keeping it, given the same of its inner receive; no
-successful receive outside the in-order scope (a stored key, a skip, an eviction) covered by a preservation result; and the
+session `establish_responder` returns keeping it, given the same of its inner receive; these preservation results
+conditional and not complete (no successful receive outside the in-order scope, a stored key, a skip or an eviction,
+covered; the budget at an imported session not stated; the relation after each call a hypothesis; no run reaching a
+receive with an agreement transition or output; receive preservation not composed with the decrypt refinement; the three
+new laws assumed, not accepted as trust); and the
 initiator's first frame
 delivered a second time on that run, refused by the
 responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw

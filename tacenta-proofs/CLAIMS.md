@@ -231,7 +231,12 @@ this section says in one place what is not proved.
   returns keeps it too, given the same of its inner receive, exhibited on the first frame's run ("Proved (tier T3, session lifecycle:
   `Session::decrypt` and `decrypt_ratchet` keep `Session::invariant` and the counter budget at every agreement state
   ...)"). A successful receive outside that scope (a stored key, a skip, an eviction) is not covered by any preservation
-  result.
+  result. Preservation is not complete: out-of-order receives (a stored key, a skip, an eviction) are covered by no
+  preservation result; the counter budget at a session `Session::import` returns is not stated; the relation after
+  each call is a hypothesis of every step theorem; no run reaches a receive with an agreement transition or output, or
+  `encrypt` at `HeaderReceived`; and receive preservation is not composed with the decrypt refinement. The results are
+  conditional on three assumed laws, `Encaps1SizesOf`, `KeyPairEkVectorLen` and `Encapsulate2Len`, which are not
+  accepted as trust (register rows `PRESERVATION-GAPS` and `PRESERVE-LAW-*`).
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -7283,7 +7288,9 @@ is a hypothesis of the step theorems; `encrypt_keeps_invariant_of_contracts` der
 `public_session_encrypt_of_send_contracts` under exactly that theorem's hypotheses, among which the per-call records
 `braidTrace` (`BraidSendTraceAgreementCounted`) and `providers` (`EncryptNonterminalRouteProviders`) say what the
 agreement send and the model's Triple do at this call: they are intermediate hypotheses of the kind the E2E-01
-acceptance criterion names, not discharged here. No premise names a platform width.
+acceptance criterion names, not discharged here. No premise names a platform width. The results that take
+`Encaps1SizesOf` are conditional intermediate results: the law is not accepted as trust (register row
+`PRESERVE-LAW-ENCAPS1-SIZES`; `LIMITATIONS.md`, "The preservation results: three assumed laws").
 
 - `encrypt_err_keeps_invariant`, `decrypt_err_keeps_invariant`, `decrypt_ratchet_err_keeps_invariant`: for every session
   that passes `Session::invariant` and every refused call, the session returned passes `Session::invariant` and has every
@@ -7436,7 +7443,9 @@ those and nothing about the shipping KEM. The rest are existing: `KemCloneAgrees
 the four length totality records, `OptionEqU64Shape`, `DhPublicValid`, the oracle's `dhPublic` clause and the view's
 codec relation. The relation after the call and the model step (`ReceiveStep`) are hypotheses: intermediate, not
 discharged here, and this module does not compose with the decrypt refinement. `InOrderOut` is a restriction of scope
-about the Triple, the header and the output; it says nothing of the result. No premise names a platform width.
+about the Triple, the header and the output; it says nothing of the result. No premise names a platform width. The
+results that take the two new laws are conditional intermediate results: the laws are not accepted as trust (register
+rows `PRESERVE-LAW-KEYPAIR-EK-VECTOR-LEN` and `PRESERVE-LAW-ENCAPSULATE2-LEN`; the gaps in row `PRESERVATION-GAPS`).
 
 - `inv_loop_general`, `decoder_invariant_iff`, `add_chunk_keeps`, `model_chunk_len`, `decoder_message_len`: the loop of
   `Decoder::invariant` returns the size, `needed`, the chunks and whether their indices are distinct; the invariant is
