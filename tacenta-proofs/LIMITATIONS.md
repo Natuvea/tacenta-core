@@ -3360,17 +3360,14 @@ every state but `HeaderReceived` (`encrypt_keeps_invariant_unless_sampling`). Th
 two of them, the per-call records `braidTrace` and `providers`, state what the agreement send and the model's Triple do
 at this call: they are intermediate hypotheses of the kind the E2E-01 acceptance criterion names (`GAP-REGISTER.md`), not
 discharged here, and at a `HeaderReceived` session no theorem in the tree supplies `braidTrace` (a seeded encapsulation
-law would be needed and is not assumed). **Where the premises are exhibited.** At `KeysUnsampled`, together on the
-established initiator's first send (`established_encrypt_via_general_reachable`, under the laws of
-`established_encrypt_successor_reachable`, which a toy model holds together); at `HeaderReceived`, on no run (no run in
+law would be needed and is not assumed). Among the same hypotheses are `AeadSealBounded` and `OracleOf`, whose AEAD clauses are stated for every length and are false of the shipping AEAD by reading (the totality row above; row `AEAD-LENGTH-CONTRACTS`), so, as stated, the composed form, and with it the only derivation of the relation after the call, says nothing about the shipping code at any length until the AEAD contracts are repaired; the step theorems take neither. **Where the premises are exhibited.** At `KeysUnsampled`, shown jointly satisfiable on the established initiator's first send of the empty plaintext from the byte-stream source (`established_encrypt_via_general_reachable`, under the laws of `established_encrypt_successor_reachable`, which a toy model holds together and some of which, the AEAD totality laws, are false of the shipping AEAD by reading: consistency in a model, not exhibition of the shipping code) (a single run in strict alternation: an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary accepted stored state); at `HeaderReceived`, on no run (no run in
 the tree reaches that state); at the nine no-draw states as the send paragraph above says. **The budget** is spent as
 before: one unit per call, the sparse epoch stepping by one on a send with an agreement output and the new chains' counters
 bounded through the clock's room. **Not shown:** a successful receive outside the in-order scope of the paragraph above (a
 receive with an agreement transition or output is in the next paragraph; a stored key, a skip or an eviction in none); the
 step at `HeaderReceived` on a run; that the shipping KEM meets `Encaps1SizesOf` or the other KEM records and laws, or that
 `usize::div_ceil` meets `DivCeilValue`; whether the shipping `encapsulate1` can refuse an authenticated 64-byte header
-(not determined; the refusal arm is covered, not shown reachable); the budget at a session `Session::import` returns;
-that `Session::invariant` says a session is reachable.
+(not determined; the refusal arm is covered, not shown reachable); the budget at a session `Session::import` returns from arbitrary accepted bytes (only the own-export round trip of an establishment output, `restored_established_continues`, has it); that `Session::invariant` says a session is reachable.
 
 **`decrypt` at every agreement state** (`UnitLifecycleDecryptPreserve.lean`). The general step
 (`decrypt_ratchet_keeps_invariant`, `decrypt_keeps_invariant`) rests on the kernel and opaque constants and takes, besides
@@ -3379,10 +3376,7 @@ the relation after the call and the model step (hypotheses, as for the in-order 
 `TruncatePrefix` (ASSUMED value laws of `usize::div_ceil` and `Vec::truncate`, existing); the four length totality records
 `HeaderLenTotal`, `EkVectorLenTotal`, `Ct1LenTotal` and `Ct2LenTotal` (ASSUMED, existing); `OptionEqU64Shape` (ASSUMED,
 the establishment's: the opaque `Option<u64>` comparison clause (b) uses compares by value); `DhPublicValid` (ASSUMED, the
-establishment's); and two new laws about the opaque KEM wrapper: **`KeyPairEkVectorLen` (ASSUMED, used at `KeysSampled`):
-every key pair's `ek_vector` has `EK_VECTOR_LEN` bytes**, for every key pair, a restored one included; and
-**`Encapsulate2Len` (ASSUMED, used where the agreement finishes its encapsulation): every `ct2` that `encapsulate2` returns
-has `CT2_LEN` bytes**. Of the shipping wrapper both hold by reading (`tacenta-core/kem/src/lib.rs`: `ek_vector` copies the
+establishment's); and two new laws about the opaque KEM wrapper: **`KeyPairEkVectorLen` (ASSUMED): every key pair's `ek_vector` has `EK_VECTOR_LEN` bytes**, for every key pair, a restored one included (its proof uses it only at `KeysSampled`, but through `ReceiveInvariantLaws` every receive preservation result takes it, at every state); and **`Encapsulate2Len` (ASSUMED): every `ct2` that `encapsulate2` returns has `CT2_LEN` bytes** (its proof uses it only where the agreement finishes its encapsulation; through the same record every receive preservation result takes it). Of the shipping wrapper both hold by reading (`tacenta-core/kem/src/lib.rs`: `ek_vector` copies the
 slice libcrux's `pk2` returns, `pk2_len()` bytes of the key pair, and `EK_VECTOR_LEN` is `pk2_len()`; `encapsulate2`
 copies the value of libcrux's second ciphertext half, and `CT2_LEN` is 160; the crate tests
 `the_sizes_are_the_specifications_sizes` and `the_split_encapsulation_agrees_with_decapsulation` check one call each),
@@ -3394,23 +3388,14 @@ restored one. **The agreement half** is a walk of the translated `Braid::receive
 (`braid_receive_keeps_invariant`), with no model relation; the decoder lemmas now cover any number of chunks
 (`add_chunk_keeps`). **The Triple half, clause (b) and the budget** go through the model, through the relation, as for the
 in-order receive. **Its scope:** the model step must be a `ReceiveStep`: the session as it was, or the agreement's next
-state for some message with the Triple's receive of a header in `InOrderOut`, the in-order scope read at the sparse state
-the agreement's output leaves (no stored key used, no message skipped on either chain, no eviction). **Where the premises
-are exhibited.** Together at `KeysSampled` on the reply's run (`initiator_receives_reply_via_general`, under the hypotheses
-of `initiator_receives_reply_successor` and the laws `TruncatePrefix`, `KeyPairEkVectorLen` and `Encapsulate2Len`), a step
-with no transition and no output; a receive with an agreement transition or an output on no run. **Not shown:** the
+state for some agreement message, not necessarily the frame's own (the relation after the call ties the result to the code), with the Triple's receive of a header in `InOrderOut`, the in-order scope read at the sparse state the agreement's output leaves (no stored key used, no message skipped on either chain, no eviction). The oracle's `dhPublic` clause and the codec relation are the caller's; on the runs they come from `OracleOf.dhPublic` or `DecryptOracleOf.dhPublic` and the run's `DhCodecOf`. **Where the premises are derived.** At `KeysSampled` on the reply's run (`initiator_receives_reply_via_general`, from the hypotheses of `initiator_receives_reply_successor`, which take `AeadSealBounded`, `OracleOf` and `AeadRoundTrip`, false of the shipping AEAD by reading, and the laws `TruncatePrefix`, `KeyPairEkVectorLen` and `Encapsulate2Len`; no theorem shows those hypotheses and the three laws jointly satisfiable), a step with no transition and no output (a single run in strict alternation: an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary accepted stored state); a receive with an agreement transition or an output on no run. **Not shown:** the
 out-of-order family (a stored key, a skip, an eviction), so reordered, delayed or dropped delivery; that the relation after
 the call holds or that the model's step is a `ReceiveStep` (no composition with the decrypt refinement here); a receive
 with a transition or an output on any run; that the shipping KEM meets `KeyPairEkVectorLen`, `Encapsulate2Len` or
 `KemCloneAgrees`, or that the opaque operations meet the value and shape laws; that an `establish_responder` input's inner
-receive is a `ReceiveStep` or that its relation after the call holds, at any input but the first frame's run; the budget
-at a session `Session::import` returns; that `Session::invariant` says a session is reachable. **`establish_responder` at
+receive is a `ReceiveStep` or that its relation after the call holds, at any input but the first frame's run; the budget at a session `Session::import` returns from arbitrary accepted bytes; that `Session::invariant` says a session is reachable. **`establish_responder` at
 every input** (`establish_responder_keeps_invariant`, same module): every session it returns is its inner receive's at
-the prepared session, which passes the invariant and has room for one operation, so the step above applies; it adds the
-four Braid agreements the prepared session's relation takes (`ErasureAgrees`, `KemLenAgrees`, `BraidHkdfAgrees`,
-`ZeroizingArrayRoundTrip`, ASSUMED, existing) and no new law; its premises are exhibited together on the first frame's
-run (`responder_first_frame_via_general`). Every run named here is a single run of the earlier modules, in strict
-alternation: an intermediate scope, which exhibits the premises together and is not evidence for arbitrary delivery,
+the prepared session, which passes the invariant and has room for `j + 1` operations whenever `j + 2 < u32::MAX` (`counterRoom_responder_prepared_all`), so the step above applies and the session returned has room for `j`; it adds the four Braid agreements the prepared session's relation takes (`ErasureAgrees`, `KemLenAgrees`, `BraidHkdfAgrees`, `ZeroizingArrayRoundTrip`, ASSUMED, existing) and no new law; its premises are derived on the first frame's run (`responder_first_frame_via_general`, whose hypotheses take `AeadRoundTrip` and `EstablishResponderContracts`), with no joint satisfiability theorem. Every run named here is a single run of the earlier modules, in strict alternation: an intermediate scope, which derives the premises together and is not evidence for arbitrary delivery,
 mixed implementations or arbitrary accepted stored state.
 
 **The initiator's second message** (`UnitLifecycleInitiatorSecondMessage.lean`). `initiator_sends_second_message`
@@ -4253,10 +4238,8 @@ input less one byte (`UnitOracleModel.openModel`) or less 32 bytes (`UnitLifecyc
 padded toy AEAD (PKCS#7-style padding and a 32-byte tag) that meets it alongside `AeadSealBounded` and `AeadRoundTrip`, and
 shows, under the reach's laws and the code-level law `AeadOpenLengthLaw` (assumed), one run at which every hypothesis of
 `decrypt_ok_plaintext_le_max` and of `initiator_receives_reply` holds at the same call, with every law satisfied in one toy
-interpretation. That is consistency of the hypothesis set only, not realisation by the shipping AEAD, which meets the law
-by reading (`boundary/src/aead.rs` refuses an input shorter than the tag, then unpads with RustCrypto's PKCS#7, which
-refuses an empty ciphertext). Still without such a witness: `ratchet_ok_plaintext_le_max`,
-`establish_responder_ok_plaintext_le_max`, and the other ten reply-route results that take `hfitR` or `hfitS`.
+interpretation. That is consistency of the hypothesis set only, not realisation by the shipping AEAD; as to the law, the shipping AEAD is read, not proved, to behave so (`boundary/src/aead.rs` takes a 32-byte tag and then a PKCS#7 unpad that removes 1 to 16 bytes and refuses an empty ciphertext); that reading closes nothing. Still without such a witness: `ratchet_ok_plaintext_le_max`,
+`establish_responder_ok_plaintext_le_max`, and the other eleven reply-route results that take `hfitR` or `hfitS`.
 
 **The AEAD contracts are not restated here.** With the bound enforced first at each public entry, the lengths at which
 those entries call the AEAD are bounded (a plaintext of at most `MAX_PLAINTEXT_LEN` bytes to seal; an input within a frame
@@ -4317,8 +4300,7 @@ decision closes.
   the relation relates to a model session, a stored or imported one included. Dependent theorems:
   `braid_send_headerReceived`, `encrypt_keeps_invariant_headerReceived`, `encrypt_keeps_invariant`,
   `encrypt_keeps_invariant_of_witness` and `encrypt_keeps_invariant_of_contracts`
-  (`encrypt_keeps_invariant_unless_sampling` does without it). Consistency evidence: the toy KEM `toyKemR`
-  (`encaps1Sizes_toyKemR`), consistency only. Of the shipping wrapper it holds by reading (`encapsulate1` copies the
+  (`encrypt_keeps_invariant_unless_sampling` does without it). Consistency evidence: the toy KEM `toyKemR` (`encaps1Sizes_toyKemR`), consistency of the statement alone, not jointly with the step's other premises. Of the shipping wrapper it holds by reading (`encapsulate1` copies the
   `value` of libcrux 0.0.10's `Ciphertext1`, a `[u8; C1_SIZE]` array of 1408 bytes for ML-KEM-1024; one crate test
   call), which is not a proof. To discharge it: prove it at the KEM model read off the wrapper (`wrapperKem` in
   `UnitKemWrapperModel`) from a wrapper law that `encapsulate1` returns `CT1_LEN` bytes, that law first reviewed against
@@ -4350,9 +4332,7 @@ decision closes.
 
 **What stays open (register row `PRESERVATION-GAPS`).** Preservation is not complete. Out-of-order receives (a stored
 key used, a message skipped on either chain, an eviction from a full store) are covered by no preservation result. The
-counter budget at a session `Session::import` returns is not stated: `Session::invariant` does not give it. The relation
-after each call is a hypothesis of every step theorem, derived only in the encrypt composition and on the three
-exhibiting runs. No run reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`.
+counter budget at a session `Session::import` returns from arbitrary accepted bytes is not stated: `Session::invariant` does not give it (only the own-export round trip of an establishment output, `restored_established_continues`, has it). The relation after each call is a hypothesis of every step theorem, derived only in the encrypt composition, which takes `AeadSealBounded` and `OracleOf` (false of the shipping AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), and on the three exhibiting runs, which take the same contracts or `AeadRoundTrip`; for the shipping code that derivation says nothing at any length until the AEAD contracts are repaired. No run reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`.
 Receive preservation is not composed with the decrypt refinement. The exhibiting runs are single runs in strict
 alternation: an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary accepted
 stored state.

@@ -37,9 +37,10 @@ EXPECTED_SKIPS = {
     # The size rule's vectors, below (PENDING_READER_PASS).
 }
 
-# A TEMPORARY disposition, accepted only as such and only after review of the
-# exact change that makes it; not a reader pass, and the skipped vectors stay
-# outside independent coverage until a specification-only reader pass. The size rule's file `serialization/frame-size.json` (message-format.md,
+# A TEMPORARY disposition, to be accepted only as such, and only after review
+# of the exact change that makes it; not a reader pass, and the skipped vectors
+# stay outside the specification-only reader's coverage until a
+# specification-only reader pass. The size rule's file `serialization/frame-size.json` (message-format.md,
 # Message size) arrived after pass 14 and this reader has not been taught its
 # length-and-prefix layout (tacenta-test-vectors/README.md, Vector layouts).
 # These labels, this reason and the lines of `main` and
@@ -49,12 +50,12 @@ EXPECTED_SKIPS = {
 # author of this reader, whose handlers are untouched. Each skip prints the
 # reason below, and the run prints how many of its skips these are. A reader
 # green on this list has not checked the size rule: a specification-only reader
-# pass must read the file before these vectors count as independently covered,
+# pass must read the file before these vectors count as covered by it,
 # and that pass, not an edit here, removes them.
 PENDING_READER_PASS_REASON = (
-    "size-bound vectors: not yet covered by the independent reader; "
-    "a specification-only reader pass must precede counting these as "
-    "independently covered"
+    "size-bound vectors: not yet read by the specification-only reader; "
+    "a specification-only reader pass must read them before they are "
+    "counted as covered by it"
 )
 PENDING_READER_PASS = {
     "serialization/frame-size.json :: empty-frame": PENDING_READER_PASS_REASON,
@@ -1797,8 +1798,8 @@ def documented_tally_problems(readme, gaps, files, modules, vectors, derived, to
             if sentence not in gaps:
                 problems.append("GAPS-11.md does not say: " + sentence)
     if pending:
-        sentence = (f"{pending} of the {skipped} skips are vectors not yet covered by the "
-                    "independent reader")
+        sentence = (f"{pending} of the {skipped} skips are vectors the specification-only "
+                    "reader has not yet read")
         for name, text in (("reader/README.md", readme), ("GAPS-11.md", gaps)):
             if text is not None and sentence not in text:
                 problems.append(name + " does not say: " + sentence)

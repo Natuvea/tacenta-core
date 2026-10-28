@@ -235,6 +235,13 @@ is SemVer against the specified protocol (not the implementation).
     frame from an earlier sender as too long and its session goes on; an
     oversized first initial message is lost, and a later, smaller one of the
     same handshake still establishes the session.
+  - Scope: the bound applies at a session's receiving operations and its
+    send; the primitives an implementation also exports (the AEAD among them)
+    apply none (`threat-model/exclusions.md`, Message size). The Precedence
+    paragraph's examples of a frame within the bounds being refused as without
+    the rule hold on a session whose agreement has not failed; a failed
+    session refuses a frame that is not an initial frame with
+    `AgreementFailed` first, as `mlkem-braid.md`, Failure, states.
 
 - `threat-model/assumptions.md` ASM-03, ASM-05, ASM-06, ASM-07, ASM-08,
   ASM-09 and ASM-18,

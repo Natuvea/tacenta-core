@@ -1250,7 +1250,7 @@ recorded decision or a target-closing slice:
   each in the composing proof and accepted there with that proof emptied,
   and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
-  `check-decrypt-preservation-negatives.py` (two unmodified copies accepted and twenty-three changes refused, each at a
+  `check-decrypt-preservation-negatives.py` (two unmodified copies accepted and twenty-four changes refused, each at a
   named declaration or pin:
   the receive step's budget claimed unspent and its relation after the call claimed to the model before it,
   the laws' `Option<u64>` comparison shape dropped and their key-pair length law swapped for the encapsulation one,
@@ -1265,8 +1265,7 @@ recorded decision or a target-closing slice:
   claimed one byte longer, the model receive's role claimed kept through a failure, the model's budget claimed kept
   with no unit to spend, clause (b) after a step claimed at the old sparse epoch, the structural clauses with clause
   (b) read at the Triple before the call, clause (b) read without the sparse epoch's room, the finished encapsulation
-  without the `ct2` length law, the `KeysSampled` receive without the `ek_vector` length law, the model receive
-  claimed to keep the epoch;
+  without the `ct2` length law, the `KeysSampled` receive without the `ek_vector` length law, the responder's prepared budget claimed one operation past the clock, the model receive claimed to keep the epoch;
   the model step's relation claimed to the model before the call (statement-shape, still refused with the projected
   proof emptied); and `KeyPairEkVectorLen` with its bound vector renamed, its pins kept),
   `check-decrypt-ratchet-negatives.py` (fourteen unmodified copies accepted and forty-two changes refused,

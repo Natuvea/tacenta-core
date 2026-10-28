@@ -36,13 +36,15 @@ every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and
   clause (b) moves from tag 6 (sparse epoch one behind) to tag 7 (sparse epoch equal), shown through the model:
   the model's Triple send there carries the output and advances to the agreement's epoch (`structural_folded`).
   `encrypt_keeps_invariant_unless_sampling`: the same at every state but `HeaderReceived`, without `Encaps1SizesOf`.
-* `encrypt_keeps_invariant_of_witness`, `encrypt_keeps_invariant_of_contracts`: every outcome of `encrypt` (success
-  and refusal) keeps the invariant and the budget, with the relation after the call taken from the encrypt
-  refinement's conclusion, and composed with the general encrypt refinement `public_session_encrypt_of_send_contracts`
-  under exactly its hypotheses and the laws above.
+* `encrypt_keeps_invariant_of_witness`, `encrypt_keeps_invariant_of_contracts`: every outcome of `encrypt` keeps the
+  invariant and spends at most one unit of the budget (a refusal keeps all of it), with the relation after the call
+  taken from the encrypt refinement's conclusion, and composed with the general encrypt refinement
+  `public_session_encrypt_of_send_contracts` under exactly its hypotheses and the laws above.
 * `established_encrypt_invariant_via_general`, `established_encrypt_via_general_reachable`: the established
   initiator's first send re-derived through the general step, with no shape of the session after it, and every
-  premise of that use holding together at the real constants under the laws of the existing reach.
+  premise of that use shown jointly satisfiable at the real constants, for the empty plaintext from the byte-stream
+  source, under the laws of the existing reach (a toy model holds them together; consistency, not exhibition of the
+  shipping code).
 
 ## The laws and premises
 
@@ -62,7 +64,12 @@ every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and
   (`BraidSendTraceAgreementCounted`: what the agreement send at this call returns at the run's draws) and
   `providers` (`EncryptNonterminalRouteProviders`: what the model's Triple does at the generated call) state what one
   call returns.  They are intermediate hypotheses, not discharged here; at a `HeaderReceived` session no theorem in
-  the tree supplies `braidTrace` (it would need a seeded encapsulation law).
+  the tree supplies `braidTrace` (it would need a seeded encapsulation law).  Among the same hypotheses are
+  `AeadSealBounded` and `OracleOf`, whose AEAD clauses are false of the shipping AEAD by reading (`LIMITATIONS.md`, the
+  totality row; row `AEAD-LENGTH-CONTRACTS`), so, as stated, the composed form, and with it the only derivation of the
+  relation after the call, says nothing about the shipping code at any length until those contracts are repaired; the
+  step theorems take neither.
+
 * `CounterRoom` is the budget of `UnitLifecycleSendPreserve`; the step spends it because the code refuses one step
   later than `CounterHeadroom` asks.  No premise names a platform width.
 
@@ -73,8 +80,9 @@ every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and
   stored state.
 * The refusal results assume nothing about any opaque operation; that a refusal is reached is shown only for the
   terminal refusal at every failed session (`UnitLifecycleAtomicity`) and the size refusals (`UnitLifecycleSizeRule`).
-* The step at `KeysUnsampled`: every premise holds together on the established initiator's first send at the real
-  constants, under the laws of `established_encrypt_successor_reachable`, which a toy model holds together
+* The step at `KeysUnsampled`: its premises are shown jointly satisfiable on the established initiator's first send of
+  the empty plaintext at the real constants, under the laws of `established_encrypt_successor_reachable`, which a toy
+  model holds together and some of which (the AEAD totality laws) are false of the shipping AEAD by reading
   (`established_encrypt_via_general_reachable`).
 * The step at `HeaderReceived`: no run in the tree reaches that state, so its premises are not exhibited together;
   `Encaps1SizesOf` has a toy model only.  The nine no-draw states are as `UnitLifecycleSendPreserve` says (exhibited
@@ -95,7 +103,8 @@ every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and
   arm is covered, not shown reachable.
 * That the ceilings are kept: false of the code, so the statements spend a budget; that a session's budget is
   positive at any session other than the established and model sessions named in the earlier modules.
-* The budget at a session `Session::import` returns: `Session::invariant` does not give it.
+* The budget at a session `Session::import` returns from arbitrary accepted bytes: `Session::invariant` does not give
+  it (only the own-export round trip of an establishment output, `restored_established_continues`, has it).
 * The out-of-order family, restored sessions beyond `RestoredScope`, a second party, and the conversation.
 * That `Session::invariant` says a session is reachable: it is a predicate on fields.
 -/

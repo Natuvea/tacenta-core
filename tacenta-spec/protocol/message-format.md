@@ -401,8 +401,10 @@ else is wrong with it, and whatever state the receiver is in. In particular:
 The same frames one byte within the bounds are not refused by this rule, and
 each is then refused, or accepted, exactly as it would be without it: an
 unknown version or a wrong type byte as a decode failure, an identifier the
-store does not hold by the lookup that does not find it, and an initial frame
-that is not the session's repeat as `NotARepeatedInitial`.
+store does not hold by the lookup that does not find it, and an initial frame that is not the session's repeat as `NotARepeatedInitial`
+(on a session whose agreement has not failed; a failed session refuses a frame
+that is not an initial frame with `AgreementFailed` before decoding it,
+mlkem-braid.md, Failure).
 
 The refusal is a decode failure (Rejection), and reveals no more to a peer than
 any other. It changes nothing, whichever of the cases above applies: the

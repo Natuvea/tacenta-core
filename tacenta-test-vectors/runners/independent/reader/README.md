@@ -73,14 +73,11 @@ and count those skips and to require this README and `../GAPS-11.md` to name
 them. That edit was made by the maintainer account with tool assistance, with
 `tacenta-core`, the model and the Rust runner in view. It is maintenance, as
 above: no author of this reader made or reviewed it, it adds no reader logic,
-and it is a **temporary disposition**, accepted only as such and only after
-review of the exact change that makes it; it is not a reader pass and does
-not stand in for one. The skipped vectors remain **outside independent
-coverage** until a specification-only reader pass reads the file: until then
+and it is a **temporary disposition**, to be accepted only as such, and only after review of the exact change that makes it; it is not a reader pass and does
+not stand in for one. The skipped vectors remain **outside the specification-only reader's coverage** until a specification-only reader pass reads the file: until then
 they are skipped, not checked, and a green run of this reader says nothing
 about them. The same holds for the operation-trace supplement
-(`../../../session-operation-trace-supplement.md`), which no independent
-reader reads.
+(`../../../session-operation-trace-supplement.md`), which no specification-only reader reads.
 
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
@@ -1275,14 +1272,12 @@ run's own `vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print
 the same three numbers. Every skip is on the allowlist in `run.py`, with its
 reason: one under Not implemented, above, and the twenty-seven vectors of
 `serialization/frame-size.json` (message-format.md, Message size), which
-arrived after pass 14 and which this reader has not been taught. **27 of the
-28 skips are vectors not yet covered by the independent reader**: they are
+arrived after pass 14 and which this reader has not been taught. **27 of the 28 skips are vectors the specification-only reader has not yet read**: they are
 held in `run.py`'s `PENDING_READER_PASS` as a temporary disposition, each skip
 line prints its reason, and the run prints a line naming how many of its skips
 they are. A green run therefore does not mean that this reader checked the
 size rule, and the 891 vector passes below do not include any of these
-vectors; a specification-only reader pass must read the file before they are
-counted as independently covered (Provenance, above). Three vectors
+vectors; a specification-only reader pass must read the file before they are counted as covered by it (Provenance, above). Three vectors
 of `initiator-expectation.json` were added after pass 14 and pass without a
 change to the reader; the pass itself ended at 1170 PASS, 0 FAIL, 1 SKIP
 (`../GAPS-14.md`):
@@ -1382,7 +1377,7 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
 derived cases merged, and the identity work of passes 13 and 14, the current
-run is **1173 PASS, 0 FAIL, 28 SKIP** (919 vector checks and 282 derived cases). 27 of the 28 skips are vectors not yet covered by the independent reader: the size rule's file, not yet taught (Current result, under Running). This supersedes the earlier pass-10 skip tally;
+run is **1173 PASS, 0 FAIL, 28 SKIP** (919 vector checks and 282 derived cases). 27 of the 28 skips are vectors the specification-only reader has not yet read: the size rule's file, not yet taught (Current result, under Running). This supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 
 ### Pass 12

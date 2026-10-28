@@ -121,8 +121,7 @@ adds what version 1 cannot express about the message size bound: the sender's
 `PlaintextTooLong`, the size rule's refusals, `AgreementFailed` and
 `random_draws: none`. Version 1 and its corpus are unchanged. [The supplement's
 traces](traces/session-operation-trace-supplement.json) were added by the
-maintainer account with tool assistance and are **not independently authored**;
-the independent operation reader does not read them. The same structural check
+maintainer account with tool assistance and are **not independently authored**; the P6 operation reader (specification-only author, related party) does not read them. The same structural check
 covers them, and `runners/rust/tests/operation_trace_supplement.rs` drives each
 one through `tacenta-core`, comparing outcomes, refusals, stored bytes and
 random-source calls, and requires its control to disagree.
@@ -324,10 +323,10 @@ message**: the frames are mostly zeros and none of them authenticates.
   are tested in `tacenta-core/tests/message_size.rs` instead, at the real
   constants: the frame of exactly `MAX_RATCHET_FRAME_LEN` and
   `MAX_INITIAL_FRAME_LEN` bytes, its decryption, and the refusal of one byte
-  more. The independent reader has not been taught this file: its vectors
+  more. The specification-only, project-controlled reader has not been taught this file: its vectors
   are on the reader's skip allowlist as pending a specification-only reader
   pass (`GAP-REGISTER.md`, `SIZE-BOUND-READER`), the run names them among its
-  skips, and they are not independently covered.
+  skips, and they are not covered by a specification-only reader pass.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
 

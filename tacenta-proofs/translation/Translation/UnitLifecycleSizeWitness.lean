@@ -42,10 +42,10 @@ receipt's and every law they rest on hold together: at the real constants under 
 
 ## What it does not show
 
-* that the shipping AEAD meets the open-length law: it does by reading (PKCS#7 refuses an empty ciphertext), and the
-  toy shows consistency only;
+* that the shipping AEAD meets the open-length law (read, not proved, to behave so; that reading closes nothing; the
+  toy shows consistency only);
 * a witness for the other received-maximum results (`ratchet_ok_plaintext_le_max`,
-  `establish_responder_ok_plaintext_le_max`) or for the other ten reply-route results that take `hfitR` or `hfitS`;
+  `establish_responder_ok_plaintext_le_max`) or for the other eleven reply-route results that take `hfitR` or `hfitS`;
 * a reply plaintext longer than 4096 bytes, or the one-time path;
 * a repeated initial frame, for which nothing supplies the received maximum's `hstep`;
 * the fifteen reply plaintext lengths of `SIZE-BOUND-REPLY-ROUTE-GAP`;

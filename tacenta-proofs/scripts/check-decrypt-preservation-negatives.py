@@ -24,8 +24,8 @@ translated `Braid::receive` keeps `Braid::invariant` at every state.  The contro
   old sparse epoch (`step_frame_any`); the structural clauses with clause (b) read at the Triple before the call
   (`structural_after`); clause (b) read without the sparse epoch's room (`modelClauseB_of_structural`); the finished
   encapsulation without the `ct2` length law (`finish_encaps_inv`); the `KeysSampled` receive without the
-  `ek_vector` length law (`step_receive_keysSampled`); the model receive claimed to keep the epoch
-  (`receive_epoch_le`);
+  `ek_vector` length law (`step_receive_keysSampled`); the responder's prepared budget claimed one operation past
+  the clock (`counterRoom_responder_prepared_all`); the model receive claimed to keep the epoch (`receive_epoch_le`);
 * statement shape: the model step's relation claimed to the model session before the call (refused in
   `decrypt_keeps_invariant_model_step`, which projects `decrypt_keeps_invariant`);
 * the definition `KeyPairEkVectorLen` with its bound vector renamed and its pins kept (refused at its `#print` pin).
@@ -98,9 +98,10 @@ D_ROOM = ("    (hinv : lifecycle.Session.invariant s = ok true) (hroom : Counter
           "    (hcall : lifecycle.Session.decrypt rc")
 PREP_HEAD = ("theorem prepared_receive_keeps_invariant (laws : ReceiveInvariantLaws)\n"
              "    (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees) {K : Model.Braid.Kem}\n")
-EST_STEP = "      ∀ m', SessionRefines dh K s' m' → ReceiveStep oracle (responderModelOf dh p) m' →\n        lifecycle.Session.invariant s' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' := by\n  refine"
+EST_STEP = ("      ∀ m', SessionRefines dh K s' m' → ReceiveStep oracle (responderModelOf dh p) m' →\n"
+            "        lifecycle.Session.invariant s' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' ∧\n")
 FRAME_LAWS = ("    (henc2 : Encapsulate2Len) :\n"
-              "    lifecycle.Session.invariant sB' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by\n")
+              "    lifecycle.Session.invariant sB' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' ∧\n")
 LAWS_EK = "  keyPairEkVector : KeyPairEkVectorLen\n"
 LAWS_OEQ = "  optionEq : Tacenta.UnitHeadroomInvariant.OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq)\n"
 BR_HEAD = ("theorem braid_receive_keeps_invariant (L : BraidLens) (hkcl : Tacenta.SessionUnitBraidT3.KemCloneAgrees)\n")
@@ -184,6 +185,10 @@ MUTANTS = [
      [("    (hekl : KeyPairEkVectorLen) (self : tacenta_braid.Braid)\n",
        "    (hekl : Encapsulate2Len) (self : tacenta_braid.Braid)\n")],
      r"kp\nhas type\n  tacenta_kem\.IncrementalKeyPair\nbut is expected to have type\n  tacenta_kem\.EncapsState\nin the application\n  hekl kp", ['step_receive_keysSampled']),
+    ('module', 'responder-prepared-budget-claimed-one-operation-past-the-clock',
+     [("    {msg : Slice U8} (p : ResponderPreparedParts our store msg) (j : Nat) (hj : j + 2 < Std.U32.max) :\n",
+       "    {msg : Slice U8} (p : ResponderPreparedParts our store msg) (j : Nat) (hj : j + 1 < Std.U32.max) :\n")],
+     r"omega could not prove the goal", ['counterRoom_responder_prepared_all']),
     ('module', 'model-receive-claimed-to-keep-the-epoch',
      [("    (Model.Braid.receive K st msg).2.2.epoch ≤ st.epoch + 1 := by\n",
        "    (Model.Braid.receive K st msg).2.2.epoch ≤ st.epoch := by\n")],

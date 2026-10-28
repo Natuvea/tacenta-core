@@ -89,7 +89,7 @@ if not run.documented_tally_problems(README, GAPS, 3, 2, 10, 5, 15, skipped=1):
     raise RuntimeError("a tally that leaves out an allowlisted skip must fail")
 
 # Skips pending a reader pass: both documents must name them, with the count.
-PENDING_SENTENCE = "1 of the 1 skips are vectors not yet covered by the independent reader"
+PENDING_SENTENCE = "1 of the 1 skips are vectors the specification-only reader has not yet read"
 if run.documented_tally_problems(README_SKIP + "\n" + PENDING_SENTENCE, GAPS_SKIP + " " + PENDING_SENTENCE,
                                  3, 2, 10, 5, 15, skipped=1, pending=1):
     raise RuntimeError("a tally that names its pending skips must pass")

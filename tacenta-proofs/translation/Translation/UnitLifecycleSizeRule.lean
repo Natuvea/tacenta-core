@@ -54,8 +54,8 @@ The message size bound (message-format.md, Message size) at the three public ent
   length, which exists at both platform widths (`Usize.max ≥ 2^32 − 1`).
 * The received maximum is shown non-vacuous for `decrypt_ok_plaintext_le_max` at the reply's receipt, as consistency
   of its hypotheses, by the joint padded witness of `UnitLifecycleSizeWitness` (a padded toy AEAD meets
-  `AeadOpenLength`; the earlier toys open to the input less 1 or less 32 bytes and do not). The shipping AEAD meets the
-  law by reading only (PKCS#7 refuses an empty ciphertext). No witness for the other two received-maximum results.
+  `AeadOpenLength`; the earlier toys open to the input less 1 or less 32 bytes and do not). The shipping AEAD is read,
+  not proved, to meet the law; that reading closes nothing. No witness for the other two received-maximum results.
 
 ## What it does not show
 

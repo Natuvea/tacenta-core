@@ -98,19 +98,23 @@ reply frame with no draw, writing only the Triple Ratchet, refining the model's 
 `Session::invariant` and meets the four ceilings, with no new law or per-run premise, no compiler-trust axiom and a
 reach at the real constants under the same assumed laws; the initiator's receipt of that second reply and later steps
 not covered; a successful `encrypt` at every agreement state, the two whose send draws included, keeping
-`Session::invariant` and spending one unit of that budget, given the relation after the call or composed with the general
-encrypt refinement (whose two per-call records stay hypotheses), under existing KEM records and one new assumed size law
-of encapsulation (used at the sampling state only), its premises exhibited on the established initiator's first send and
-at the sampling state on no run; every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeping the invariant and the
-whole budget, with no law; a successful `decrypt` and `decrypt_ratchet` at every agreement state and transition, with or
-without the agreement's output, keeping `Session::invariant` and spending one unit of that budget, given the relation
-after the call and a model step in the in-order scope, under existing records and two new assumed length laws of the KEM
-wrapper, its premises exhibited at `KeysSampled` on the reply's run and with a transition or output on no run, and every
-session `establish_responder` returns keeping it, given the same of its inner receive; these preservation results
-conditional and not complete (no successful receive outside the in-order scope, a stored key, a skip or an eviction,
-covered; the budget at an imported session not stated; the relation after each call a hypothesis; no run reaching a
-receive with an agreement transition or output; receive preservation not composed with the decrypt refinement; the three
-new laws assumed, not accepted as trust); and the
+`Session::invariant` and spending one unit of that budget, given the relation after the call, under existing KEM records
+and one new assumed size law of encapsulation (used at the sampling state only), the only derivation of that relation
+composing with the general encrypt refinement, whose two per-call records stay hypotheses and whose AEAD contracts are
+false of the shipping AEAD by reading, so that for the shipping code it says nothing at any length until those contracts
+are repaired, its premises shown jointly satisfiable only in a toy model on the established initiator's first send of
+the empty plaintext and at the sampling state on no run; every refused `encrypt`, `decrypt` and `decrypt_ratchet`
+keeping the invariant and the whole budget, with no law; a successful `decrypt` and `decrypt_ratchet` at every agreement
+state and transition, with or without the agreement's output, keeping `Session::invariant` and spending one unit of that
+budget, given the relation after the call and a model step in the in-order scope, under existing records and two new
+assumed length laws of the KEM wrapper, its premises derived at `KeysSampled` on the reply's run with no joint
+satisfiability theorem and with a transition or output on no run, and every session `establish_responder` returns
+passing the invariant with budget for later steps, given the same of its inner receive; each run named a single run in
+strict alternation, an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary
+accepted stored state; these preservation results conditional and not complete (no successful receive outside the
+in-order scope, a stored key, a skip or an eviction, covered; the budget at a session imported from arbitrary bytes not
+stated; the relation after each call a hypothesis; receive preservation not composed with the decrypt refinement; the
+three new laws assumed, not accepted as trust); and the
 initiator's first frame
 delivered a second time on that run, refused by the
 responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw

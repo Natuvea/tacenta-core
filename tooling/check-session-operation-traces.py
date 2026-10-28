@@ -13,7 +13,7 @@ It also checks the separately versioned supplement
 schema version 2, ``session-operation-trace-supplement.md``) for the message
 size bound: version 1's rules, plus its added refusals and ``random_draws``,
 its required traces, the stated no-draw no-op of every size refusal, and a
-provenance that says it is not independently authored.  The independent
+provenance that says it is not independently authored.  The P6
 operation reader does not read the supplement; the Rust runner's
 ``operation_trace_supplement.rs`` interprets it against tacenta-core.
 """

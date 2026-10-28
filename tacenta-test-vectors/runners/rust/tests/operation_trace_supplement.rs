@@ -1,8 +1,8 @@
 //! The operation-trace supplement (`traces/session-operation-trace-supplement.json`, schema version 2;
 //! `session-operation-trace-supplement.md`), driven through tacenta-core.
 //!
-//! The supplement is not independently authored (its `provenance` says so), and the independent operation
-//! reader does not read it. This is its only semantic consumer: for every trace it builds the fixtures the
+//! The supplement is not independently authored (its `provenance` says so), and the P6 operation
+//! reader (specification-only author, related party) does not read it. This is its only semantic consumer: for every trace it builds the fixtures the
 //! trace names with real sessions and a real prekey store, performs each step's operation, and compares what
 //! happened with what the step declares:
 //!

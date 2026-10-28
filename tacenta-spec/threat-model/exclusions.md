@@ -49,7 +49,9 @@ The bounds this specification states are these:
   decoded (message-format.md, Message size). Each refusal changes nothing and
   draws nothing. The bound limits what one call is given to work on; how much
   memory and time that costs is measured, not proved (LIM-14), and a caller's
-  own buffers, and the transport, are outside it.
+  own buffers, and the transport, are outside it. The bound applies at a
+  session's receiving operations and its send; the primitives `tacenta-core`
+  also exports (the AEAD among them) apply no size bound.
 - **The replay record.** It holds at most `MAX_LAST_RESORT_SEEN` entries per
   last-resort key and fails closed (session-establishment.md, Replay, and why
   the ratchet must follow).
