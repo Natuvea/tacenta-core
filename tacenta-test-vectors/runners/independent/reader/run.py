@@ -37,8 +37,9 @@ EXPECTED_SKIPS = {
     # The size rule's vectors, below (PENDING_READER_PASS).
 }
 
-# A temporary disposition, reviewed with the change that adds it; not a reader
-# pass. The size rule's file `serialization/frame-size.json` (message-format.md,
+# A TEMPORARY disposition, accepted only as such and only after review of the
+# exact change that makes it; not a reader pass, and the skipped vectors stay
+# outside independent coverage until a specification-only reader pass. The size rule's file `serialization/frame-size.json` (message-format.md,
 # Message size) arrived after pass 14 and this reader has not been taught its
 # length-and-prefix layout (tacenta-test-vectors/README.md, Vector layouts).
 # These labels, this reason and the lines of `main` and

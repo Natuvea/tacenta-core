@@ -15,9 +15,11 @@ neither draws a random value.
 and its traces
 ([`traces/session-operation-trace-supplement.json`](traces/session-operation-trace-supplement.json))
 were added by the maintainer account with tool assistance, with
-`tacenta-core`, the model and the Rust runner in view. They are an extension
-for review with the change that adds them, not part of the independent
-operation reader's evidence.
+`tacenta-core`, the model and the Rust runner in view. They are a
+**temporary disposition**, accepted only as such and only after review of the
+exact change that adds them, not part of the independent operation reader's
+evidence. The supplement's traces remain **outside independent coverage**
+until a specification-only reader pass reads them.
 
 **Why a supplement, not an edit of version 1.** Version 1, its schema and its
 27-trace corpus are the input the independent operation reader was written

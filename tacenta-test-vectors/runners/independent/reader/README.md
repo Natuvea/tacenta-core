@@ -73,9 +73,14 @@ and count those skips and to require this README and `../GAPS-11.md` to name
 them. That edit was made by the maintainer account with tool assistance, with
 `tacenta-core`, the model and the Rust runner in view. It is maintenance, as
 above: no author of this reader made or reviewed it, it adds no reader logic,
-and it is a temporary disposition, reviewed with the change that adds it,
-until a specification-only reader pass reads the file. Until then these
-vectors are skipped, not checked, and are not independently covered.
+and it is a **temporary disposition**, accepted only as such and only after
+review of the exact change that makes it; it is not a reader pass and does
+not stand in for one. The skipped vectors remain **outside independent
+coverage** until a specification-only reader pass reads the file: until then
+they are skipped, not checked, and a green run of this reader says nothing
+about them. The same holds for the operation-trace supplement
+(`../../../session-operation-trace-supplement.md`), which no independent
+reader reads.
 
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
