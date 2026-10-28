@@ -3409,7 +3409,9 @@ every input** (`establish_responder_keeps_invariant`, same module): every sessio
 the prepared session, which passes the invariant and has room for one operation, so the step above applies; it adds the
 four Braid agreements the prepared session's relation takes (`ErasureAgrees`, `KemLenAgrees`, `BraidHkdfAgrees`,
 `ZeroizingArrayRoundTrip`, ASSUMED, existing) and no new law; its premises are exhibited together on the first frame's
-run (`responder_first_frame_via_general`).
+run (`responder_first_frame_via_general`). Every run named here is a single run of the earlier modules, in strict
+alternation: an intermediate scope, which exhibits the premises together and is not evidence for arbitrary delivery,
+mixed implementations or arbitrary accepted stored state.
 
 **The initiator's second message** (`UnitLifecycleInitiatorSecondMessage.lean`). `initiator_sends_second_message`
 joins the second send with the receive step on one run, under exactly the hypotheses of `initiator_second_send_after_reply`

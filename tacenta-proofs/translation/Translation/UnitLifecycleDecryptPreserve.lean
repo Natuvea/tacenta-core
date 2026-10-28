@@ -85,6 +85,9 @@ in-order scope of the Triple with the output (`InOrderOut`).
 
 ## Non-vacuity
 
+* Every run named here is a single run of the earlier modules, in strict alternation: an intermediate scope, which
+  exhibits the premises together and is not evidence for arbitrary delivery, mixed implementations or arbitrary accepted
+  stored state.
 * Every premise of `decrypt_keeps_invariant` holds together on the reply's run at `KeysSampled`
   (`initiator_receives_reply_via_general`), under the hypotheses of `initiator_receives_reply_successor` and the laws
   `TruncatePrefix`, `KeyPairEkVectorLen` and `Encapsulate2Len`.  That step has no agreement transition and no output.

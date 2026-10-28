@@ -7350,7 +7350,9 @@ acceptance criterion names, not discharged here. No premise names a platform wid
 **Non-vacuity.** The refusal results assume nothing about any opaque operation; that a refusal is reached is shown only
 for the terminal refusal at every failed session (the section on refused calls) and for the size refusals (the
 size-rule section). The step at `KeysUnsampled` has every premise exhibited together on the established initiator's first
-send (`established_encrypt_via_general_reachable`). The step at `HeaderReceived` is not exhibited on any run: no run in
+send (`established_encrypt_via_general_reachable`); that run is the established initiator's single first send, an
+intermediate scope that exhibits the premises and is not evidence for arbitrary delivery, mixed implementations or
+arbitrary accepted stored state. The step at `HeaderReceived` is not exhibited on any run: no run in
 the tree reaches that state, and `Encaps1SizesOf` has a toy model only. The nine no-draw states are as the
 send-preservation section says (exhibited at `NoHeaderReceived` only). `encrypt_keeps_invariant_of_contracts` adds no
 reach.
@@ -7501,6 +7503,9 @@ run in the tree reaches a receive with an agreement transition or an output, so 
 exhibited together there. The agreement lemma and the model lemmas are stated at every state and need no run. Every
 premise of `establish_responder_keeps_invariant` holds together on the first frame's run at `NoHeaderReceived`
 (`responder_first_frame_via_general`), under the hypotheses of `responder_first_frame_successor` and the same three laws.
+Every run named here is a single run of the earlier modules, in strict alternation: an intermediate scope, which
+exhibits the premises together and is not evidence for arbitrary delivery, mixed implementations or arbitrary accepted
+stored state.
 
 **What this establishes, and what it does not.** Every successful `decrypt` and `decrypt_ratchet`, at every agreement
 state and every transition, keeps `Session::invariant` and spends at most one unit of the budget, given the relation

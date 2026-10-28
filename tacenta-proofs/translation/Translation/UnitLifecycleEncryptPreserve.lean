@@ -68,6 +68,9 @@ every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and
 
 ## Non-vacuity
 
+* Every run named here is a single run of the earlier modules, in strict alternation: an intermediate scope, which
+  exhibits the premises together and is not evidence for arbitrary delivery, mixed implementations or arbitrary accepted
+  stored state.
 * The refusal results assume nothing about any opaque operation; that a refusal is reached is shown only for the
   terminal refusal at every failed session (`UnitLifecycleAtomicity`) and the size refusals (`UnitLifecycleSizeRule`).
 * The step at `KeysUnsampled`: every premise holds together on the established initiator's first send at the real
