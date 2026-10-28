@@ -177,8 +177,8 @@ is SemVer against the specified protocol (not the implementation).
   HMAC-SHA256 and HKDF-SHA256
   are now `tacenta-kdf`'s own code, no longer RustCrypto's: written with tool
   assistance under the maintainer's account in a separate, unpublished
-  repository; the review recorded on #272, the pull request that copied it
-  here, says every review and read of that change was tool-assisted; no review
+  repository; the rule-7 review comments on #272, the pull request that copied
+  it here, say under "Not checked" that every review and read of that change was tool-assisted; no review
   or read of the three Rust files or their proofs by anyone independent of the
   maintainer is recorded in this repository. Copied here,
   they are under this repository's licence, Apache-2.0. Eight translations include that code; the six whose theorems
@@ -879,10 +879,10 @@ is SemVer against the specified protocol (not the implementation).
     copied KDF files stated a dated reading of the three Rust files by the
     maintainer that no record in this repository supports. It now states only
     the recorded authorship (written with tool assistance under the
-    maintainer's account) and the review recorded on #272, which says every
-    review and read of that change was tool-assisted. ADR-0010's Consequences no longer list the
-    maintainer's reading among what replaces "vetted", and its Status records
-    the amendment. The earlier sentence is in no tagged release.
+    maintainer's account) and the rule-7 review comments on #272, which say
+    under "Not checked" that every review and read of that change was tool-assisted. ADR-0010's Consequences no longer list the
+    maintainer's reading among what replaces "vetted"; they list the tool-assisted
+    reviews of #272, citing what its rule-7 review comments say under "Not checked", and say these are not independent review. Its Status records the amendment. The earlier sentence is in no tagged release.
   - `threat-model/assumptions.md` ASM-08: the statement that `tacenta-core`'s
     own composition "is audited by reading" to branch only on public data had
     no record of such an audit in this repository behind it. The page now says
@@ -905,9 +905,9 @@ is SemVer against the specified protocol (not the implementation).
     reader "independently authored" and its run "independent evidence". Jie
     Sun, who wrote and ran it from the specification-only packet, is a
     director of Natuvea Ltd, so it is related-party evidence, not independent
-    review. The evidence file now says so; the L2 target decision still says
-    "independently authored" and changes with the next refresh of the source
-    attestation, which hashes `tacenta-model` (`GAP-REGISTER.md`,
+    review. The evidence file now says so, and so do ASM-19 in `threat-model/assumptions.md`
+    and a `missing_evidence` kind in `security-properties/evidence-index.json`, which called it "the independent
+    reader". The L2 target decision still says "independently authored" (lines 8 and 9) and "the independent reader" (line 39), and `tacenta-model/SESSION-OPERATION-MODEL.md` (line 5) says "independent reader"; both change with the next refresh of the source attestation, which hashes `tacenta-model` (`GAP-REGISTER.md`,
     `STALE-WORDING-KNOWN`). Row `READER-INDEPENDENCE` is BLOCKING while
     independence claims the repository does not support remain. The earlier
     wording stands in the tags `tacenta-assurance-v0.2.0` to

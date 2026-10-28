@@ -102,9 +102,9 @@ the input keying material is secret and uniform. This holds against a classical
 adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
 own SHA-256, HMAC and HKDF, copied here and pinned in `kdf/src/lib.rs` by commit
 and file digests: written with tool assistance under the maintainer's account
-in a separate, unpublished repository; the review recorded on #272, the pull
-request that copied them here, says every review and read of that change was
-tool-assisted; no review or read of the three Rust files or their proofs by
+in a separate, unpublished repository; the rule-7 review comments on #272, the
+pull request that copied them here, say under "Not checked" that every review and
+read of that change was tool-assisted; no review or read of the three Rust files or their proofs by
 anyone independent of the maintainer is recorded in this repository. In this
 repository they are under its own licence, Apache-2.0 (ADR-0010). Eight translations include those bodies. That they compute
 RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
@@ -510,8 +510,8 @@ the protocol pages say. In particular it:
   (CLAIMS.md, "Read this first: what is not proved").
 
 This is established by tests and by reading, not by proof. The bounded P6 L2
-operation model, vectors, concrete checks and independent reader provide
-evidence for its recorded surface; `tacenta-model/P6-L2-TARGET-DECISION.md`
+operation model, vectors, concrete checks and the specification-only operation
+reader (written and run by a related party, `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`) provide evidence for its recorded surface; `tacenta-model/P6-L2-TARGET-DECISION.md`
 states that surface and its exclusions. ASM-19 remains an assumption for the
 orchestration beyond that bounded target, which is translated since the
 Phase 0 carve-out but has no theorem.

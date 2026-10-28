@@ -7,7 +7,7 @@ lands it.
 
 Amended 2026-10-28: the provenance sentence in Context ("What was available")
 and the item in Consequences ("What replaces 'vetted'") state only the recorded
-authorship and the review recorded on #272; an earlier version stated a dated
+authorship and what the rule-7 review comments on #272 say under "Not checked"; an earlier version stated a dated
 reading of the three Rust files by the maintainer that no record in this
 repository supports. The decision is unchanged (`tacenta-spec/CHANGELOG.md`).
 
@@ -35,8 +35,8 @@ repository supports. The decision is unchanged (`tacenta-spec/CHANGELOG.md`).
   a model written from FIPS 180-4, FIPS 198-1 and RFC 5869, and that this model
   equals tacenta-model's `Model.Sha256` and `Model.Kdf`: written with tool
   assistance under the maintainer's account in a separate, unpublished
-  repository; the review recorded on #272, the pull request that copied it
-  here, says every review and read of that change was tool-assisted; no review
+  repository; the rule-7 review comments on #272, the pull request that copied
+  it here, say under "Not checked" that every review and read of that change was tool-assisted; no review
   or read of the three Rust files or their proofs by anyone independent of the
   maintainer is recorded in this repository.
 
@@ -102,7 +102,7 @@ phone hardware, was measured.
   tacenta-model's HMAC and HKDF (HKDF for outputs of at most 8160 bytes); a
   differential test against the RustCrypto crates it replaced
   (`kdf/tests/differential.rs`); the RFC test vectors; the tool-assisted
-  reads recorded in the review of #272, which are not independent review; and
+  reviews of #272, whose rule-7 review comments say under "Not checked" that every review and read of that change was tool-assisted and that no reviewer independent of the maintainer has read it, so they are not independent review; and
   an exact inventory of the compiled code's
   branches, indexed accesses and callees (`tooling/check-constant-time-asm.sh`),
   compared for the two Linux targets in CI and for macOS on a local run.
