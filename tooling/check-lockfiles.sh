@@ -13,7 +13,8 @@
 # What. The lockfiles are found, not listed here: every path git lists whose name is `Cargo.lock`, tracked or
 # new and not ignored, so a workspace added later is read without anyone editing this file. The list is read
 # NUL-separated with quotePath off, so a directory whose name git would quote (a space is fine either way; a
-# non-ASCII byte, a quote or a backslash is not) is read too, not dropped. In the directory of
+# non-ASCII byte, a quote or a backslash is not) is read too, not dropped, and a directory whose name starts with
+# `-` or ends in a newline is read as itself. In the directory of
 # each, `cargo metadata --locked --offline --format-version 1` runs with its output discarded. That resolves
 # the manifests against the lockfile and the local cargo cache, builds nothing and fetches nothing (nor does
 # rustup: RUSTUP_AUTO_INSTALL=0), and fails when the lockfile would have to change, the same verdict the hosted
@@ -81,10 +82,17 @@ fail() {  # directory, reason
 }
 
 dirs=()
+# The name and the directory are cut from the path by parameter expansion, not basename and dirname: those read
+# a directory named `-dash` or `--help` as an option (and dropped it, with exit 0), and a command substitution
+# strips a trailing newline from a directory's name (and reads its sibling instead). sort -zu: an unmerged index
+# entry repeats a path once per stage.
 while IFS= read -r -d '' path; do
   [ -n "$path" ] || continue
-  [ "$(basename "$path")" = Cargo.lock ] || continue
-  dirs+=("$(dirname "$path")")
+  [ "${path##*/}" = Cargo.lock ] || continue
+  case "$path" in
+    */*) dirs+=("${path%/*}") ;;
+    *) dirs+=(.) ;;
+  esac
 done < <(git -c core.quotePath=false ls-files -z --cached --others --exclude-standard -- '*Cargo.lock' | sort -zu)
 
 if [ "${#dirs[@]}" -eq 0 ]; then
@@ -112,7 +120,8 @@ for dir in "${dirs[@]}"; do
     skip "$dir" "cargo not found or not runnable"
     continue
   fi
-  if (cd "$dir" && cargo metadata --locked --offline --format-version 1 >/dev/null 2>"$err"); then
+  # The subshell's whole stderr, a failed cd's included, goes to a file emptied for each directory.
+  if (cd -- "$dir" && cargo metadata --locked --offline --format-version 1) >/dev/null 2>"$err"; then
     echo "lockfiles: ok $dir"
     ok=$((ok + 1))
     continue
