@@ -397,9 +397,10 @@ runner that GitHub lets only this workflow, as it is on main, use.
 Before each commit, `bash tooling/fast.sh` is the quick check, a few minutes where the gate takes much
 longer. It runs `bash tooling/ci.sh --fast`, which is every step of `ci.sh` above the line that file marks
 (the workflow, proof-hygiene, label, vector-schema, traceability and authentication-boundary checks, the
-generated-unit checks, the preflight of the lifecycle proof modules, the independent reader, the sign-off
-check, and the case files that hold each of them; six slow case files among them, the workflow checker's,
-the container regeneration's and those of the assurance manifest, receipts, evidence pack and ledger receipt,
+generated-unit checks, the preflight of the lifecycle proof modules, the offline lockfile check, the independent
+reader, the sign-off check, and the case files that hold each of them; seven slow case files among them, the
+workflow checker's, the container regeneration's, the lockfile check's and those of the assurance manifest,
+receipts, evidence pack and ledger receipt,
 run only with `--deep`, which a change under `tooling/` or `.github/` or to `regenerate-in-container.sh`
 turns on, and are otherwise listed as not run), and then, for the diff against `origin/main` (committed, staged, unstaged and new files; `--base REF`
 names another base), `cargo fmt --check`, `cargo clippy` and `cargo test` for the Rust packages whose files
@@ -432,9 +433,21 @@ disassembly gate (the x86_64 and aarch64 Linux targets; the host is always
 read), its key-derivation half (the pinned nightly toolchain
 `tooling/ct-baselines/rust-toolchain.txt` names), and the translation build (the translation's Mathlib cache, which is
 the heavy one). In the other direction
-the script runs two steps the workflow does not: the interoperability
-harness, which is not in this public tree and skips here, and the fuzz smoke
-run, which needs `cargo-fuzz` and a nightly toolchain. The workflow also runs steps the
+the script runs three steps the workflow does not: the interoperability
+harness, which is not in this public tree and skips here, the fuzz smoke
+run, which needs `cargo-fuzz` and a nightly toolchain, and the offline lockfile check
+(`tooling/check-lockfiles.sh`). That check finds every `Cargo.lock` in the checkout with git (tracked, or new and
+not ignored) and runs `cargo metadata --locked --offline` in its directory, so a manifest change whose lockfile
+was not updated fails here and not only in a hosted `--locked` build, including the fuzz workspace's, which no
+hosted job builds. It needs `cargo` and a cargo registry cache that already holds the locked packages (any
+earlier build or `cargo fetch --locked` fills it) and fetches nothing. A lockfile the cache cannot resolve, or
+every lockfile when there is no `cargo`, is skipped with a line naming its directory, and `tooling/fast.sh` then
+ends "ok WITH SKIPS"; with `GITHUB_ACTIONS` set the skip is a failure. A manifest edit that needs a package or a
+version the cache does not hold (a new dependency, or a raised version requirement of one the lockfile pins) is
+such a skip, not a failure, although the lockfile is stale: the check is only as strong as the cache is warm. A lockfile whose only stale entries are
+path packages is accepted, as cargo's `--locked` accepts it. Its cases (`tooling/tests/run-lockfile-check-cases.sh`)
+run in the workflow through `run-gate-controls.sh`; the workflow's own `--locked` builds give the same verdict
+for the workspaces they build. The workflow also runs steps the
 script does not: the SPQR erasure regression (`rust_spqr_erasure`), the KEM, Braid and
 lifecycle tests on libcrux's portable backend (`rust_portable_kem`), the 32-bit run of
 `tacenta-core/tests/decrypt_premises.rs` on `i686-unknown-linux-gnu` (`i686_premises`, in the
@@ -449,8 +462,9 @@ machine, and the walk has exactly the number of cases pinned in
 not a case replaced by another; a change that adds or removes negative cases updates that file to what
 `ATTEST_NEGATIVES_COUNT=1 bash tacenta-proofs/scripts/check-attest-negatives.sh` prints). That job runs whatever
 the matrix gave and is designed to fail at its first step when a slice failed, rather than be skipped; the
-controls of the workflow checker confirm the shape, and a hosted run with a failed slice has not yet been
-observed. It is not one of the contexts branch
+controls of the workflow checker confirm the shape, and a hosted run has shown it: on the push run for commit
+8491b6bf (2026-10-23) all sixteen slices failed, and the job reported failure under its own name, its first step
+failing and the steps after it skipped. It is not one of the contexts branch
 protection requires on main, and making it one is a repository setting; until then a failed slice blocks a merge
 through the required `assurance-receipts` job, whose collector refuses the missing receipt. The translation's
 `tacenta-proofs/scripts/no-sorry.sh` likewise runs whole in the script and in parts in the workflow. The script

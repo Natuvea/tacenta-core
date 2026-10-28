@@ -619,7 +619,7 @@ recorded decision or a target-closing slice:
   it catches a walk cut short or padded,
   not a case replaced by another).
   The `attest-negatives` job runs `always()` and is designed to fail at its first step unless every slice succeeded, so that a failed slice turns it red rather than skipped;
-  the controls of `tooling/check-workflows.sh` confirm that shape, and a hosted run with a failed slice has not yet been observed;
+  the controls of `tooling/check-workflows.sh` confirm that shape, and on the push run for commit 8491b6bf (2026-10-23), where all sixteen slices failed, the job reported failure under its own name, its first step failing and the steps after it skipped;
   it is not a required context of branch protection on main, which is a repository setting, and until it is one a failed slice blocks a merge through the required `assurance-receipts` job.
   Each slice writes its own manifest, so a slice directory made to look right by something other than the script is not detected;
   the hosted run of the matrix and the combiner is not checked by any local control.

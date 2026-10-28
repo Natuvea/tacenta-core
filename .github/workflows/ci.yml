@@ -676,7 +676,10 @@ jobs:
       # The controls for the checks above that had none (conflict markers, proof
       # hygiene, the authentication boundary, `no-sorry.sh`, `verify.sh`, the
       # translation coverage script, the eleven `--check` modes, the installers)
-      # and the generated inventory of gates and controls. Needs no toolchain.
+      # and the generated inventory of gates and controls; also the cases of
+      # the offline lockfile check, a step of `tooling/ci.sh` and not of this
+      # workflow. Needs no Lean toolchain; the lockfile cases run the runner
+      # image's cargo.
       - id: checks_41
         run: bash tooling/tests/run-gate-controls.sh
       # The preflight of every lifecycle proof module, for its errors only: a
@@ -777,8 +780,11 @@ jobs:
   # fails unless every slice succeeded, and the steps after it then do not
   # run, so the receipt is missing and the collector refuses the set too.
   # That is held by the controls of `tooling/check-workflows.sh`, which allows
-  # this `always()` only with that first step (rule 8); it has not yet been
-  # seen on a hosted run with a failed slice.
+  # this `always()` only with that first step (rule 8). It has been seen on a
+  # hosted run with failed slices: on the push run for commit 8491b6bf
+  # (2026-10-23) all sixteen slices failed, and this job reported failure under
+  # its own name, its first step failing and the steps after it skipped,
+  # rather than being skipped.
   attest-negatives:
     needs: [attest-negatives-slice]
     if: always()
