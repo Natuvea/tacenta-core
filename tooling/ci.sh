@@ -20,15 +20,18 @@
 # cache and is the heavy one). The first five fail rather than skip when `GITHUB_ACTIONS` is set, so a runner
 # cannot report green on a check it did not run. Steps this script runs and
 # the workflow does not: the interoperability harness, which is not in this
-# public tree and skips here, and the fuzz smoke run, which needs
-# `cargo-fuzz` and a nightly toolchain. The workflow also runs steps this
+# public tree and skips here, the fuzz smoke run, which needs
+# `cargo-fuzz` and a nightly toolchain, and the offline lockfile check
+# (`tooling/check-lockfiles.sh`; the workflow's `--locked` builds reach the
+# same verdict for the workspaces they build, and its controls run there in
+# `run-gate-controls.sh`). The workflow also runs steps this
 # script does not: the SPQR erasure regression, the portable-backend KEM
 # tests, the 32-bit run of `tacenta-core/tests/decrypt_premises.rs`
 # (`i686_premises` in the `armv7` job, which needs a 32-bit Linux host), the
 # receipt writers in the jobs, and the `assurance-receipts` aggregation job,
 # which downloads the evidence pack it uploaded and verifies that copy against
 # the commit. The
-# README's "Building and checking" section lists the same six and two and
+# README's "Building and checking" section lists the same six and three and
 # those steps, and says what runs outside this repository altogether and why.
 #
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
@@ -39,9 +42,10 @@
 # variable left in an environment turns `bash tooling/ci.sh`, the gate, into
 # its cheap part with exit 0) runs the cheap section, which is everything above the line marked
 # "fast mode stops here", and then stops with a summary that lists every step
-# it did not run. Six slow case runners in that section, which hold tooling a
+# it did not run. Seven slow case runners in that section, which hold tooling a
 # change rarely touches (the workflow checker's, the container regeneration's,
-# and the assurance manifest, receipts, evidence pack and ledger receipt ones),
+# the lockfile check's, and the assurance manifest, receipts, evidence pack and
+# ledger receipt ones),
 # are marked `deep_only`: fast mode runs them only with `--deep` (or
 # FAST_DEEP=1) and otherwise lists them as not run. A run without --fast runs
 # them always. It is not the gate and says so; `tooling/fast.sh` is the
@@ -163,6 +167,17 @@ echo "== Proof hygiene: no generated names in hand-written proofs =="
 bash tooling/check-proof-hygiene.sh
 echo "== No unresolved merge-conflict markers =="
 bash tooling/check-conflict-markers.sh
+
+# Every Cargo.lock in the tree (found with git, so a new workspace is read without editing a list) is the
+# lockfile its manifests resolve to: `cargo metadata --locked --offline` in its directory. The Rust steps
+# below build two of the workspaces; on 2026-10-23 a manifest change left the vectors runner's and the fuzz
+# workspace's lockfiles stale and only the hosted `--locked` clippy run saw it. It reads the local cargo
+# cache and fetches nothing, so a lockfile the cache cannot resolve is skipped with a line saying so (and
+# recorded in FAST_SKIP_LOG for tooling/fast.sh); with GITHUB_ACTIONS set that is a failure. Its cases run
+# real cargo against throwaway workspaces with an empty cache.
+echo "== Every Cargo.lock is current with its manifests (offline) =="
+bash tooling/check-lockfiles.sh
+deep_only bash tooling/tests/run-lockfile-check-cases.sh
 
 # A producer piped into `grep -q` races under pipefail: grep exits at its first match, the producer takes
 # SIGPIPE, and the pipeline reports the producer's 141. It failed a Mac run of the case runners above for

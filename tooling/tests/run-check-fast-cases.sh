@@ -15,6 +15,8 @@
 #   run-uncovered   changed Rust no fast check reads ends "ok WITH UNCHECKED", not plain "ok"
 #   missing-*       a missing tool prints SKIP and is not an unqualified pass; under
 #                   GITHUB_ACTIONS it is a failure
+#   ci-skip-*       a skip that a step of `ci.sh --fast` records in FAST_SKIP_LOG is listed under
+#                   SKIPPED and ends the run "ok WITH SKIPS"
 #   summary-*       the NOT RUN list, the "not CI" line and the wall time are printed, pass or fail
 #   ci-fast-*       the real `tooling/ci.sh --fast` runs its cheap steps and none of the heavy ones,
 #                   lists its deep_only case runners without --deep (an indented one too) and runs
@@ -98,6 +100,7 @@ case "${1:-}" in
   --fast)
     echo "ci --fast deep=${FAST_DEEP:-0}" >> "$STUB_LOG"
     [ -f "$SANDBOX/ci-fails" ] && { echo "stub ci: a cheap check failed" >&2; exit 1; }
+    [ -f "$SANDBOX/ci-skips" ] && echo "lockfile check of stub/ws: cargo not found" >> "$FAST_SKIP_LOG"
     echo "stub ci: the cheap section passed"
     exit 0 ;;
 esac
@@ -392,6 +395,19 @@ has_out missing-mathlib-cache "the translation's Mathlib cache is not fetched"
 lacks_log missing-mathlib-cache-no-lake "lake tacenta-proofs/translation"
 has_out missing-mathlib-cache-verdict "fast: ok WITH SKIPS"
 
+# A skip inside the cheap section (the offline lockfile check writes FAST_SKIP_LOG) is a skip of this run.
+new_sandbox
+touch "$sandbox/ci-skips"
+run_fast with-tools "" --base base
+rc_is ci-skip-local 0
+has_out ci-skip-local "fast: SKIP in tooling/ci.sh --fast: lockfile check of stub/ws: cargo not found"
+has_out ci-skip-listed "SKIPPED (the diff or the cheap section asked for these"
+has_out ci-skip-verdict "fast: ok WITH SKIPS"
+lacks_out ci-skip-not-plain-ok "fast: ok (no step that ran failed"
+rm -f "$sandbox/ci-skips"
+run_fast with-tools "" --base base
+lacks_out ci-skip-none "SKIP in tooling/ci.sh --fast"
+
 # A diff that needs neither tool is not held up by their absence.
 new_sandbox
 echo 'changed' >> "$sandbox/tacenta-spec/pages/p.md"
@@ -444,6 +460,7 @@ bash tooling/check-vectors-current.sh
 bash tooling/check-constant-time-asm.sh
 cargo "
 cheap_calls="bash tooling/check-signoff.sh origin/main
+bash tooling/check-lockfiles.sh
 python3 tooling/check-vectors.py
 python3 tooling/check-traceability.py
 bash tooling/check-workflows.sh
@@ -451,6 +468,7 @@ python3 tooling/check-proof-module-preflight.py --all
 python3 tacenta-test-vectors/runners/independent/reader/run.py"
 # The slow case runners fast mode runs only with --deep (the full run always runs them).
 deep_calls="bash tooling/tests/run-check-workflows-cases.sh
+bash tooling/tests/run-lockfile-check-cases.sh
 bash tooling/tests/run-regenerate-in-container-cases.sh
 bash tooling/tests/run-build-assurance-manifest-cases.sh
 bash tooling/tests/run-collect-assurance-receipts-cases.sh
@@ -584,4 +602,4 @@ if [ "$failures" -ne 0 ]; then
   echo "run-check-fast-cases: $failures case(s) went wrong" >&2
   exit 1
 fi
-echo "run-check-fast-cases: $cases checks (selection from changed paths, the steps run for a git diff, failing, missing-tool and CI cases, the summary, ci.sh --fast against the full run, with and without --deep, the pre-push opt-in) gave the expected result"
+echo "run-check-fast-cases: $cases checks (selection from changed paths, the steps run for a git diff, failing, missing-tool and CI cases, the summary, a skip inside ci.sh --fast, ci.sh --fast against the full run, with and without --deep, the pre-push opt-in) gave the expected result"

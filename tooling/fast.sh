@@ -18,10 +18,13 @@
 #      script does not repeat it. It already holds the checks that a change to the specification,
 #      the vectors, the independent reader, a workflow or a tooling script needs (the reader, the
 #      traceability checker, the vector-schema check, the workflow checkers and their cases), so a
-#      diff in those areas adds nothing to run here. Six slow case runners of that section (the
-#      workflow checker's, the container regeneration's, and the assurance manifest, receipts,
-#      evidence pack and ledger receipt ones) run only with `--deep`, which a change under tooling/
-#      or .github/ or to regenerate-in-container.sh turns on; otherwise they are listed as not run.
+#      diff in those areas adds nothing to run here. Seven slow case runners of that section (the
+#      workflow checker's, the container regeneration's, the lockfile check's, and the assurance
+#      manifest, receipts, evidence pack and ledger receipt ones) run only with `--deep`, which a
+#      change under tooling/ or .github/ or to regenerate-in-container.sh turns on; otherwise they are
+#      listed as not run. A step of that section that skips and records it in FAST_SKIP_LOG (the
+#      offline lockfile check, when the cargo cache cannot resolve a lockfile or there is no cargo)
+#      is listed under SKIPPED, below, like a skip of this script's own.
 #   2. For the Rust workspaces the diff touches (`tooling/fast-plan.py` decides which, and
 #      which packages of each), `cargo fmt --check`, `cargo clippy` and `cargo test` as
 #      `tooling/ci.sh` runs them, restricted to the touched packages with `-p`. A change to a
@@ -188,7 +191,14 @@ else
 fi
 
 # --- 2. the cheap section of the gate ----------------------------------------
-step "tooling/ci.sh --fast (the cheap section)" bash tooling/ci.sh --fast
+# A step of it that skips appends a line to FAST_SKIP_LOG; each line is a skip of this run.
+: > "$work/ci-skips"
+FAST_SKIP_LOG="$work/ci-skips" step "tooling/ci.sh --fast (the cheap section)" bash tooling/ci.sh --fast
+while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  echo "fast: SKIP in tooling/ci.sh --fast: ${line}" >&2
+  note_skipped "$line (in tooling/ci.sh --fast)"
+done < "$work/ci-skips"
 
 # --- 2b. the gate inventory, when a gate, a workflow or the inventory itself changed ------
 # Hosted CI checks that every step it runs has a row in tacenta-proofs/GATE-INVENTORY.md (the
@@ -253,7 +263,7 @@ if [ -n "$failed" ]; then
   echo "$failed" | sed 's/^/  /'
 fi
 if [ -n "$skipped" ]; then
-  echo "SKIPPED (the diff asked for these and this machine could not run them):"
+  echo "SKIPPED (the diff or the cheap section asked for these and this machine could not run them):"
   echo "$skipped" | sed 's/^/  /'
 fi
 if grep -q '^uncovered ' "$work/plan"; then

@@ -8,6 +8,10 @@
 #   run-install-script-cases.sh  the digest and revision checks of the elan, actionlint and Lake installers
 #   check-generation-negatives.sh  the --check mode of the eleven assemble and port scripts
 #   run-check-shell-portability-cases.sh  the shell-portability gate: each form of a producer piped into a quiet grep, and the safe forms beside them
+#   run-lockfile-check-cases.sh  the offline lockfile check (check-lockfiles.sh), a step of tooling/ci.sh only: stale,
+#                                  missing and broken manifests refused by directory, a new directory found, a
+#                                  missing cache or cargo a skip locally and a failure in CI; it runs the real cargo
+#                                  (the hosted image has it) with an empty cargo home, and fails without cargo
 #   run-regenerate-in-container-cases.sh  the comparison and the --check verdict of regenerate-in-container.sh, with a stub docker
 #   run-attest-negatives-shard-cases.sh  the sharding of check-attest-negatives.sh: a slice that is skipped, run
 #                                  twice or lost, a shard that fails or is killed, and the seam that cannot reach CI
@@ -38,7 +42,7 @@
 # its own identity (one that did not passed here and failed there).
 #
 # Each runner plants its changes in a disposable worktree of the commit under test (the lean-code one
-# only reads the tree) and needs no Lean toolchain. They are run one after another; the first failure stops the run. The shard runner runs
+# only reads the tree, and the lockfile one builds throwaway workspaces) and needs no Lean toolchain. They are run one after another; the first failure stops the run. The shard runner runs
 # check-attest-negatives.sh itself on a few of its cases, with the real attest.py, so it and the slice runner
 # are the ones that take a minute or more.
 set -euo pipefail
@@ -90,6 +94,7 @@ bash "$here/run-regenerate-generated-cases.sh"
 bash "$here/run-check-landing-cases.sh"
 bash "$root/tooling/check-landing.sh"
 bash "$here/run-check-shell-portability-cases.sh"
+bash "$here/run-lockfile-check-cases.sh"
 python3 "$root/tooling/gate-inventory.py" --check
 tree_after="$(git -C "$root" status --porcelain --untracked-files=all)"
 if [ "$tree_after" != "$tree_before" ]; then
