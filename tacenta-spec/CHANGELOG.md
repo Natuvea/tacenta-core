@@ -217,6 +217,14 @@ is SemVer against the specified protocol (not the implementation).
     prekey store and its replay record unchanged, draws no random value and
     writes nothing durable. The same inputs within the bounds keep the
     refusals they had.
+  - `protocol/mlkem-braid.md`, Failure, with `protocol/error-handling.md`,
+    The order of checks: the order of a failed session's receive refusals
+    within the bounds is now stated, as the implementation and the model
+    already had it: a frame that is not an initial frame meets
+    `AgreementFailed` before it is decoded; an initial frame is decoded and
+    compared with the session's own initial message first (a decode failure,
+    then `NotARepeatedInitial`), and only a genuine repeat meets
+    `AgreementFailed`. None changes the session or draws a random value.
   - The received plaintext is at most `MAX_PLAINTEXT_LEN` exactly. The page
     states, as a property the bound relies on, that a ciphertext of `C` bytes
     that authenticates opens to between `C − 16` and `C − 1` bytes; no check

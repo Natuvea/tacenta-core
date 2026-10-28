@@ -578,7 +578,31 @@ it lands in. `Session` puts nothing from a failed Braid on the
 wire: it refuses `encrypt` and `decrypt` with `AgreementFailed` once the Braid
 has failed (a plaintext or frame too long for message-format.md, Message size,
 is refused as too long first), and when a send is what fails, it keeps the failed state and
-refuses that send too. A receive's move to `Failed`, like any other
+refuses that send too.
+
+**The order of a failed session's receive refusals.** Within the size bounds,
+a session whose agreement has failed checks a received frame in this order,
+and reports the first refusal it meets:
+
+1. a frame that is not an initial frame (a ratchet message, or anything whose
+   first two bytes are not the version byte and the initial type byte) is
+   refused with `AgreementFailed` before it is decoded, so a malformed or
+   unrecognised frame meets `AgreementFailed`, not a decode failure;
+2. an initial frame is first decoded by the initial-message decoder and
+   compared with the session's own initial message (session-establishment.md,
+   Receiving the initial message): one the decoder refuses is a decode
+   failure, and one that decodes but is not the session's repeat (another
+   handshake's, or one naming prekeys of any store, which the session never
+   looks up) is `NotARepeatedInitial`;
+3. only a genuine repeat reaches the failed agreement, and is refused with
+   `AgreementFailed` before its inner ratchet message is decoded.
+
+Every one of these refusals changes nothing: the session, its pending
+initial material and the failed state are as they were, no random value is
+drawn, and no prekey store, one-time prekey or replay record is read or
+written, since a session's receive uses none. A frame the size rule refuses
+is refused as too long before all of them (message-format.md, Message size,
+Precedence). A receive's move to `Failed`, like any other
 transition, is adopted only once the message carrying it has authenticated.
 That message is accepted and its plaintext returned; the refusals begin with
 the next one.

@@ -84,6 +84,14 @@ implementation.
     the session's repeat, or arrives at a session whose agreement has
     failed (message-format.md, Message size, Precedence). The same input
     within the bounds keeps the refusal it had without the rule.
+  - mlkem-braid.md, Failure, fixes the order of a failed session's receive
+    refusals within the size bounds: a frame that is not an initial frame
+    is refused with `AgreementFailed` before it is decoded; an initial
+    frame is decoded and compared with the session's own initial message
+    first, so it meets a decode failure or `NotARepeatedInitial` before
+    `AgreementFailed`, which only a genuine repeat reaches. The order is
+    observable in the refusal reported; none of these refusals changes the
+    session or draws a random value.
   - session-establishment.md fixes the initiator's, and says why. She
     refuses a malformed expectation before any check of Sending the initial
     message. She checks the bundle's identity key against her expectation
