@@ -156,16 +156,30 @@ A summary by component. A tick means the component has that kind of evidence, no
 
 ## Readiness for external review
 
-Two engagements have different scopes. The first was a review of the
-cryptography and code at `d2dc386`; its report was received on 2026-09-12. The
-report and reviewer identity are not yet public, so its status is a project
-assertion rather than independently checkable evidence. No independent audit
-has issued a report. The proof-ledger engagement is not underway.
+Two engagements have different scopes. The first, by the project's own
+account, was a review of the cryptography and code at `d2dc386`, with a report
+received on 2026-09-12. That is an unverified project assertion: this
+repository does not identify the report, the revision it reviewed, its scope or
+the reviewer's relationship to the project, and the review is not counted as
+assurance until they are identified. No independent audit has issued a report.
+The proof-ledger engagement is not underway.
 
-**The completed first engagement reviewed a pinned public commit.** It needed
-nothing private: `tacenta-core` is public. Its findings must be published with
-reviewer-kind and relationship, or the review must not be cited as external
-assurance. It is not an audit or proof-ledger sign-off.
+**Neither the first engagement nor the earlier citations of an external review
+are counted as assurance.** Two sets of citations exist. Commits of 2026-09-09,
+before `d2dc386` was committed, cite an "external review" or an "external
+reviewer": the `[0.1.0]` entries of `tacenta-spec/CHANGELOG.md`, the
+byte-identity paragraph of `tacenta-proofs/LIMITATIONS.md`,
+`tacenta-core/fuzz/README.md`, comments in three test files and one comment in
+each lifecycle source. They are not the review of `d2dc386`, and this
+repository does not identify their source. The review of `d2dc386` is cited by
+the `[Unreleased]` entry of `tacenta-spec/CHANGELOG.md` on register R-01 and by
+the other comment in each lifecycle source. The timing section of
+`tacenta-proofs/LIMITATIONS.md` cites a measurement taken during external
+review without saying which. All of these record what the project attributes
+to a review, not a check by an identified reviewer. The first engagement's
+findings must be published with the report, the reviewed revision, the scope
+and the reviewer's relationship to the project, or it must not be cited as
+external assurance. It is not an audit or proof-ledger sign-off.
 
 **The second engagement, the proof ledger, waits for all four gates.** Its
 reviewer's work is checking whether the theorems say what `CLAIMS.md` says, and

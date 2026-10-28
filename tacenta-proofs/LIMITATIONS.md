@@ -736,7 +736,7 @@ from it. This holds here by delegation and discipline, not by proof.
   isolated linux x64 core with a far finer timer, so the gate was sound where it
   gates; every run anywhere else silently was not. **Any previously recorded
   0.00 ns separation from an Apple Silicon host should be read in that light,
-  including one taken during external review, the aarch64 rows in the screening
+  including one taken during external review (which review is not identified in this repository, and it is not counted as assurance: `ASSURANCE.md`, "Readiness for external review"), the aarch64 rows in the screening
   table above, and the `0 ns on a DIT core` that `EFFECT_FLOOR_NS`'s own
   derivation rests on.** A non-zero unbatched reading is no better: at a
   41.67 ns quantum a 12 ns difference reads as 0 or as one whole tick, so such a
@@ -1803,7 +1803,7 @@ three leaf trees, which is what catches a leaf moving under a unit nobody
 re-assembled -- the case where the unit's translation goes stale while the unit
 crate in the tree still looks untouched. An earlier version of the byte-identity
 check stripped the same line ranges it had written and so could not fail; it
-was replaced after an external review, and the replacement was tested by
+was replaced after an external review (cited as an external review in a commit of 2026-09-09; source not identified in this repository, and not counted as assurance: `ASSURANCE.md`, "Readiness for external review"), and the replacement was tested by
 forcing the misread it claims to catch.
 
 **What is proved about it, and what is not.** The unit is translated with no
