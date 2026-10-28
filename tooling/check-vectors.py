@@ -60,6 +60,16 @@ one the Rust runner dispatches on, read from the match arms of
 `runners/rust/src/lib.rs`, so that a file no runner opens cannot sit under
 `vectors/` looking covered.
 
+The size rule's file, `vectors/serialization/frame-size.json`, gets two more
+checks, since its frames are described rather than held: every admitted
+vector's `fields` validates against `schema/frame-size-fields.schema.json`
+(`decodes` present and `00` or `01`, `ratchet_message_length` four bytes,
+nothing else), and every vector is recomputed from its `length` and
+`prefix`: the size rule's verdict must match `result`, and an admitted
+vector's `ratchet_message_length` and `decodes` must be the values the frame
+gives (`frame_size_facts` below, written from the schema's descriptions). A
+wrong value is refused here, before any runner reads the file.
+
 `const` and `enum` compare by type as well as value, because Python's
 `True == 1`: a `schema_version` of `true` is not version 1.
 """
@@ -165,6 +175,105 @@ def validate(value, schema, path, errors):
         if "items" in schema:
             for i, item in enumerate(value):
                 validate(item, schema["items"], "%s[%d]" % (path, i), errors)
+
+
+FRAME_SIZE_ALGORITHM = "frame-size"
+MAX_RATCHET_FRAME_LEN = 1_048_710
+MAX_INITIAL_FRAME_LEN = 1_050_362
+CURVE_P = 2 ** 255 - 19
+
+
+def canonical_key(key):
+    """A 32-byte curve public key read little-endian, every bit included, is
+    below p (message-format.md, Curve public keys)."""
+    return len(key) == 32 and int.from_bytes(key, "little") < CURVE_P
+
+
+def initial_decodes(head, length):
+    """The initial-message decoder's verdict (frame-size-fields.schema.json),
+    from the frame's first 72 bytes and its length."""
+    if length < 72 or head[0] != 0x01 or head[1] != 0x02:
+        return False
+    if head[2] != 0x05 or head[35] != 0x05:
+        return False
+    if not canonical_key(head[3:35]) or not canonical_key(head[36:68]):
+        return False
+    k = int.from_bytes(head[68:72], "big")
+    return 72 + k + 12 <= length
+
+
+def ratchet_decodes(head, length):
+    """The ratchet-message decoder's verdict on the composite header, from the
+    frame's first 102 bytes and its length."""
+    if length < 102 or head[0] != 0x01 or head[1] != 0x01:
+        return False
+    if not canonical_key(head[2:34]) or head[66] > 0x05:
+        return False
+    if head[67] == 0x01:
+        return True
+    return head[67] == 0x00 and not any(head[68:102])
+
+
+def frame_size_facts(length, prefix):
+    """(refused by the size rule, located span or None, decodes) for the
+    frame `prefix` followed by zeros up to `length`. Only the first 102 bytes
+    and the length matter, so the frame is never built."""
+    head = (prefix + bytes(102))[:min(length, 102)]
+    initial = length >= 2 and head[0] == 0x01 and head[1] == 0x02
+    if not initial:
+        span = length
+    elif length < 72:
+        span = None
+    else:
+        k = int.from_bytes(head[68:72], "big")
+        span = length - 84 - k if 84 + k <= length else None
+    refused = length > MAX_INITIAL_FRAME_LEN or (span is not None and span > MAX_RATCHET_FRAME_LEN)
+    decodes = initial_decodes(head, length) if initial else ratchet_decodes(head, length)
+    return refused, span, decodes
+
+
+def check_frame_size_file(doc, rel, fields_schema, problems):
+    for i, v in enumerate(doc.get("vectors", [])):
+        if not isinstance(v, dict):
+            continue
+        where = "%s.vectors[%d] (%s)" % (rel, i, v.get("id"))
+        inputs = v.get("inputs", {})
+        try:
+            length = int(inputs["length"], 16)
+            prefix = bytes.fromhex(inputs["prefix"])
+            if len(inputs["length"]) != 8:
+                raise ValueError("length is not four bytes")
+        except (KeyError, TypeError, ValueError) as e:
+            problems.append("%s: inputs `length` (four bytes) and `prefix` are required: %s"
+                            % (where, e))
+            continue
+        if len(prefix) > length:
+            problems.append("%s: the prefix is longer than the frame" % where)
+            continue
+        refused, span, decodes = frame_size_facts(length, prefix)
+        valid = v.get("result", "valid") == "valid"
+        if valid == refused:
+            problems.append("%s: result %r, but the size rule %s this frame"
+                            % (where, v.get("result", "valid"),
+                               "refuses" if refused else "admits"))
+            continue
+        if not valid:
+            continue
+        fields = v.get("fields")
+        errors = []
+        validate(fields, fields_schema, where + ".fields", errors)
+        problems.extend(errors)
+        if errors or not isinstance(fields, dict):
+            continue
+        want_span = None if span is None else "%08x" % span
+        if fields.get("ratchet_message_length") != want_span:
+            problems.append("%s.fields.ratchet_message_length: declared %r, the frame gives %r"
+                            % (where, fields.get("ratchet_message_length"), want_span))
+        want = "01" if decodes else "00"
+        if fields.get("decodes") != want:
+            problems.append("%s.fields.decodes: declared %r, but the frame's next decoder %s it (%s)"
+                            % (where, fields.get("decodes"),
+                               "accepts" if decodes else "refuses", want))
 
 
 def load(path):
@@ -395,6 +504,7 @@ def check_group_file(doc, rel, problems):
 def main():
     vector_schema = load(os.path.join(SCHEMAS, "vector.schema.json"))
     ratchet_schema = load(os.path.join(SCHEMAS, "ratchet-vector.schema.json"))
+    frame_size_fields_schema = load(os.path.join(SCHEMAS, "frame-size-fields.schema.json"))
 
     problems = []
 
@@ -445,6 +555,8 @@ def main():
         vectors = doc.get("vectors") if isinstance(doc, dict) else None
         if not isinstance(vectors, list):
             continue
+        if algorithm == FRAME_SIZE_ALGORITHM:
+            check_frame_size_file(doc, rel, frame_size_fields_schema, problems)
         seen = set()
         for i, v in enumerate(vectors):
             if not isinstance(v, dict):

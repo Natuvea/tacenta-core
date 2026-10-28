@@ -574,6 +574,11 @@ recorded decision or a target-closing slice:
   and for the hosted-inventory group files a valid baseline and four refusals (an unread field in a case,
   in its policy object and in a binding,
   and a refusal class the vectors do not name).
+  For the size rule's `frame-size.json` it runs a valid baseline and nine refusals: `fields.decodes` missing,
+  a number, outside `00`/`01`, beside an extra field, and declared the wrong way for an initial frame that
+  decodes, a ratchet frame with an unknown version and an initial frame without its curve byte, a wrong
+  `ratchet_message_length`, and a `result` the size rule contradicts; the Rust runner's
+  `a_wrong_or_missing_decodes_is_refused_by_the_runner` refuses the same kind of vector on its own.
 
   **Missing evidence:**
   Retain its command, environment and diagnostic-free candidate result.

@@ -255,10 +255,33 @@ message**: the frames are mostly zeros and none of them authenticates.
   frame, and `length - 84 - kem_ciphertext_len` for an initial frame. The field
   is left out when the rule located no ratchet message (an initial frame too
   short to hold `kem_ciphertext_len`, or whose `kem_ciphertext_len` runs past
-  its end). They also hold `decodes`, `01` or `00`: whether the decoder a
-  session's decrypt hands the frame to next accepts it, the initial-message
-  decoder for an initial frame and the ratchet-message decoder for every other
-  frame. Every admitted frame in this file is then refused for the reason it
+  its end). They also hold `decodes`, required, `01` or `00`: whether the
+  decoder a session's decrypt applies to the frame once the size rule admits
+  it accepts it (`01`) or refuses it as a decode failure (`00`). Which decoder,
+  and what it accepts:
+  - **an initial frame** (at least two bytes, `01 02`): the initial-message
+    decoder (message-format.md, Initial message). It accepts exactly when the
+    frame holds the version and type bytes, `identity` and `ephemeral` each as
+    the curve byte `05` followed by a canonical 32-byte curve public key (Curve
+    public keys: read little-endian, every bit included, below 2^255 − 19),
+    `kem_ciphertext_len` `k`, `k` bytes of `kem_ciphertext` and the three
+    4-byte identifiers, that is when `72 + k + 12 <= length`. It does not
+    decode the ratchet message after them, so `01` says nothing about it;
+  - **every other frame**: the ratchet-message decoder (message-format.md,
+    Ratchet message). It accepts exactly when the frame holds the 102-byte
+    composite header with version `01`, type `01`, a canonical 32-byte ratchet
+    key, an agreement type byte from `00` to `05` and a presence byte `01`, or
+    `00` with the 2-byte index and 32-byte chunk all zero. The ciphertext after
+    the header is not checked.
+
+  `decodes` says nothing about prekey lookups, the repeat check,
+  authentication or the session's state. `schema/frame-size-fields.schema.json`
+  states the same, and `tooling/check-vectors.py` validates every admitted
+  vector's `fields` against it and recomputes both fields from `length` and
+  `prefix`, refusing a vector whose `decodes` is missing, is not `00` or `01`,
+  or is not the value the frame gives (its case runner plants each); the Rust
+  runner refuses the same vectors by comparing with tacenta-core's decoders.
+  Every admitted frame in this file is then refused for the reason it
   had without the rule (message-format.md, Message size, Precedence), and the
   refusal changes nothing. The Rust runner checks, on a live responder
   session: with `decodes` `00`, the decoder's own refusal; with `01`, an
