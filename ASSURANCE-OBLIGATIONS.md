@@ -1034,6 +1034,7 @@ recorded decision or a target-closing slice:
   `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
   `check-size-rule-negatives.py`,
+  `check-size-witness-negatives.py`,
   `check-sparse-skip-kind-negatives.py`,
   `check-sparse-store-full-negatives.py`,
   `check-tampered-reply-negatives.py`,
@@ -1130,6 +1131,8 @@ recorded decision or a target-closing slice:
   from the model's oracle, another random source returned by each of the three refusals), the refusal order (all five
   swapped), the nested refusal (claimed as the decoder's overrun at both entries) and the received maximum (one byte
   lower, the open-length law dropped, and the responder's composition fed a bound one under the nested limit);
+  `check-size-witness-negatives.py` keeps the joint padded witness's padding (the open-length law fails without it),
+  its model's open, the reach's use of the law and the received maximum at the run;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1215,6 +1218,7 @@ recorded decision or a target-closing slice:
   to take a draw from the model's oracle, each refusal claimed to return another random source, the order swapped at
   all five order results, the nested refusal claimed as the decoder's overrun at both entries, the received maximum claimed one byte lower and without the open-length
   law, and the inner receive's bound claimed one under the nested limit),
+  `check-size-witness-negatives.py` (two unmodified copies accepted and five changes refused: the toy's open made to drop only the tag (refused at `padOpen_length`), the joint model given the unpadded toy open of the earlier reaches (refused at `modelPadded_aeadRoundTrip`), the open-length law dropped from the encrypt witness's premises (refused at `established_encrypt_hypotheses_open`), that witness made to return `True` in place of the law (refused inside `size_witness_reachable`, accepted with that proof emptied), and the received maximum claimed one byte lower at the run (refused where `size_witness_reachable` places `decrypt_ok_plaintext_le_max`'s conclusion)),
   `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused:
   the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`,
   every refusal claimed `skippedStoreFull`,

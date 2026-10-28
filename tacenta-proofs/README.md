@@ -128,8 +128,8 @@ draw), their order before the other refusals and the bound on an initial frame's
 message with no law about an opaque operation, and that a receive returns at most
 `MAX_PLAINTEXT_LEN` bytes for a result that refines the model's step (supplied only by the
 refinement results under their premises; for a repeated initial frame, by none) under one
-assumed law about the AEAD's open, which no Lean model here meets together with the other
-hypotheses (`CLAIMS.md`, `LIMITATIONS.md`); the reply routes cover reply plaintexts only up
+assumed law about the AEAD's open, shown consistent with the other hypotheses for one result
+at the reply's receipt by a padded toy AEAD, not of the real AEAD (`CLAIMS.md`, `LIMITATIONS.md`); the reply routes cover reply plaintexts only up
 to 1,048,560 bytes, fifteen lengths short of the bound; the AEAD's totality contracts are not restated for the lengths the
 bound allows, so the results that take them stay conditional on them. So nothing
 here proves `Session::encrypt` or `Session::decrypt` end to end. The results above about

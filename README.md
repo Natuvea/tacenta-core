@@ -337,8 +337,8 @@ the model's refusal, before the terminal, decode, not-a-repeat and prekey-lookup
 carry a ratchet message over the bound, whatever KEM ciphertext length it declares (no law about an opaque operation, no
 compiler-trust axiom). That every plaintext a receive returns is at most `MAX_PLAINTEXT_LEN` bytes is shown only for a
 result that refines the model's step (which only the refinement results supply, under all their premises, and for a
-repeated initial frame none does), and under one assumed law about the AEAD's open, not shown of the real AEAD and not met
-by any Lean model here together with the other hypotheses; the AEAD's totality contracts are not restated for the lengths
+repeated initial frame none does), and under one assumed law about the AEAD's open, not shown of the real AEAD; a padded toy
+AEAD shows that law consistent with the other hypotheses for one result at the reply's receipt (consistency only); the AEAD's totality contracts are not restated for the lengths
 the bound allows, so the results that take them stay conditional on them. The earlier lifecycle results take a size
 hypothesis where they state an outcome past the checks; on the reply routes it is narrower than the bound, and for reply
 plaintexts of 1,048,561 to 1,048,575 bytes no route result covers the outcome.

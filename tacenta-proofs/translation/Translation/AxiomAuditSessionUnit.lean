@@ -72,6 +72,7 @@ import Translation.UnitLifecycleEstablishedDecrypt
 import Translation.UnitLifecycleSessionCodec
 import Translation.UnitLifecycleSessionRoundTrip
 import Translation.UnitLifecycleSizeRule
+import Translation.UnitLifecycleSizeWitness
 import Translation.UnitLifecycleSparseSkipKindT3
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
@@ -255,6 +256,11 @@ terminal, decode, not-a-repeat and prekey-lookup refusals. No law for those. The
 Not shown: that every message `encrypt` returns passes the size rule (only under `AeadSealBounded`, for
 plaintexts up to 150 bytes, or 65,770 for a first message, below `MAX_RATCHET_FRAME_LEN`), memory and time per
 call, allocation failure, and callers that bypass the three entries.
+`UnitLifecycleSizeWitness.lean` gives a padded toy AEAD (PKCS#7-style padding and a 32-byte tag) and shows that
+the received maximum's hypotheses (`hstep`, `hok` and the open-length law) and every hypothesis of
+`initiator_receives_reply` hold together at one call of a run, at the real constants under the reach's laws and
+`AeadOpenLengthLaw` (assumed), with every such law satisfied in one toy interpretation; consistency only, not that
+the shipping AEAD meets the laws, and only for that route and that received-maximum result.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

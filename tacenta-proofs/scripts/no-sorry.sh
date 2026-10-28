@@ -289,6 +289,14 @@ phase_size_rule() {
 python3 scripts/check-size-rule-negatives.py || fail=1
 }
 
+# A padded toy AEAD at which the received maximum's hypotheses and the reply receipt's hold together on one run
+# (`UnitLifecycleSizeWitness.lean`): the padding removed from the toy's open, the unpadded open in the joint
+# model, the open-length law dropped or replaced by `True`, and the received maximum one byte lower at the run,
+# each refused at a named declaration with a message naming the change, after the unmodified copies are accepted.
+phase_size_witness() {
+python3 scripts/check-size-witness-negatives.py || fail=1
+}
+
 # The Session unit's sparse skip refines the model's detailed skip, refusal kind included
 # (`UnitLifecycleSparseSkipKindT3.lean`).  After the two unmodified copies are accepted, four changes must each be
 # refused at a named declaration with a message naming the change: the kind under a mapping that swaps
@@ -746,6 +754,7 @@ phases() {
   run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal
   run_phase size-rule plain "size rule proof-dependency control" phase_size_rule
+  run_phase size-witness plain "size-witness proof-dependency control" phase_size_witness
   run_phase sparse-skip-kind plain "sparse skip refusal-kind proof-dependency control" phase_sparse_skip_kind
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
   run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply

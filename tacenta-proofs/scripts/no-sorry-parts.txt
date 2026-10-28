@@ -43,6 +43,7 @@ hosted braid:
   responder-second-send
   send-refusal
   size-rule
+  size-witness
   sparse-skip-kind
   sparse-store-full
   established

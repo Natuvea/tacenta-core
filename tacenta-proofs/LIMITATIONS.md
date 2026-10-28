@@ -4170,12 +4170,16 @@ premises (the decrypt oracle record, whose open clause implies `AeadOpenTotal` a
 per-run premises), and for a repeated initial frame no theorem supplies it. So the received maximum is a statement about
 results already related to the model, not about every call.
 
-**Not shown non-vacuous in Lean.** No model in this tree satisfies `AeadOpenLength` together with the other hypotheses of
-the received maximum. The toy AEADs the reaches use open to the input less one byte (`UnitOracleModel.openModel`) or less 32
-bytes (`UnitLifecycleTamperedReply.openTagged`, `Model.Lifecycle.toyOracle`); the law asks for less 33. The law is
-satisfiable: the shipping AEAD meets it by reading (`boundary/src/aead.rs` refuses an input shorter than the tag, then
-unpads with RustCrypto's PKCS#7, which refuses an empty ciphertext), and a padded toy seal and open would meet it alongside
-`AeadSealBounded` and `AeadRoundTrip`. That witness, and a reach at it, are follow-up work.
+**Non-vacuity: a joint padded witness, for one result and one route.** The toy AEADs the earlier reaches use open to the
+input less one byte (`UnitOracleModel.openModel`) or less 32 bytes (`UnitLifecycleTamperedReply.openTagged`,
+`Model.Lifecycle.toyOracle`) and do not meet `AeadOpenLength`, which asks for less 33. `UnitLifecycleSizeWitness` gives a
+padded toy AEAD (PKCS#7-style padding and a 32-byte tag) that meets it alongside `AeadSealBounded` and `AeadRoundTrip`, and
+shows, under the reach's laws and the code-level law `AeadOpenLengthLaw` (assumed), one run at which every hypothesis of
+`decrypt_ok_plaintext_le_max` and of `initiator_receives_reply` holds at the same call, with every law satisfied in one toy
+interpretation. That is consistency of the hypothesis set only, not realisation by the shipping AEAD, which meets the law
+by reading (`boundary/src/aead.rs` refuses an input shorter than the tag, then unpads with RustCrypto's PKCS#7, which
+refuses an empty ciphertext). Still without such a witness: `ratchet_ok_plaintext_le_max`,
+`establish_responder_ok_plaintext_le_max`, and the other ten reply-route results that take `hfitR` or `hfitS`.
 
 **The AEAD contracts are not restated here.** With the bound enforced first at each public entry, the lengths at which
 those entries call the AEAD are bounded (a plaintext of at most `MAX_PLAINTEXT_LEN` bytes to seal; an input within a frame

@@ -2141,6 +2141,35 @@ REQUIRED_PINS = frozenset(
         "decrypt_ok_plaintext_le_max",
         "establish_responder_ok_plaintext_le_max",
     )]
+    # A padded toy AEAD at which the received maximum's hypotheses and the reply receipt's hold together on one run (`UnitLifecycleSizeWitness`).
+    + ["Tacenta.UnitLifecycleSizeWitness." + n for n in (
+        "padLen_pos",
+        "padLen_le",
+        "padded_total",
+        "byteOf_toNat",
+        "padBody_length",
+        "padOpen_length",
+        "padBody_drop",
+        "padBody_take",
+        "padOpen_of_body",
+        "padOpen_padSeal",
+        "aeadOpenLengthLaw_is",
+        "modelPadded_dhCodec",
+        "modelPadded_dhAgree",
+        "modelPadded_symmetric",
+        "modelPadded_contributory",
+        "modelPadded_notConstant",
+        "modelPadded_aeadOpen",
+        "modelPadded_aeadSeal",
+        "modelPadded_aeadRoundTrip",
+        "modelPadded_openLength",
+        "size_witness_laws_model",
+        "aeadOpenLength_oracleOfLaws",
+        "oracleOfShape_open",
+        "established_encrypt_hypotheses_open",
+        "initiator_receives_reply_step",
+        "size_witness_reachable",
+    )]
     # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
     + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (
         "sparseReceiveRefusalOfReal_injective",
@@ -4136,6 +4165,47 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "decrypt_ok_plaintext_le_max",
         "establish_responder_ok_plaintext_le_max",
     )]
+    # A padded toy AEAD at which the received maximum's hypotheses and the reply receipt's hold together on one run (`UnitLifecycleSizeWitness`).
+    + ["Tacenta.UnitLifecycleSizeWitness." + n for n in (
+        "padLen_pos",
+        "padLen_le",
+        "padded_total",
+        "byteOf_toNat",
+        "padBody_length",
+        "padOpen_length",
+        "padBody_drop",
+        "padBody_take",
+        "padOpen_of_body",
+        "padOpen_padSeal",
+        "aeadOpenLengthLaw_is",
+        "modelPadded_dhCodec",
+        "modelPadded_dhAgree",
+        "modelPadded_symmetric",
+        "modelPadded_contributory",
+        "modelPadded_notConstant",
+        "modelPadded_aeadOpen",
+        "modelPadded_aeadSeal",
+        "modelPadded_aeadRoundTrip",
+        "modelPadded_openLength",
+        "size_witness_laws_model",
+        "aeadOpenLength_oracleOfLaws",
+        "oracleOfShape_open",
+        "established_encrypt_hypotheses_open",
+        "initiator_receives_reply_step",
+        "size_witness_reachable",
+        "padLen",
+        "byteOf",
+        "padBody",
+        "padSeal",
+        "padOpen",
+        "Interp.modelPadded",
+        "InterpO.modelPadded",
+        "viewPadded",
+        "dhViewPadded",
+        "kemViewPadded",
+        "AeadOpenLengthShape",
+        "AeadOpenLengthLaw",
+    )]
     # The Session unit's sparse skip refines the model's detailed skip: a success is the model's success, and a refusal leaves the state as it was and is the model's refusal of the same kind (`UnitLifecycleSparseSkipKindT3`).
     + ["Tacenta.UnitLifecycleSparseSkipKindT3." + n for n in (
         "sparseReceiveRefusalOfReal_injective",
@@ -5054,6 +5124,21 @@ REQUIRED_PRINT_FORM = frozenset(
     + ["Tacenta.UnitLifecycleSessionRoundTrip." + n for n in (
         "CodecShape",
         "sessionEnc",
+    )]
+    # A padded toy AEAD at which the received maximum's hypotheses and the reply receipt's hold together on one run (`UnitLifecycleSizeWitness`).
+    + ["Tacenta.UnitLifecycleSizeWitness." + n for n in (
+        "padLen",
+        "byteOf",
+        "padBody",
+        "padSeal",
+        "padOpen",
+        "Interp.modelPadded",
+        "InterpO.modelPadded",
+        "viewPadded",
+        "dhViewPadded",
+        "kemViewPadded",
+        "AeadOpenLengthShape",
+        "AeadOpenLengthLaw",
     )]
     # What an accepted `Session::import` guarantees, the restored relation and its composition with
     # `decrypt`, and the round trip of an established initiator session (`UnitLifecycleRestoredSession`).

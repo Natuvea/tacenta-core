@@ -8362,13 +8362,15 @@ interpretation of the opaque operations.
 
 **Non-vacuity.** The refusals hold for every input past the bound, and such inputs exist at both platform widths: a byte
 string of 1,050,363 bytes fits a slice when `Usize.max` is at least `2^32 - 1`. The limits are stated as equivalences, so
-the admitted side is not empty either. The received maximum is **not** shown non-vacuous in Lean: no model in this tree
-satisfies `AeadOpenLength` together with its other hypotheses. The toy AEADs the reaches use open to the input less one
-byte (`UnitOracleModel.openModel`) or less 32 bytes (`UnitLifecycleTamperedReply.openTagged`, `Model.Lifecycle.toyOracle`),
-and the law asks for less 33, so the reach theorems of the earlier sections do not exhibit a successful receive under it.
-The law is met by the shipping AEAD by reading (`boundary/src/aead.rs` refuses an input shorter than the tag and unpads with
-RustCrypto's PKCS#7, which refuses an empty ciphertext, so a ciphertext of `C` bytes opens to `C - 16` to `C - 1` bytes); a
-padded toy AEAD and a reach at it would show it in Lean, and are not here.
+the admitted side is not empty either. The received maximum is shown non-vacuous for one result and one route, as
+consistency of its hypotheses: the joint padded witness (the next section, `UnitLifecycleSizeWitness`) gives a padded toy
+AEAD that meets `AeadOpenLength`, and `size_witness_reachable` exhibits, under the reach's laws and the code-level
+open-length law, a successful receive of the responder's reply at which every hypothesis of `decrypt_ok_plaintext_le_max`
+holds, with every law satisfied in one toy interpretation (`size_witness_laws_model`). The toy AEADs the earlier reaches
+use open to the input less one byte or less 32 bytes and do not meet the law. The law is met by the shipping AEAD by
+reading only (`boundary/src/aead.rs` refuses an input shorter than the tag and unpads with RustCrypto's PKCS#7, which
+refuses an empty ciphertext, so a ciphertext of `C` bytes opens to `C - 16` to `C - 1` bytes). No witness is given for
+`ratchet_ok_plaintext_le_max` or `establish_responder_ok_plaintext_le_max`.
 
 **What this establishes, and what it does not.** In the translated public implementation, the three size refusals happen
 first, change nothing and draw nothing, refine the model's, and take precedence over the terminal, decode, not-a-repeat and
@@ -8376,7 +8378,8 @@ prekey-lookup refusals; the nested bound holds on both receiving entries; and, u
 plaintext a receive returns is longer than `MAX_PLAINTEXT_LEN` when the call's result refines the model's step, which only
 the T3 refinement results supply, under all their premises (for a repeated initial frame, none does). **Not shown:** that
 the AEAD has the open-length property (the received maximum is conditional on it; the padding measurements are tested
-evidence, not a discharge); that any Lean model meets that law together with the other hypotheses (Non-vacuity, above);
+evidence, not a discharge); a joint witness for the received-maximum results other than `decrypt_ok_plaintext_le_max` at
+the reply's receipt (Non-vacuity, above);
 the outcome of the reply routes for reply plaintexts of 1,048,561 to 1,048,575 bytes (above); that every message `encrypt`
 returns passes the size rule (proved only under `AeadSealBounded` for plaintexts of at most `MAX_RATCHET_FRAME_LEN - 150`
 bytes; the helper `first_message_fits` derives it for a first message only for plaintexts of at most
@@ -8411,6 +8414,84 @@ reading the wrong bytes, a check moved after the terminal check, the draw, the c
 test, which `mutate-gates.py --only MS-...` runs locally. An error that is not a refusal voids a run anywhere in
 the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one
 elsewhere in the copy is logged.
+
+## Proved (tier T3, session lifecycle: a joint padded witness at which the received maximum's hypotheses and the reply receipt's hold together on one run)
+
+Location: `Translation/UnitLifecycleSizeWitness.lean`.
+
+The received maximum of the message size bound section (`decrypt_ok_plaintext_le_max` and its two siblings) takes, besides
+a result that refines the model's step, the assumed open-length law `Model.Lifecycle.AeadOpenLength`, which no model in
+the tree met: the toy AEADs of the earlier reaches open to the input less one byte or less 32 bytes, and the law asks for
+less 33. This section gives a padded toy AEAD and shows that the hypotheses of one received-maximum result,
+`decrypt_ok_plaintext_le_max`, and of one reply-route result, `initiator_receives_reply`, hold together at one call of a
+run, with every law they rest on satisfied in one toy interpretation. It shows that this hypothesis set is consistent;
+it does not show that the shipping AEAD meets the laws.
+
+**Laws and premises.** One new law, assumed: `AeadOpenLengthLaw` (`AeadOpenLengthShape` at the real constants), the
+code-level form of `AeadOpenLength`: what the real open returns on success is at least 33 bytes shorter than its input
+(ciphertext and 32-byte tag). The reach takes it with the laws of `first_send_reply_receipt_reachable`, all assumed. The
+shipping AEAD meets the law by reading (`boundary/src/aead.rs` refuses an input shorter than the tag and unpads with
+RustCrypto's PKCS#7, which refuses an empty ciphertext); no theorem here shows it.
+
+The padded toy (`padSeal`, `padOpen`): the seal is the plaintext, its PKCS#7-style padding (1 to 16 bytes, each the
+padding length) and 32 zero bytes, `16 * (n / 16) + 48` bytes for an `n`-byte plaintext where that fits a `usize`
+length (`padded_total`); the open of an input of at least 33 bytes whose byte before the tag is a padding length `b` with
+`1 ≤ b` and `b + 32` at most the input's length returns the first `length - 32 - b` bytes, and refuses every other input.
+It encrypts and authenticates nothing.
+
+- `padLen_pos`, `padLen_le`, `padded_total`, `byteOf_toNat`, `padBody_length`, `padBody_drop`, `padBody_take`: the
+  padding's arithmetic and the sealed bytes' layout.
+- `padOpen_length`: an open that succeeds returns at least 33 bytes fewer than its input.
+- `padOpen_of_body`, `padOpen_padSeal`: the open returns what the seal was given, when the sealed output fits.
+- `aeadOpenLengthLaw_is`: at the real constants the law is the statement about `tacenta_boundary.aead.decrypt`.
+- `modelPadded_dhCodec`, `modelPadded_dhAgree`, `modelPadded_symmetric`, `modelPadded_contributory`,
+  `modelPadded_notConstant`: the reply receipt's joint model's DH laws, again at `Interp.modelPadded` (the reply receipt's
+  joint model `Interp.modelReply` with the padded seal and open).
+- `modelPadded_aeadOpen`, `modelPadded_aeadSeal`, `modelPadded_aeadRoundTrip`, `modelPadded_openLength`: the open
+  returns, the seal is at most 48 bytes longer than the plaintext, the round trip, and `AeadOpenLengthShape`, at the
+  padded model.
+- `size_witness_laws_model`: every conjunct of `reply_receipt_laws_model` holds again at `Interp.modelPadded`, together
+  with `AeadOpenLengthShape`; in the substitution sense of `UnitSatisfiabilityRecords`.
+- `aeadOpenLength_oracleOfLaws`, `oracleOfShape_open`: the oracle the laws build (`oracleOfLaws`) meets `AeadOpenLength`
+  when the interpretation's open meets `AeadOpenLengthShape`, with every clause of `OracleOf`.
+- `established_encrypt_hypotheses_open`: `established_encrypt_hypotheses_jointly_satisfiable`'s witness, under its laws
+  and `AeadOpenLengthLaw`, whose oracle also meets `AeadOpenLength`.
+- `initiator_receives_reply_step`: under the hypotheses of `initiator_receives_reply_outcomes`, the initiator's public
+  `decrypt` of the reply returns an output that refines the model's public `decrypt` at a model session, with the oracle
+  holding the initiator's draws (the step `decrypt_ok_plaintext_le_max` takes as `hstep`).
+- `size_witness_reachable`: at the real constants, under the laws of `first_send_reply_receipt_reachable` and
+  `AeadOpenLengthLaw` (assumed), for every reply plaintext of at most 4096 bytes there is a run (last-resort path, the
+  responder's source chosen by `DhPublicNotConstant`) at which every hypothesis of `initiator_receives_reply` holds,
+  `hfitR` included, the initiator's `decrypt` returns `Ok ptA` with `ptA` the reply plaintext, and at that same call
+  `hstep`, `hok` and `hopen` of `decrypt_ok_plaintext_le_max` hold, so `ptA` is at most `MAX_PLAINTEXT_LEN` bytes.
+
+**Non-vacuity.** `size_witness_laws_model` puts every law the reach takes, `AeadOpenLengthShape` included, in one toy
+interpretation, and `size_witness_reachable` exhibits a successful receive under `AeadOpenLength` at which the received
+maximum's three hypotheses hold. That is consistency of the hypothesis set, not realisation by the shipping AEAD.
+
+**What this establishes, and what it does not.** The received maximum of `decrypt_ok_plaintext_le_max` and the reply
+receipt `initiator_receives_reply` are not vacuous together: their hypotheses and the laws beneath them hold at one
+call of one run in a toy interpretation. **Not shown:** that the shipping AEAD meets the open-length law (by reading
+only); a witness for the other received-maximum results (`ratchet_ok_plaintext_le_max`,
+`establish_responder_ok_plaintext_le_max`) or for the other ten reply-route results that take `hfitR` or `hfitS`
+(`initiator_receives_reply_outcomes`, `initiator_receives_reply_two_outcomes`, `initiator_receives_reply_successor`,
+`initiator_second_send_after_reply`, `initiator_sends_second_message`, `initiator_repeated_reply_refused`,
+`initiator_refuses_tampered_reply`, `responder_receives_second_message` and its `_two_outcomes` form,
+`responder_sends_second_reply`), beyond what their own reaches show without the law; a reply plaintext longer than 4096
+bytes; the one-time path; a repeated initial frame, for which nothing supplies the received maximum's `hstep`; that the
+toy encrypts or authenticates anything; and the fifteen reply plaintext lengths of `SIZE-BOUND-REPLY-ROUTE-GAP`.
+
+**Compiler trust and pins.** Each of the 26 results carries an axiom pin and a statement pin, and each of the module's
+twelve definitions a statement pin on the print form. 10 rest on `propext`, `Classical.choice` and `Quot.sound` alone and
+16 on those and opaque constants of the unit; none on a compiler-trust axiom. As for every statement pin, a printed pin is
+not the whole elaborated statement, and that the pinned statement is the right one is decided by reading.
+`check-size-witness-negatives.py` plants five faults in a copy of the module and requires Lean to refuse each at a named
+declaration with a message naming the change: the toy's open made to drop only the tag, so that it returns the padding
+and the open-length law fails (`padOpen_length`); the joint model given the unpadded open of the earlier reaches
+(`modelPadded_aeadRoundTrip`); the open-length law dropped from the encrypt witness's premises
+(`established_encrypt_hypotheses_open`); that witness made to return `True` in place of the law, refused inside
+`size_witness_reachable` and accepted there with that proof emptied; and the received maximum claimed one byte lower at
+the run, refused where `size_witness_reachable` places `decrypt_ok_plaintext_le_max`'s conclusion.
 
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 

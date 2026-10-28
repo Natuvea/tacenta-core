@@ -52,14 +52,16 @@ The message size bound (message-format.md, Message size) at the three public ent
 
 * The refusals hold for every input past the bound; a frame or plaintext past it is a byte string of the right
   length, which exists at both platform widths (`Usize.max ≥ 2^32 − 1`).
-* The received maximum is not shown non-vacuous: no model in the tree meets `AeadOpenLength` with the other
-  hypotheses (the toy AEADs open to the input less 1 or less 32 bytes; the law asks for less 33). The shipping AEAD
-  meets the law by reading (PKCS#7 refuses an empty ciphertext); a padded toy witness is follow-up work.
+* The received maximum is shown non-vacuous for `decrypt_ok_plaintext_le_max` at the reply's receipt, as consistency
+  of its hypotheses, by the joint padded witness of `UnitLifecycleSizeWitness` (a padded toy AEAD meets
+  `AeadOpenLength`; the earlier toys open to the input less 1 or less 32 bytes and do not). The shipping AEAD meets the
+  law by reading only (PKCS#7 refuses an empty ciphertext). No witness for the other two received-maximum results.
 
 ## What it does not show
 
 * that the AEAD has the open-length property: the received maximum is conditional on it;
-* that any Lean model meets that law together with the other hypotheses (Non-vacuity, above);
+* a joint witness for the received-maximum results other than `decrypt_ok_plaintext_le_max` at the reply's receipt
+  (Non-vacuity, above);
 * that every message `encrypt` returns passes the size rule: proved only under `AeadSealBounded` for plaintexts of
   at most `MAX_RATCHET_FRAME_LEN − 150` bytes (`UnitLifecycleEstablishedEncrypt.reply_fits`), and for the first
   message of an establishment under `KemCiphertextLenBound` for plaintexts of at most `MAX_RATCHET_FRAME_LEN −
