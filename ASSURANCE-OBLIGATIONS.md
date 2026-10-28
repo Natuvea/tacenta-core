@@ -2061,7 +2061,13 @@ Their controls stub
 Lean: that the pin generator's probe matches a real `lake env lean --json` run was checked by hand, not in CI.
 `run-gate-controls.sh` runs every control through `tooling/tests/with-no-git-identity.sh`, with no global or
 system git configuration and no git identity, as the hosted runner has none, so a fixture that commits without
-its own identity fails on a developer's machine too (one did, and failed only on the runner).
+its own identity fails on a developer's machine too (one did, and failed only on the runner). Before any control, it
+calls `tooling/check-gate-prerequisites.sh`, which requires git, python3 and a cargo that answers `--version`, and
+fails at its first line naming what is missing (the lockfile check's cases run the real cargo, and without cargo the
+run used to fail only at that last runner); `tooling/ci.sh` without `--fast` does the same for the full gate's tools.
+Run locally in a clean environment, the controls need cargo on PATH:
+`env -i HOME="$HOME" PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" bash tooling/tests/run-gate-controls.sh`.
+The cases are the `prereq-*` cases of `run-check-fast-cases.sh`, with mutations `GP1` to `GP6`.
 
 On 2026-10-22 the scaffold was brought up to what a module it starts needs to pass the gates. Its negatives
 template carries the helpers of the lifecycle negatives scripts character for character (the projection
