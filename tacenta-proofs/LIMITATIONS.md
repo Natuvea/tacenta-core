@@ -629,7 +629,7 @@ from it. This holds here by delegation and discipline, not by proof.
   panic block. `subtle` is now compiled without overflow checks in this
   workspace's release profile (`tacenta-core/Cargo.toml`), and the function
   counts zero branches on every target.
-- **Our own composition was read by the maintainer for leaks; no one independent has audited it.** tacenta-core's
+- **That our own composition branches only on public data is stated, not established; no review or independent audit of it is recorded in this repository.** tacenta-core's
   ratchet, session, and serialization code branches on and compares only public
   data: ratchet public keys, message numbers, and wire bytes, whose timing
   reveals nothing secret. On no path a peer can time does it perform a
@@ -639,8 +639,8 @@ from it. This holds here by delegation and discipline, not by proof.
   byte-wise and which only tests use; and `Session::import` re-encodes the
   state it decoded and compares the bytes to the input, a canonicality check
   over the caller's own persisted blob, where the only observer is the caller.
-  This was checked by reading the code, not by a timing experiment.
-- **Four of the claims above are measured by `tests/timing.rs`, not only read.** Those tests are `#[ignore]`d; they run by hand or in a nightly workflow of a private repository (see the timing section), and no workflow in this repository runs them.
+  No proof covers this and no record of a check of it is in this repository; the timing tests below measure four paths only.
+- **Four of the claims above are measured by `tests/timing.rs`.** Those tests are `#[ignore]`d; they run by hand or in a nightly workflow of a private repository (see the timing section), and no workflow in this repository runs them.
   `tacenta-core/tests/timing.rs` times two input classes and asks whether their
   rejection times differ by an *exploitable* margin -- an effect size in
   nanoseconds. Besides the AEAD tag comparison and the forged-ciphertext
