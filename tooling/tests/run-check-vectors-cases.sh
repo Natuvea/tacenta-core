@@ -251,6 +251,10 @@ PY
 make_frame_size_case frame-size-pass 'pass'
 python3 "$work/frame-size-pass/tooling/check-vectors.py"
 
+make_frame_size_case frame-size-extra-field \
+  'by_id["empty-frame"]["fields"]["refused_next_by"] = "00"'
+expect_fail frame-size-extra-field "(empty-frame).fields: unexpected field 'refused_next_by'"
+
 make_frame_size_case frame-size-decodes-missing \
   'del by_id["initial-unknown-prekeys-at-the-bound"]["fields"]["decodes"]'
 expect_fail frame-size-decodes-missing "(initial-unknown-prekeys-at-the-bound).fields: missing required field 'decodes'"
@@ -262,10 +266,6 @@ expect_fail frame-size-decodes-number "(ratchet-at-the-bound).fields.decodes: 1 
 make_frame_size_case frame-size-decodes-out-of-enum \
   'by_id["ratchet-at-the-bound"]["fields"]["decodes"] = "02"'
 expect_fail frame-size-decodes-out-of-enum "(ratchet-at-the-bound).fields.decodes: '02' is not one of"
-
-make_frame_size_case frame-size-extra-field \
-  'by_id["empty-frame"]["fields"]["refused_next_by"] = "00"'
-expect_fail frame-size-extra-field "(empty-frame).fields: unexpected field 'refused_next_by'"
 
 make_frame_size_case frame-size-decodes-wrong-initial \
   'by_id["initial-unknown-prekeys-at-the-bound"]["fields"]["decodes"] = "00"'
