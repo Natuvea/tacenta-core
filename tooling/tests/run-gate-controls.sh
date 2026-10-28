@@ -37,6 +37,13 @@
 #   run-check-landing-cases.sh, check-landing.sh  the additions of the tooling change survive a merge or a rebase
 #   gate-inventory.py --check    the inventory of gates and controls is current and every CI step has a row
 #
+# Before any of them, check-gate-prerequisites.sh requires git, python3 and a runnable cargo, and fails naming
+# what is missing. To run them locally in a clean environment, keep cargo on PATH, for example:
+#
+#   env -i HOME="$HOME" PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" bash tooling/tests/run-gate-controls.sh
+#
+# (with an empty HOME the rustup proxies find no toolchain; put the toolchain's own bin directory on PATH instead).
+#
 # All of them run through with-no-git-identity.sh: no global or system git configuration, no identity in the
 # environment and none guessed from the account, as on the hosted runner, so a fixture that commits must give
 # its own identity (one that did not passed here and failed there).
@@ -55,6 +62,13 @@ root="$(cd "$here/../.." && pwd)"
 if [ "${GATE_NO_GIT_IDENTITY:-}" != 1 ]; then
   exec bash "$here/with-no-git-identity.sh" bash "$0" "$@"
 fi
+
+# The tools the controls need, before anything else runs (once, in the re-executed process): the lockfile
+# check's cases run the real cargo, so a machine without a runnable cargo fails here, naming it, and not at the
+# last runner. There is no reduced form of this script; `tooling/fast.sh` is the reduced local check and says it
+# is not the gate.
+bash "$root/tooling/check-gate-prerequisites.sh" "the gate controls (run-gate-controls.sh)" git python3 cargo
+
 if ident="$(git -C "$root" var GIT_COMMITTER_IDENT 2>/dev/null)"; then
   echo "run-gate-controls: git resolves an identity here ($ident); the hosted runner has none" >&2
   exit 1
