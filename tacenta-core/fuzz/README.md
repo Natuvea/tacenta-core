@@ -29,9 +29,8 @@ never committed would fuzz only its starting state, which is what
 
 Panic-freedom is the property the targets were written for, and a decoder
 target has no other oracle: it cannot know what the bytes meant. Since the
-import-time validation from the 2026-09 external review (cited as an
-external review in a commit of 2026-09-09; source not identified in this
-repository: `ASSURANCE.md`, "Readiness for external review"), the session and
+import-time validation attributed to an external review (so cited in
+a commit of 2026-09-09; source not identified in this repository: `ASSURANCE.md`, "Readiness for external review"), the session and
 the
 prekey store each carry an `invariant()` -- the relations between fields no
 field-by-field decode sees, such as the ratchet private key matching the

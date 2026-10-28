@@ -59,9 +59,9 @@ itself is a report we want.
   rather than take from vetted code**: XEdDSA (ADR-0002) and, since the KDF change,
   `tacenta-kdf`'s SHA-256, HMAC-SHA256 and HKDF-SHA256 (ADR-0010): written
   with tool assistance under the maintainer's account in a separate,
-  unpublished repository; the review recorded on #272, the pull request that
-  copied them here, says every review and read of that change was
-  tool-assisted; no review or read of the three Rust files or their proofs by
+  unpublished repository; the rule-7 review comments on #272, the pull request
+  that copied them here, say under "Not checked" that every review and
+  read of that change was tool-assisted; no review or read of the three Rust files or their proofs by
   anyone independent of the maintainer is recorded in this repository.
 - PQXDH session establishment, the Double and Triple Ratchets, the sparse
   post-quantum ratchet, the braid, and erasure coding.

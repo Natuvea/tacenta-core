@@ -172,9 +172,9 @@ flowchart TD
   HKDF-SHA256 are code copied here, pinned in `tacenta-core/kdf/src/lib.rs` by
   commit and file digests, and distributed under this repository's licence:
   written with tool assistance under the maintainer's account in a separate,
-  unpublished repository; the review recorded on #272, the pull request that
-  copied them here, says every review and read of that change was
-  tool-assisted; no review or read of the three Rust files or their proofs by
+  unpublished repository; the rule-7 review comments on #272, the pull request
+  that copied them here, say under "Not checked" that every review and
+  read of that change was tool-assisted; no review or read of the three Rust files or their proofs by
   anyone independent of the maintainer is recorded in this repository. Eight
   translations include it, and the six whose theorems take hypotheses about it
   prove that it computes tacenta-model's: the Session unit's (`UnitLifecycleKdf`),

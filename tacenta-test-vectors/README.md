@@ -101,13 +101,16 @@ There is also a specification-defined transcript grammar for work that spans
 session establishment and prekey lifecycle: [Session and prekey operation
 traces](session-operation-trace.md). Its schema records the required operation
 outcomes and durable effects without prescribing private state or drawing a
-grammar from an implementation. It is the input format for the independent P6
-operation reader. [The committed corpus](traces/session-operation-trace.json)
-contains the source-linked lifecycle, establishment, replay, repeated-initial,
-restore and control traces; `tooling/check-session-operation-traces.py` keeps
-the required families and structural effects present. The independent reader,
-not this structural check, must evaluate the cases and controls before any
-runner claims coverage for them.
+grammar from an implementation. It is the input format for the P6 operation
+reader (`runners/independent/session-operation-reader.py`, specification-only,
+written and run by a related party:
+`runners/independent/P6-OPERATION-READER-EVIDENCE.md`). [The committed
+corpus](traces/session-operation-trace.json) contains the source-linked
+lifecycle, establishment, replay, repeated-initial, restore and control traces;
+`tooling/check-session-operation-traces.py` keeps the required families and
+structural effects present. The operation reader, not this structural check,
+must evaluate the cases and controls before any runner claims coverage for
+them.
 
 `conformance-manifest.md` records exactly which specifications, revisions, and
 components the vectors cover, and what is excluded. Peer interoperability is

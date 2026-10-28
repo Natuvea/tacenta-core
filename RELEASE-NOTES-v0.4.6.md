@@ -176,7 +176,7 @@ released; these corrections apply to it and to the tree it names.
   director of Natuvea Ltd, so that run is related-party, specification-only
   evidence, not independent review. The same wording is in every assurance tag
   from `tacenta-assurance-v0.2.0`. On `main`, `GAP-REGISTER.md` row
-  `READER-INDEPENDENCE` is BLOCKING until no current text makes such a claim.
+  `READER-INDEPENDENCE` is BLOCKING until no text on `main` makes or repeats such a claim and none is relied on as evidence.
 - **Our own composition.** This tag's `tacenta-proofs/LIMITATIONS.md` says the
   composition was read by the maintainer for leaks, and
   `tacenta-spec/threat-model/assumptions.md` (ASM-08) says it is audited by

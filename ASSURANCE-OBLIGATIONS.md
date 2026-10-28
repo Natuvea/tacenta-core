@@ -4,7 +4,7 @@ Current inventory for P1 of the assurance execution plan. This file makes the
 remaining readiness work assessable; it is not evidence that the work is done.
 
 Last assessed: 2026-09-30, at `dea57eaff4e516b6f56df08f7ced44d0ee87d024`, for the gate evidence inventory and the rows that cite it. The rest of this file was last assessed on 2026-09-14, at `c7499a9b6fedb9d211198671848c1e3acbe592af`. The Gate 2 row was re-read on 2026-09-30 against `GAP-REGISTER.md` after `SESSION-CONTRACT-VACUITY` was added, and again on 2026-10-01 after `DISPATCH-EVIDENCE-VACUITY` was added. On 2026-10-22, for identity records (ADR-0009), the Gate 2 row was re-read against `GAP-REGISTER.md` after reader pass 14, and the requirement count of the practice 8 row, the revisit triggers of the MU-01 and Session rows and the zones of the authentication-boundary row were updated, by their author with tool assistance and no independent reader.
-On 2026-10-28 the Gate 2 row's count was updated when `READER-INDEPENDENCE` moved to BLOCKING, with tool assistance under the maintainer's account and no independent reader.
+On 2026-10-28 the P6 evidence entry of the Session orchestration row was labelled related-party, and the Gate 2 row's count was updated when `READER-INDEPENDENCE` moved to BLOCKING, with tool assistance under the maintainer's account and no independent reader.
 
 ## Gate classes
 
@@ -258,7 +258,7 @@ than security requirements.
   The fixed-vector surface is separate and closed:
   `P7-SPARSE-BRAID-INVENTORY.md` separates stored-state coverage for tags 0 and 5--11 and `Ct2Sampled` boundaries from the delegated valid key-pair layout for tags 1--4.
   The differential harness drives an empty `NoHeaderReceived` state through transition (6) with a persisted-key header MAC and mutation control, drives transition (5)'s real ciphertext MAC control, and uses five deterministic real-ML-KEM schedules to exercise all thirteen state-machine transitions.
-  The specification-only reader independently checks the abstract transition table with its specified KEM double.
+  The specification-only reader also checks the abstract transition table with its specified KEM double.
 
   **Gate class:**
   BLOCKING

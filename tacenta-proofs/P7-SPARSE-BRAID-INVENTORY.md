@@ -38,7 +38,7 @@ The generated differential harness remains the evidence for the combinatorial
 operation space: message numbers, skipped-key occupancy, output placement and
 the refusal combinations that do not define an additional fixed-vector
 contract. It compares every refusal's unchanged persisted bytes and read-back;
-the clean-room reader independently executes the specified retention rules.
+the project's reader executes the specified retention rules.
 This is the recorded P7 target decision for sparse-ratchet vectors. It closes
 the sparse vector deficit without claiming that finite vectors exhaust the
 operation space.
@@ -65,7 +65,7 @@ carried by `EkCt1Ack`, and ordinary loss. The run fails unless every documented
 transition occurs and an honest run stays out of terminal `Failed`. It also
 drives transition (5)'s complete six-codeword `ct2 || MacCt` stream: changing
 one byte of systematic codeword 5, which carries only `MacCt`, emits no key and
-reaches terminal `Failed`. The clean-room reader's BR-09 independently checks
+reaches terminal `Failed`. The project's reader's BR-09 also checks
 the abstract transition table with its specified KEM double, and BR-10 covers
 the matching ciphertext-MAC failure rule.
 
