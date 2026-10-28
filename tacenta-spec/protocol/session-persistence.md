@@ -925,7 +925,7 @@ normalised by this paragraph. The affected persisted formats are:
 The vectors pin neither refusal for the overlap: no vector offers a reader a
 buffer that is both too short and wrongly versioned, so a reader that reads the
 version byte first and one that checks the length first pass the same vectors.
-The independent reader's rejection cases check the table directly and accept
+The specification-only, project-controlled reader's rejection cases check the table directly and accept
 both refusals only for the overlap.
 
 ## Sources

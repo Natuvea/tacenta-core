@@ -125,7 +125,7 @@ An implementation offers establishment under both forms.
     does not run it.
     `generate-identity-vectors.py` writes the bundles, and each outcome is
     checked against the model's (`Model.InitiatorExpectation`). The
-    independent reader reads them.
+    specification-only, project-controlled reader reads them.
   - No proof covers it (limitations.md, LIM-13). The model's theorems about
     the order are about the model alone, and `establish_initiator` is outside
     the translated crates, so no result about the lifecycle leaf covers it.
@@ -544,8 +544,8 @@ A session's peer identity key is available to the party.
   - `tacenta-test-vectors/vectors/identity/identity-classification.json`
     (20 vectors) and `identity-lookup.json` (14), generated from the model
     (`Model.IdentityRecords`), and the peer key and lookup fields of the
-    sessions in `initiator-expectation.json`. The independent reader reads
-    them.
+    sessions in `initiator-expectation.json`. The specification-only, project-controlled reader
+    reads them.
   - No proof covers it. The model's theorems about the classification and the
     lookup are about the model alone.
 - **Does not cover:**
@@ -593,8 +593,8 @@ and is computed only from identity keys (identities-and-devices.md).
     `verification_number_in_twelve_groups_of_five`);
   - `tacenta-test-vectors/vectors/identity/pair-digest.json` (38 vectors,
     every pair in both orders) and `verification-number.json` (9), generated
-    from the model (`Model.IdentityRecords`) and read by the independent
-    reader;
+    from the model (`Model.IdentityRecords`) and read by the specification-only,
+    project-controlled reader;
   - the fuzz target `tacenta-core/fuzz/fuzz_targets/identity_records.rs`,
     which checks that the digest does not depend on argument order and that
     the number is 60 digits that grouping keeps, on fuzzed keys. The hosted

@@ -4,6 +4,11 @@
 
 Accepted.
 
+Amended 2026-10-28: the reader is called the specification-only, project-controlled reader
+(decisions 4, 6 and 7, and the L2 row of the level table), and its passes a second reading
+of sufficiency rather than an adversarial one; what each level requires is unchanged
+(`tacenta-spec/CHANGELOG.md`).
+
 ## Context
 
 ADR-0006 made the specification normative. It did not record how the project
@@ -65,7 +70,7 @@ Two facts shape what is realistic here:
    - `tacenta-model` is the executable reference.
    - Translated crates refine it (T3) where that is proved.
    - Model-generated vectors pin what is not proved.
-   - The independent reader tests that the specification is sufficient
+   - The specification-only, project-controlled reader tests that the specification is sufficient
      (ADR-0006).
 
 5. **Invariants over examples.** Required properties are stated as invariants,
@@ -82,7 +87,7 @@ Two facts shape what is realistic here:
    - a broken proof or a `sorry`;
    - an attestation mismatch;
    - vectors out of date with the model;
-   - a failing independent reader.
+   - a failing specification-only, project-controlled reader.
 
 7. **Normative changes are reviewed before they merge.**
    - **Scope:** changes to `tacenta-spec`, `tacenta-model`, or the proofs'
@@ -93,8 +98,8 @@ Two facts shape what is realistic here:
    - **The record:** the review is written on the pull request and says what
      was checked.
    - **Merging:** only on green checks.
-   - **The independent reader:** its passes are an adversarial second reading
-     of sufficiency, not a substitute for this review.
+   - **The specification-only, project-controlled reader:** its passes are a second reading of
+     sufficiency, not a substitute for this review.
    - **When a second reviewer joins:** required code-owner review replaces this
      rule.
 
@@ -140,7 +145,7 @@ Two facts shape what is realistic here:
 | Level | Name | What it requires |
 |---|---|---|
 | L1 | Tested | Stated in the specification. Unit and property tests. Fuzzing where input is untrusted. |
-| L2 | Pinned | L1, plus the model states it and model-generated vectors pin it. The vectors are checked against the implementation and read by the independent reader. |
+| L2 | Pinned | L1, plus the model states it and model-generated vectors pin it. The vectors are checked against the implementation and read by the specification-only, project-controlled reader. |
 | L3 | Panic-free | L2, plus T1 proofs for the translated code. |
 | L4 | Refined | L3, plus T3 refinement to the model, with the stated invariants proved. |
 

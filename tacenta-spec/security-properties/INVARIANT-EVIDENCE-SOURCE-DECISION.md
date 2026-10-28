@@ -4,13 +4,13 @@
 
 The version-2 invariant catalogue records live implementation symbols, model
 properties, proofs and test functions. Its schema does not yet represent a
-vector case or an independent-reader document as a first-class invariant
+vector case or a reader's document as a first-class invariant
 evidence item.
 
 The semantic review at candidate `1f00fe86bc9bf469f342c62f30de64d4b15dbfa1`
 found that this limits how precisely several persisted-format invariants can
 name their strongest bounded evidence. The evidence itself remains recorded in
-the conformance manifest, P6 L2 decision and independent-reader evidence; this
+the conformance manifest, the P6 L2 decision, the P6 operation reader's evidence (`tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`, related-party evidence) and the pass records of the specification-only, project-controlled reader; this
 is a representational limit of the catalogue, not an assertion that the vectors
 or reader prove an invariant.
 
@@ -22,7 +22,7 @@ omitted evidence to proof.
 
 ## Reopen trigger
 
-Before treating a vector or independent reader as primary invariant evidence,
+Before treating a vector or a reader as primary invariant evidence,
 or before adding a new invariant whose only suitable evidence is a vector or
 reader record, introduce a versioned schema extension with structural
 validation and mutation controls for those evidence kinds.
