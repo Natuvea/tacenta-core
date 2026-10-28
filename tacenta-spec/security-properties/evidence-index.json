@@ -3275,7 +3275,7 @@
       "model_properties": [],
       "proofs": [],
       "tests": [{"path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs", "name": "a_successful_initial_message_does_consume_its_prekeys", "coverage": "Only an authenticated initial message consumes the named one-time prekeys."}, {"path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs", "name": "a_failed_initial_message_does_not_burn_prekeys", "coverage": "A failed initial message leaves its named one-time prekeys available."}, {"path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs", "name": "repeated_failed_initial_messages_do_not_drain_the_store", "coverage": "Repeated failed initial messages do not consume the prekey store."}, {"path": "tacenta-core/tests/agreement_and_bounds.rs", "name": "a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays", "coverage": "A full last-resort replay-record budget refuses new work and preserves prior replay refusal."}],
-      "missing_evidence": [{"kind": "declared cryptographic verdicts in the independent reader", "reason": "The v4 reader checks source-declared observable effects but does not compute signatures, DH, AEAD or Braid MACs.", "references": ["LIM-19"]}]
+      "missing_evidence": [{"kind": "declared cryptographic verdicts in the P6 operation reader", "reason": "The v4 operation reader checks source-declared observable effects but does not compute signatures, DH, AEAD or Braid MACs.", "references": ["LIM-19"]}]
     },
     {
       "id": "INV-MESSAGE-SINGLE-USE",

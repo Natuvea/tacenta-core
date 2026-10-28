@@ -4,6 +4,8 @@ Current inventory for P1 of the assurance execution plan. This file makes the
 remaining readiness work assessable; it is not evidence that the work is done.
 
 Last assessed: 2026-09-30, at `dea57eaff4e516b6f56df08f7ced44d0ee87d024`, for the gate evidence inventory and the rows that cite it. The rest of this file was last assessed on 2026-09-14, at `c7499a9b6fedb9d211198671848c1e3acbe592af`. The Gate 2 row was re-read on 2026-09-30 against `GAP-REGISTER.md` after `SESSION-CONTRACT-VACUITY` was added, and again on 2026-10-01 after `DISPATCH-EVIDENCE-VACUITY` was added. On 2026-10-22, for identity records (ADR-0009), the Gate 2 row was re-read against `GAP-REGISTER.md` after reader pass 14, and the requirement count of the practice 8 row, the revisit triggers of the MU-01 and Session rows and the zones of the authentication-boundary row were updated, by their author with tool assistance and no independent reader.
+On 2026-10-28 the P6 evidence entry of the Session orchestration row was labelled related-party, and the Gate 2 row's count was updated when `READER-INDEPENDENCE` moved to BLOCKING, with tool assistance under the maintainer's account and no independent reader.
+Later on 2026-10-28 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` after `AEAD-LENGTH-CONTRACTS` was also made BLOCKING, and the Gate 2 row's closure evidence and a note after the gate classes were changed to say that no recorded decision closes or re-classes `E2E-01`, `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or, while its class condition fails, `READER-INDEPENDENCE`, with tool assistance under the maintainer's account and no independent reader; nothing else was re-read.
 
 ## Gate classes
 
@@ -16,6 +18,12 @@ Last assessed: 2026-09-30, at `dea57eaff4e516b6f56df08f7ced44d0ee87d024`, for th
 - **DEFERRED:** outside the current completion scope only if a recorded decision
   states the target effect and revisit trigger.
 - **CLOSED:** resolved in current evidence.
+
+In `GAP-REGISTER.md` these routes are narrower: no recorded decision closes, accepts, defers or re-classes
+`E2E-01`, `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or lowers their class, and none moves `E2E-01` to
+Historical; and while
+`READER-INDEPENDENCE`'s class condition fails, no recorded decision lowers its class, closes it, defers it or moves it to
+Historical (`GAP-REGISTER.md`, "Gate class key").
 
 An open row without one of these classes is itself a gate-2 failure because the
 gate cannot be assessed from prose.
@@ -57,7 +65,8 @@ than security requirements.
   Session/prekey orchestration can meet its recorded L2 target only for operations an isolated, specification-only reader can interpret.
 
   **Current evidence and remaining work:**
-  The committed 27-trace corpus, allowlisted v4 packet, Jie Sun's isolated reader, clean-room record and five passing controls are recorded in `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`. [The L2 target decision](tacenta-model/P6-L2-TARGET-DECISION.md) records the covered families, declared-crypto boundary and reopen triggers.
+  The committed 27-trace corpus, allowlisted v4 packet, Jie Sun's isolated reader, clean-room record and five passing controls (Jie Sun is a director of Natuvea Ltd, so this is related-party evidence, not independent review) are recorded in `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`.
+  [The L2 target decision](tacenta-model/P6-L2-TARGET-DECISION.md) records the covered families, declared-crypto boundary and reopen triggers.
 
   **Revisit or completion trigger:**
   Reopen on any trigger in the recorded decision.
@@ -256,7 +265,7 @@ than security requirements.
   The fixed-vector surface is separate and closed:
   `P7-SPARSE-BRAID-INVENTORY.md` separates stored-state coverage for tags 0 and 5--11 and `Ct2Sampled` boundaries from the delegated valid key-pair layout for tags 1--4.
   The differential harness drives an empty `NoHeaderReceived` state through transition (6) with a persisted-key header MAC and mutation control, drives transition (5)'s real ciphertext MAC control, and uses five deterministic real-ML-KEM schedules to exercise all thirteen state-machine transitions.
-  The specification-only reader independently checks the abstract transition table with its specified KEM double.
+  The specification-only reader also checks the abstract transition table with its specified KEM double.
 
   **Gate class:**
   BLOCKING
@@ -419,9 +428,11 @@ than security requirements.
   Gap register must have no open BLOCKING rows and no unresolved AMBIGUOUS rows.
   After `E2E-07` was closed on the run at `75387aa9` and `HL-R1-SPARSE-TRANSLATION` on one Linux x86_64 regeneration of 2026-10-03 (an emulated run by the maintainer's tool-assisted session,
   not independent),
-  five rows are open at BLOCKING in the register,
+  seven rows are open at BLOCKING in the register,
   two of them findings of the fourteenth reader pass (`G14-03`,
   `G14-06`),
+  one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28 while independence claims the repository does not support remain,
+  and one, `AEAD-LENGTH-CONTRACTS`, made BLOCKING on 2026-10-28,
   while `HL-R1-SPARSE-READER`,
   the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`,
   closed on that pass (`HL-IMP-01` was closed and `INV-01` classified NONBLOCKING by recorded decisions on 2026-10-01),
@@ -435,7 +446,7 @@ than security requirements.
   P1/P3/P6/P7
 
   **Closure evidence:**
-  `GAP-REGISTER.md` rows classified and closed/decided as required.
+  `GAP-REGISTER.md` rows classified, and no row open at BLOCKING or unresolved at AMBIGUOUS, each closed as its own acceptance says; a recorded decision does not close, accept or re-class `E2E-01`, `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or, while its class condition fails, `READER-INDEPENDENCE` (`GAP-REGISTER.md`, "Gate class key").
 
 - **Component or gate:**
   Gate 3

@@ -175,11 +175,12 @@ is SemVer against the specified protocol (not the implementation).
   `security-properties/limitations.md` LIM-06 and LIM-12 and the
   implementation note of `protocol/message-format.md`: `tacenta-core`'s
   HMAC-SHA256 and HKDF-SHA256
-  are now `tacenta-kdf`'s own code, no longer RustCrypto's: written by the
-  maintainer with tool assistance in a separate, unpublished repository; the
-  three Rust files were read in full by the maintainer on 2026-10-23, and before
-  that only by tool-assisted sessions; no reader independent of the maintainer
-  has read the three files, and no human has read their proofs. Copied here,
+  are now `tacenta-kdf`'s own code, no longer RustCrypto's: written with tool
+  assistance under the maintainer's account in a separate, unpublished
+  repository; the rule-7 review comments on #272, the pull request that copied
+  it here, say under "Not checked" that every review and read of that change was tool-assisted; no review
+  or read of the three Rust files or their proofs by anyone independent of the
+  maintainer is recorded in this repository. Copied here,
   they are under this repository's licence, Apache-2.0. Eight translations include that code; the six whose theorems
   take the KDF agreement hypotheses prove them of their translated code, and
   ASM-18 no longer lists the KDF among its assumptions. ASM-07 says the model's
@@ -441,8 +442,12 @@ is SemVer against the specified protocol (not the implementation).
   falls out of checking this at read time rather than after every operation:
   an operation signs a prekey under the identity whose public key is
   `identity_public`, and an API that lets a caller pass another refuses it.
-  Found by external review at `d2dc386` (register R-01); `tacenta-core` did not
-  perform the check and is what the decision puts in the wrong.
+  Reported, by the project's own account, by an external review at `d2dc386`
+  (register R-01); that review is an unverified project assertion, not counted
+  as assurance, until its report, reviewed revision, scope and the reviewer's
+  relationship to the project are identified (`ASSURANCE.md`, "Readiness for
+  external review"). `tacenta-core` did not perform the check and is what the
+  decision puts in the wrong.
   - The refusal is reported separately, as "incoherent", the prekey store's
     analogue of the session's "inconsistent" and for the same reason: a store
     well-formed and canonical but unusable is the one case a storage layer
@@ -865,6 +870,48 @@ is SemVer against the specified protocol (not the implementation).
   commits instead of silently excluding them. A production-script case runner
   pins a signed pass plus missing-base, unsigned-commit and unsigned-merge
   refusals. This closes hostile-lens item SC-10.
+
+- Corrections to provenance and review statements (2026-10-28). No rule, byte,
+  constant or bound changes.
+  - `decisions/ADR-0010-key-derivation-written-here.md` (Context, "What was
+    available"), `threat-model/assumptions.md` ASM-05 and the Changed entry
+    above on `tacenta-kdf`: the sentence on who wrote and who read the three
+    copied KDF files stated a dated reading of the three Rust files by the
+    maintainer that no record in this repository supports. It now states only
+    the recorded authorship (written with tool assistance under the
+    maintainer's account) and the rule-7 review comments on #272, which say
+    under "Not checked" that every review and read of that change was tool-assisted. ADR-0010's Consequences no longer list the
+    maintainer's reading among what replaces "vetted"; they list the tool-assisted
+    reviews of #272, citing what its rule-7 review comments say under "Not checked", and say these are not independent review. Its Status records the amendment. The earlier sentence is in no tagged release.
+  - `threat-model/assumptions.md` ASM-08: the statement that `tacenta-core`'s
+    own composition "is audited by reading" to branch only on public data had
+    no record of such an audit in this repository behind it. The page now says
+    the property is stated, not established. The earlier sentence stands in the tags
+    `tacenta-assurance-v0.2.0` to `tacenta-assurance-v0.4.6`.
+  - Two different citations of an external review are told apart
+    (`ASSURANCE.md`, "Readiness for external review"). The "External review,
+    2026-09." attributions in the `[0.1.0]` section below come from commits of
+    2026-09-09, before `d2dc386` was committed, so they are not the review of
+    that commit; this repository does not identify their source. The entry in
+    this section on register R-01 cites an external review at `d2dc386`, which
+    is an unverified project assertion. For neither are the report, the
+    revision reviewed, the scope or the reviewer's relationship to the project
+    identified, and neither is counted as assurance until they are. The
+    `[0.1.0]` entries are not edited. The R-01 entry in this section now
+    carries that label; its earlier wording stands in the tags
+    `tacenta-assurance-v0.2.0` to `tacenta-assurance-v0.4.6`.
+  - `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`
+    and `tacenta-model/P6-L2-TARGET-DECISION.md` called the P6 operation
+    reader "independently authored" and its run "independent evidence". Jie
+    Sun, who wrote and ran it from the specification-only packet, is a
+    director of Natuvea Ltd, so it is related-party evidence, not independent
+    review. The evidence file now says so, and so do ASM-19 in `threat-model/assumptions.md`
+    and a `missing_evidence` kind in `security-properties/evidence-index.json`, which called it "the independent
+    reader". The L2 target decision still says "independently authored" (lines 8 and 9) and "the independent reader" (line 39), and `tacenta-model/SESSION-OPERATION-MODEL.md` (line 5) says "independent reader"; both change with the next refresh of the source attestation, which hashes `tacenta-model` (`GAP-REGISTER.md`,
+    `STALE-WORDING-KNOWN`). Row `READER-INDEPENDENCE` is BLOCKING while
+    independence claims the repository does not support remain. The earlier
+    wording stands in the tags `tacenta-assurance-v0.2.0` to
+    `tacenta-assurance-v0.4.6`.
 
 ### Decided
 - `decisions/ADR-0009-identity-verification.md` (accepted).

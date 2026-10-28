@@ -101,12 +101,12 @@ function: its output is indistinguishable from random when either the salt or
 the input keying material is secret and uniform. This holds against a classical
 adversary and against ADV-03. In `tacenta-core` the two are `tacenta-kdf`'s
 own SHA-256, HMAC and HKDF, copied here and pinned in `kdf/src/lib.rs` by commit
-and file digests: written by the maintainer with tool assistance in a separate,
-unpublished repository; the three Rust files were read in full by the
-maintainer on 2026-10-23, and before that only by tool-assisted sessions; no
-reader independent of the maintainer has read the three files, and no human has
-read their proofs. In this repository they are under its own licence,
-Apache-2.0 (ADR-0010). Eight translations include those bodies. That they compute
+and file digests: written with tool assistance under the maintainer's account
+in a separate, unpublished repository; the rule-7 review comments on #272, the
+pull request that copied them here, say under "Not checked" that every review and
+read of that change was tool-assisted; no review or read of the three Rust files or their proofs by
+anyone independent of the maintainer is recorded in this repository. In this
+repository they are under its own licence, Apache-2.0 (ADR-0010). Eight translations include those bodies. That they compute
 RFC 2104 and RFC 5869 rests on the model's HMAC and HKDF, which known-answer
 vectors check against those RFCs and nothing proves to be them, on the
 agreement proofs below, and on the translation's fidelity (ASM-16). Their timing
@@ -240,8 +240,9 @@ is assumed, not proven", states how far this is checked:
   different one (so the pin matters), and a dudect-style test of the copied
   HMAC detected no timing difference, with a control that detects a
   few-instruction leak (ADR-0010): one measurement on one CPU, not a proof;
-- `tacenta-core`'s own composition is audited by reading to branch only on
-  public data;
+- that `tacenta-core`'s own composition branches only on public data is
+  stated, not established: no proof covers it, and no review or independent
+  audit of it is recorded in this repository;
 - four rejection paths are measured by `tacenta-core/tests/timing.rs`.
 
 - **Relied on by:** REQ-CONF-09, and against a timing observer REQ-CONF-01 and
@@ -509,8 +510,8 @@ the protocol pages say. In particular it:
   (CLAIMS.md, "Read this first: what is not proved").
 
 This is established by tests and by reading, not by proof. The bounded P6 L2
-operation model, vectors, concrete checks and independent reader provide
-evidence for its recorded surface; `tacenta-model/P6-L2-TARGET-DECISION.md`
+operation model, vectors, concrete checks and the specification-only operation
+reader (written and run by a related party, `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`) provide evidence for its recorded surface; `tacenta-model/P6-L2-TARGET-DECISION.md`
 states that surface and its exclusions. ASM-19 remains an assumption for the
 orchestration beyond that bounded target, which is translated since the
 Phase 0 carve-out but has no theorem.

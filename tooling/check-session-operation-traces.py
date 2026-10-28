@@ -4,7 +4,7 @@
 This is a structural gate for the schema at
 ``tacenta-test-vectors/schema/session-operation-trace.schema.json``.  It does
 not interpret cryptographic fixtures or claim that a trace's declared effect
-is true; the independent reader does that.  Keeping the structural gate here
+is true; the specification-only operation reader does that.  Keeping the structural gate here
 means an omitted required family, malformed step, or weakened control cannot
 quietly leave the committed corpus.
 """
@@ -143,7 +143,7 @@ def main():
                     if value not in EFFECTS[field]:
                         problem(problems, step_where + f".effect.{field}", "is not a declared effect")
                 # A control may deliberately assert a wrong durable effect so
-                # the independent semantic reader can reject it. Ordinary
+                # the operation reader can reject it. Ordinary
                 # refused traces must still model the specified no-op.
                 if (not trace_id.startswith("control-") and expect.get("outcome") == "refused"
                         and (effect.get("prekey_store") != "unchanged" or effect.get("session") != "unchanged")):

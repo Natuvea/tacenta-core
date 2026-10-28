@@ -157,3 +157,40 @@ that file is added after the tag exists.
 - [`GAP-REGISTER.md`](GAP-REGISTER.md)
 - [`ASSURANCE.md`](ASSURANCE.md)
 - [`ASSURANCE-OBLIGATIONS.md`](ASSURANCE-OBLIGATIONS.md)
+
+## Errata (2026-10-28)
+
+Added after the tag. The text above is unchanged and describes the tag as it was
+released; these corrections apply to it and to the tree it names.
+
+- **Review status: the readers.** The readers counted under "Review status" (six
+  for #229, four each for #231 and #234) are those the review comments on those
+  pull requests describe as fresh readers or readers who had not seen the work.
+  Those comments do not record any of them as a person, and these notes do not
+  establish that any person read those changes. No reader independent of the
+  maintainer is recorded for them.
+- **The P6 operation reader.** This tag's
+  `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md` and
+  `tacenta-model/P6-L2-TARGET-DECISION.md` say Jie Sun "independently authored"
+  the operation reader and call its run "independent evidence". Jie Sun is a
+  director of Natuvea Ltd, so that run is related-party, specification-only
+  evidence, not independent review. The same wording is in every assurance tag
+  from `tacenta-assurance-v0.2.0`. On `main`, `GAP-REGISTER.md` row
+  `READER-INDEPENDENCE` is BLOCKING until no text on `main` makes or repeats such a claim and none is relied on as evidence.
+- **Our own composition.** This tag's `tacenta-proofs/LIMITATIONS.md` says the
+  composition was read by the maintainer for leaks, and
+  `tacenta-spec/threat-model/assumptions.md` (ASM-08) says it is audited by
+  reading. No record of that reading or audit is in this repository. That the
+  composition branches only on public data is stated, not established.
+- **External review.** This tag cites an external review in two different senses.
+  Wording from commits of 2026-09-09, before `d2dc386` was committed, cites an
+  "external review" or "external reviewer" (`tacenta-spec/CHANGELOG.md`,
+  `[0.1.0]`; `tacenta-proofs/LIMITATIONS.md`; `tacenta-core/fuzz/README.md`;
+  comments in the test and lifecycle sources); this repository does not identify
+  its source. The timing section of `tacenta-proofs/LIMITATIONS.md` cites a
+  measurement taken during external review without saying which. `ASSURANCE.md`,
+  "Readiness for external review", the `tacenta-spec/CHANGELOG.md` entry on
+  register R-01 and two lifecycle comments cite a review at `d2dc386`, which is an
+  unverified project assertion. For neither are the report, the revision reviewed,
+  the scope or the reviewer's relationship to the project identified, and neither
+  is counted as assurance until they are.

@@ -279,7 +279,7 @@ excludes it.
   RFC 4231's and RFC 5869's (vectors, not proof), the translation's fidelity, their timing (an inventory of the
   compiled branches is read, not proved; "Constant-time behaviour" below), and their erasure (none: the copied
   code wipes no intermediate, as the RustCrypto crates with the features this crate enabled did not either).
-  The copied code was written by the maintainer with tool assistance in a separate, unpublished repository; the three Rust files were read in full by the maintainer on 2026-10-23, and before that only by tool-assisted sessions; no reader independent of the maintainer has read the three files, and no human has read their proofs. Its cost, measured on one x86_64 Linux machine with SHA extensions (ADR-0010, Costs): per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level, on that machine only, one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times. The source repository's own machine measured the per-call cost only. None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
+  The copied code was written with tool assistance under the maintainer's account in a separate, unpublished repository; the rule-7 review comments on #272, the pull request that copied it here, say under "Not checked" that every review and read of that change was tool-assisted; no review or read of the three Rust files or their proofs by anyone independent of the maintainer is recorded in this repository. Its cost, measured on one x86_64 Linux machine with SHA extensions (ADR-0010, Costs): per call 5.1 to 18.5 times slower than the shipping RustCrypto (which uses the SHA extensions there) and 1.37 to 2.16 times slower than RustCrypto built without them; at protocol level, on that machine only, one 16-byte encrypt and decrypt round 1.12 times, encrypt alone 2.9 to 3.8 times and decrypt after 500 lost messages 4.5 times. The source repository's own machine measured the per-call cost only. None of this covers the AEAD: `aead::encrypt` stays an opaque axiom of every
   translation, and no theorem says how it computes its tag. On encryption that tag now comes from the copied
   HMAC, while decryption checks it with RustCrypto's `hmac` and `sha2` (`boundary/src/aead.rs`); that the two
   compute the same tag rests on tests (`kdf/tests/differential.rs` and the AEAD round-trip tests), not on
@@ -534,7 +534,7 @@ from it. This holds here by delegation and discipline, not by proof.
   re-established here.
 - **The key derivation is copied code, held to a reviewed inventory of its compiled branches.** Since
   the KDF change (ADR-0010) `tacenta-kdf` is a SHA-256, an HMAC and an HKDF copied here (see the trust bullet above for
-  who wrote and who has read it),
+  who wrote it and what reviews of it are recorded),
   whose comments say every branch and every index is on a length or a loop counter. They are loops, and this
   workspace's release profile adds an overflow check to every counter step, so they are not branch-free and the
   rule the gate applies to the two functions below cannot hold of them. `tooling/check-constant-time-asm.sh`
@@ -629,7 +629,7 @@ from it. This holds here by delegation and discipline, not by proof.
   panic block. `subtle` is now compiled without overflow checks in this
   workspace's release profile (`tacenta-core/Cargo.toml`), and the function
   counts zero branches on every target.
-- **Our own composition was read by the maintainer for leaks; no one independent has audited it.** tacenta-core's
+- **That our own composition branches only on public data is stated, not established; no review or independent audit of it is recorded in this repository.** tacenta-core's
   ratchet, session, and serialization code branches on and compares only public
   data: ratchet public keys, message numbers, and wire bytes, whose timing
   reveals nothing secret. On no path a peer can time does it perform a
@@ -639,8 +639,8 @@ from it. This holds here by delegation and discipline, not by proof.
   byte-wise and which only tests use; and `Session::import` re-encodes the
   state it decoded and compares the bytes to the input, a canonicality check
   over the caller's own persisted blob, where the only observer is the caller.
-  This was checked by reading the code, not by a timing experiment.
-- **Four of the claims above are measured by `tests/timing.rs`, not only read.** Those tests are `#[ignore]`d; they run by hand or in a nightly workflow of a private repository (see the timing section), and no workflow in this repository runs them.
+  No proof covers this and no record of a check of it is in this repository; the timing tests below measure four paths only.
+- **Four of the claims above are measured by `tests/timing.rs`.** Those tests are `#[ignore]`d; they run by hand or in a nightly workflow outside this repository (see the timing section), and no workflow in this repository runs them.
   `tacenta-core/tests/timing.rs` times two input classes and asks whether their
   rejection times differ by an *exploitable* margin -- an effect size in
   nanoseconds. Besides the AEAD tag comparison and the forged-ciphertext
@@ -736,7 +736,7 @@ from it. This holds here by delegation and discipline, not by proof.
   isolated linux x64 core with a far finer timer, so the gate was sound where it
   gates; every run anywhere else silently was not. **Any previously recorded
   0.00 ns separation from an Apple Silicon host should be read in that light,
-  including one taken during external review, the aarch64 rows in the screening
+  including one taken during external review (which review is not identified in this repository, and it is not counted as assurance: `ASSURANCE.md`, "Readiness for external review"), the aarch64 rows in the screening
   table above, and the `0 ns on a DIT core` that `EFFECT_FLOOR_NS`'s own
   derivation rests on.** A non-zero unbatched reading is no better: at a
   41.67 ns quantum a 12 ns difference reads as 0 or as one whole tick, so such a
@@ -1803,7 +1803,7 @@ three leaf trees, which is what catches a leaf moving under a unit nobody
 re-assembled -- the case where the unit's translation goes stale while the unit
 crate in the tree still looks untouched. An earlier version of the byte-identity
 check stripped the same line ranges it had written and so could not fail; it
-was replaced after an external review, and the replacement was tested by
+was replaced after an external review (cited as an external review in a commit of 2026-09-09; source not identified in this repository, and not counted as assurance: `ASSURANCE.md`, "Readiness for external review"), and the replacement was tested by
 forcing the misread it claims to catch.
 
 **What is proved about it, and what is not.** The unit is translated with no
@@ -2214,7 +2214,7 @@ tested and translated, not proved end to end.
 This section is an inventory, not a classification, and it is not complete. `GAP-REGISTER.md` row `E2E-01` states what
 closing requires: its final theorems may take no assumption about what the shipping code or a primitive does, including
 a statement of what one call returns at the run's values, and an invariant or its content restated over the state unless
-the final theorems derive it; which of the other hypotheses may remain is an open owner decision, and nothing here
+the final theorems derive it (component lemmas may still take `Session::invariant` and `PrekeyStore::invariant`, but the constructors, import and preservation must establish them across the actual lifecycle). Whatever the open owner decision says, no evidence about an execution that a theorem's user selects (a per-run evidence record never counts, and that rule is separate from the decision on the run's inputs and sizes), no behaviour of the implementation that no theorem proves, and no accepted input excluded without stating the exclusion in the theorem's hypotheses and in `CLAIMS.md` counts towards closing the row, and runs with a random source that has no state of its own, or with spliced or adversarial agreement chunks, may stay outside the final theorems only if a reviewed change to the acceptance admits each. Which of the other hypotheses may remain is an open owner decision, and nothing here
 classes any of them as acceptable. The labels "per-run premise" and "premise about the run" elsewhere in these documents
 describe how a hypothesis is used; they do not place it outside that exclusion. The names come from a text scan, at commit 34970e3a, of the hypotheses in the
 statements of `Translation/UnitLifecycle*.lean` and of the fields of the records they name; the scan is a reading, not
@@ -2306,7 +2306,7 @@ translated code.
 - **Two facts about the current theorems.** For a random source with no state of its own, such as `OsRng`, the
   random-source hypotheses cannot all hold, so the theorems make no claim about a call with such a source (the
   random-source passages in the `decrypt_ratchet` sections below). On a spliced or adversarial agreement chunk the model
-  and the code diverge ("Receiving refines only on an unspliced stream", above), so such runs are not covered.
+  and the code diverge ("Receiving refines only on an unspliced stream", above), so such runs are not covered. Neither exclusion is approved by being stated here or listed at closure: `E2E-01`'s acceptance asks for an explicit reviewed change to admit either.
 
 The trusted base outside the theorems' hypotheses (the translation's faithfulness and the toolchain, ASM-16 in
 `tacenta-spec/threat-model/assumptions.md`, and "Trusted, not verified" and "The proofs are trusted by evaluation, not

@@ -5,6 +5,12 @@
 Accepted, on the owner's rule-7 review (ADR-0008) of the pull request that
 lands it.
 
+Amended 2026-10-28: the provenance sentence in Context ("What was available")
+and the item in Consequences ("What replaces 'vetted'") state only the recorded
+authorship and what the rule-7 review comments on #272 say under "Not checked"; an earlier version stated a dated
+reading of the three Rust files by the maintainer that no record in this
+repository supports. The decision is unchanged (`tacenta-spec/CHANGELOG.md`).
+
 ## Context
 
 - **The rule.** Standard cryptography is not implemented here: primitives come
@@ -27,11 +33,12 @@ lands it.
 - **What was available.** A SHA-256, an HMAC-SHA256 and an HKDF-SHA256 in the
   subset Aeneas translates, with Lean proofs that the translated code computes
   a model written from FIPS 180-4, FIPS 198-1 and RFC 5869, and that this model
-  equals tacenta-model's `Model.Sha256` and `Model.Kdf`: written by the
-  maintainer with tool assistance in a separate, unpublished repository; the
-  three Rust files were read in full by the maintainer on 2026-10-23, and
-  before that only by tool-assisted sessions; no reader independent of the
-  maintainer has read the three files, and no human has read their proofs.
+  equals tacenta-model's `Model.Sha256` and `Model.Kdf`: written with tool
+  assistance under the maintainer's account in a separate, unpublished
+  repository; the rule-7 review comments on #272, the pull request that copied
+  it here, say under "Not checked" that every review and read of that change was tool-assisted; no review
+  or read of the three Rust files or their proofs by anyone independent of the
+  maintainer is recorded in this repository.
 
 ## Decision
 
@@ -94,8 +101,9 @@ phone hardware, was measured.
 - **What replaces "vetted".** Proofs that the translated code equals
   tacenta-model's HMAC and HKDF (HKDF for outputs of at most 8160 bytes); a
   differential test against the RustCrypto crates it replaced
-  (`kdf/tests/differential.rs`); the RFC test vectors; the maintainer's reading
-  of the three Rust files; and an exact inventory of the compiled code's
+  (`kdf/tests/differential.rs`); the RFC test vectors; the tool-assisted
+  reviews of #272, whose rule-7 review comments say under "Not checked" that every review and read of that change was tool-assisted and that no reviewer independent of the maintainer has read it, so they are not independent review; and
+  an exact inventory of the compiled code's
   branches, indexed accesses and callees (`tooling/check-constant-time-asm.sh`),
   compared for the two Linux targets in CI and for macOS on a local run.
 - **Timing and inventory evidence, one machine.** On the x86_64 Linux machine
