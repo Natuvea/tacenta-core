@@ -248,6 +248,9 @@ jobs:
       # model and the vector generator. `tacenta-model` is a plain Lean package
       # with no Mathlib, so this is about a minute from cold and needs none of
       # the cache machinery the two Lean jobs carry.
+      # `install-elan.sh` also fetches the Lean toolchain the packages pin,
+      # under a bounded retry of transient network failures, so the build
+      # below does not download it.
       - id: vectors_elan
         name: Install the pinned elan release
         working-directory: .
@@ -481,13 +484,17 @@ jobs:
         name: Clone the Lake dependencies from local mirrors (self-hosted only)
         if: runner.environment == 'self-hosted'
         run: bash tooling/seed-lake-packages.sh tacenta-proofs/translation
+      # A dropped connection is tried again, at most four times with increasing
+      # waits, and any other failure is not (`tooling/retry-download.sh`). The
+      # Lean toolchain itself was fetched by `install-elan.sh` above, under the
+      # same retry.
       - id: translation_fetch
         name: Fetch the Mathlib cache
         working-directory: tacenta-proofs/translation
         shell: bash
         run: |
           export MATHLIB_CACHE_DIR="$GITHUB_WORKSPACE/.cache/tacenta-mathlib"
-          lake exe cache get
+          bash ../../tooling/retry-download.sh -- lake exe cache get
       # Saved by the push's one part only: a matrix must not have several jobs
       # save one key.
       - name: Save Mathlib's downloaded cache files (pushes to main only)
