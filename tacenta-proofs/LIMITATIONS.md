@@ -2214,7 +2214,7 @@ tested and translated, not proved end to end.
 This section is an inventory, not a classification, and it is not complete. `GAP-REGISTER.md` row `E2E-01` states what
 closing requires: its final theorems may take no assumption about what the shipping code or a primitive does, including
 a statement of what one call returns at the run's values, and an invariant or its content restated over the state unless
-the final theorems derive it; which of the other hypotheses may remain is an open owner decision, and nothing here
+the final theorems derive it (component lemmas may still take `Session::invariant` and `PrekeyStore::invariant`, but the constructors, import and preservation must establish them across the actual lifecycle). Whatever the open owner decision says, no evidence about an execution that a theorem's user selects (a per-run evidence record never counts, and that rule is separate from the decision on the run's inputs and sizes), no behaviour of the implementation that no theorem proves, and no accepted input excluded without stating the exclusion in the theorem's hypotheses and in `CLAIMS.md` counts towards closing the row, and runs with a random source that has no state of its own, or with spliced or adversarial agreement chunks, may stay outside the final theorems only if a reviewed change to the acceptance admits each. Which of the other hypotheses may remain is an open owner decision, and nothing here
 classes any of them as acceptable. The labels "per-run premise" and "premise about the run" elsewhere in these documents
 describe how a hypothesis is used; they do not place it outside that exclusion. The names come from a text scan, at commit 34970e3a, of the hypotheses in the
 statements of `Translation/UnitLifecycle*.lean` and of the fields of the records they name; the scan is a reading, not
@@ -2306,7 +2306,7 @@ translated code.
 - **Two facts about the current theorems.** For a random source with no state of its own, such as `OsRng`, the
   random-source hypotheses cannot all hold, so the theorems make no claim about a call with such a source (the
   random-source passages in the `decrypt_ratchet` sections below). On a spliced or adversarial agreement chunk the model
-  and the code diverge ("Receiving refines only on an unspliced stream", above), so such runs are not covered.
+  and the code diverge ("Receiving refines only on an unspliced stream", above), so such runs are not covered. Neither exclusion is approved by being stated here or listed at closure: `E2E-01`'s acceptance asks for an explicit reviewed change to admit either.
 
 The trusted base outside the theorems' hypotheses (the translation's faithfulness and the toolchain, ASM-16 in
 `tacenta-spec/threat-model/assumptions.md`, and "Trusted, not verified" and "The proofs are trusted by evaluation, not

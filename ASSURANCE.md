@@ -95,16 +95,21 @@ wrote and ran the P6 operation reader, is a director of Natuvea Ltd, so a relate
 calls that reader independently authored (the tags' wording is answered by `RELEASE-NOTES-v0.4.6.md`, Errata). No level or tick changed. The corrections were made with tool assistance under the maintainer's
 account; no reader independent of the maintainer has read them.
 
+Later on 2026-10-28, at the owner's decision, `GAP-REGISTER.md` row `AEAD-LENGTH-CONTRACTS` was also made BLOCKING, and
+the two gate 2 sentences now count seven rows open at BLOCKING, recounted from the register; nothing else here was
+re-read. No level or tick changed. The update was made with tool assistance under the maintainer's account; no reader independent of
+the maintainer has read it.
+
 Parts of this project are written and reviewed with tool assistance. The
 README's "Development assistance" section says how, and that tool-assisted
 checks and reviews are evidence of what they ran, not independent review.
 
 The readiness gates below are not met. Gate 1 is not met: practice 5 is
 BLOCKING in `ASSURANCE-OBLIGATIONS.md`, and the ML-KEM Braid row is below its L4
-target. Gate 2 is not met: six rows are open at BLOCKING in `GAP-REGISTER.md`
-(SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY, READER-INDEPENDENCE, BLOCKING since 2026-10-28 while independence claims the repository does not support remain, E2E-01, which stays open and BLOCKING
-until its acceptance is met, whatever the tacenta.com home page says, and G14-03 and G14-06, two findings of the fourteenth reader pass that vectors
-rely on, open until a later pass reads the text that decides them; HL-R1-SPARSE-READER closed on that pass), and the rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
+target. Gate 2 is not met: seven rows are open at BLOCKING in `GAP-REGISTER.md`:
+SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY, READER-INDEPENDENCE, E2E-01, AEAD-LENGTH-CONTRACTS, G14-03 and G14-06. READER-INDEPENDENCE is BLOCKING since 2026-10-28 while independence claims the repository does not support remain; E2E-01 stays open and BLOCKING
+until its acceptance is met, whatever the tacenta.com home page says; AEAD-LENGTH-CONTRACTS is BLOCKING since 2026-10-28; G14-03 and G14-06 are two findings of the fourteenth reader pass that vectors
+rely on, open until a later pass reads the text that decides them (HL-R1-SPARSE-READER closed on that pass). The rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
 `ASSURANCE-OBLIGATIONS.md`. On 2026-10-01 the maintainer recorded two decisions: HL-IMP-01 is closed, because the
 session replay with its listed limits satisfies the row (HL-IMP-01-READER tracks the remaining step), and INV-01 is classified
 NONBLOCKING. Gates 3 and 4 have not been met either; see the readiness section.
@@ -203,9 +208,9 @@ auditing a ledger that is still moving wastes the engagement.
 | 3 | The claims ledger has been verified claim by claim, by a reader who did not write it, since its last change | a recorded review naming the reading |
 | 4 | Every gate has been shown to fail when what it checks is broken, and none reports green when it cannot run | each gate's mutation record |
 
-**Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards and `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY` were opened after that; `READER-INDEPENDENCE` became BLOCKING on 2026-10-28).
+**Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards and `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY` were opened after that; `READER-INDEPENDENCE` and `AEAD-LENGTH-CONTRACTS` became BLOCKING on 2026-10-28).
 - Gate 1 is not met. Practice 5 is BLOCKING in `ASSURANCE-OBLIGATIONS.md` (MU-03), and the ML-KEM Braid row reads L3 against an L4 target.
-- Gate 2 is not met. `GAP-REGISTER.md` has six rows open at BLOCKING, two of them findings of the fourteenth reader pass (`G14-03`, `G14-06`) and one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28; `HL-R1-SPARSE-READER`, the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`, closed on that pass; and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence. `HL-R1-SPARSE-TRANSLATION` was closed on 2026-10-03 on one Linux x86_64 regeneration of the translation (an emulated run by the maintainer's tool-assisted session, not independent; `tacenta-proofs/REPRODUCING.md` records it).
+- Gate 2 is not met. `GAP-REGISTER.md` has seven rows open at BLOCKING, two of them findings of the fourteenth reader pass (`G14-03`, `G14-06`), one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28, and one, `AEAD-LENGTH-CONTRACTS`, made BLOCKING on 2026-10-28; `HL-R1-SPARSE-READER`, the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`, closed on that pass; and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence. `HL-R1-SPARSE-TRANSLATION` was closed on 2026-10-03 on one Linux x86_64 regeneration of the translation (an emulated run by the maintainer's tool-assisted session, not independent; `tacenta-proofs/REPRODUCING.md` records it).
 - Gate 3 has not been requested ([P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md)). No recorded review by a reader who did not write the ledger exists.
 - Gate 4 is not met. "Where the negative controls run" in [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) lists which gates have a control that runs in CI, which run only locally and which have none, and names the gates whose control a single edit survived.
 
