@@ -771,3 +771,68 @@ unmerged index entry, and a repeat would print and count a directory twice witho
 | LK17 | `tooling/check-lockfiles.sh` | the list is git's default output, quoted and newline-separated, so a lockfile in a directory whose name git quotes is dropped without a line | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
 | LK18 | `tooling/check-lockfiles.sh` | cargo runs without RUSTUP_AUTO_INSTALL=0, so a rustup proxy may download a toolchain a directory names | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
 | LK19 | `tooling/check-lockfiles.sh` | a cargo that is on PATH but does not run is taken as runnable, so every lockfile fails rather than skips | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+
+## Addendum, 2026-10-28: the gate prerequisites, the download retry and the lockfile names
+
+`tooling/check-gate-prerequisites.sh` stops the full gate and the gate controls at their first line when a tool they
+need is missing or does not run; it asks `lake` in `tacenta-model`, whose `lean-toolchain` file chooses Lean, so
+elan with no default toolchain (as `tooling/install-elan.sh` leaves it) passes, and it names a missing default
+when elan reports one. In `tooling/ci.sh` it is a `full_only` step, which fast mode never runs and always lists as
+not run. `tooling/retry-download.sh` retries a download, in the C locale, after a transient network failure (for
+curl its exit code alone: 5, 6, 7, 18, 28, 35, 52, 55 or 56; for any other command one of six phrases, matched
+byte by byte), at most four times, and never after a digest or integrity failure or any other.
+`tooling/check-lockfiles.sh` now reads a lockfile's directory by parameter expansion, after a read made after
+#279's merge found a top-level directory named `-dash` or `--help` dropped with exit 0 and a directory whose name
+ends in a newline read as its sibling. The case `awkward-names` failed on the script as merged (the two dashed
+directories missing from the count, the newline directory reported as `ok nl`) and passes with the fix. Two reads
+of the branch then found curl's exit 18 missing from the transient codes, the prerequisite step missing from fast
+mode's "not run" list, `lake` asked at the repository root (where elan with no default toolchain does not answer),
+the words matched in the caller's locale (a byte invalid in it hid them), and a permanent curl code retried when
+its output held a transient phrase; each is fixed and held by a case and one of the edits below (`RD8`, `GP7`,
+`GP8`, `RD12`, `RD13`, `RD14`). The harness itself stopped with a `UnicodeDecodeError` on the first edit that made
+a case print such a byte; it now reads runner output with a replacement character.
+
+`python3 tooling/mutate-gates.py --only` with `GP1` to `GP9`, `RD1` to `RD14`, `IE10` to `IE13`, `AL5` and `LK1` to
+`LK21`, on an aarch64 Mac, against the commits that added them: the baselines passed and each edit made its runner
+print its `expect`. Forty-nine edits: thirteen seen as accepted, thirty-six as another wrong verdict, none message
+only, none survived. `--guards --verdict` removed every guard of `tooling/check-lockfiles.sh` (3),
+`tooling/retry-download.sh` (5) and `tooling/check-gate-prerequisites.sh` (4) one at a time: each changed a verdict.
+The 67 earlier edits to the files and runners this change touched (`install-elan.sh`, `install-actionlint.sh`,
+`ci.sh`, `fast.sh`, `fast-plan.py`, `run-gate-controls.sh`, `.githooks/pre-push`, `mutate-gates.py`, and those run
+by `run-install-script-cases.sh` or `run-check-fast-cases.sh`) were run again: none survived except `AL4`, which is
+listed equivalent. The table lists the new edits and the ones whose lines moved.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| GP1 | `tooling/check-gate-prerequisites.sh` | a tool that is not on PATH is named but not counted, so the gate starts | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP2 | `tooling/check-gate-prerequisites.sh` | a tool on PATH that does not run is taken as present | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP3 | `tooling/check-gate-prerequisites.sh` | missing prerequisites are printed and the gate goes on | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP4 | `tooling/ci.sh` | the full ci.sh run starts without checking its tools | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP5 | `tooling/ci.sh` | fast mode runs the full gate's prerequisite check, demanding its tools | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP6 | `tooling/tests/run-gate-controls.sh` | the gate controls start without checking for cargo | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP7 | `tooling/ci.sh` | the steps only the full gate runs are not listed as not run by fast mode | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP8 | `tooling/check-gate-prerequisites.sh` | lake is asked at the repository root, where no lean-toolchain file chooses Lean, so elan with no default toolchain fails the gate | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| GP9 | `tooling/check-gate-prerequisites.sh` | a lake that elan cannot run for want of a default toolchain is reported only as not running | `run-check-fast-cases.sh` | seen as another wrong verdict |
+| RD1 | `tooling/retry-download.sh` | a digest or integrity failure that also names a transient one is retried | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD2 | `tooling/retry-download.sh` | a persistent transient failure ends as success after the last attempt | `run-install-script-cases.sh` | seen as accepted |
+| RD3 | `tooling/retry-download.sh` | a failure that is not retried ends as success | `run-install-script-cases.sh` | seen as accepted |
+| RD4 | `tooling/retry-download.sh` | curl is judged by its words, not its exit code | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD5 | `tooling/retry-download.sh` | the status read is tee's, so every failure is success | `run-install-script-cases.sh` | seen as accepted |
+| RD6 | `tooling/retry-download.sh` | every wait is the first, not increasing | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD7 | `tooling/retry-download.sh` | any number of attempts is accepted | `run-install-script-cases.sh` | seen as accepted |
+| RD8 | `tooling/retry-download.sh` | curl's exit 18, a transfer cut off part way, is not retried | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD9 | `tooling/retry-download.sh` | a message saying the transfer was closed early or the file is partial is not taken as transient | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD10 | `tooling/retry-download.sh` | the command runs in the caller's locale, so a translated message can hide a transient failure | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD11 | `tooling/retry-download.sh` | curl's exit 22, an HTTP error status a second attempt repeats, is retried | `run-install-script-cases.sh` | seen as accepted |
+| RD12 | `tooling/retry-download.sh` | the digest words are matched in the caller's locale, so a byte invalid in it hides them | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD13 | `tooling/retry-download.sh` | the transient words are matched in the caller's locale, so a byte invalid in it hides them | `run-install-script-cases.sh` | seen as another wrong verdict |
+| RD14 | `tooling/retry-download.sh` | a curl exit code that is not transient falls through to the words, so a permanent code with transient-looking output is retried | `run-install-script-cases.sh` | seen as accepted |
+| IE10 | `tooling/install-elan.sh` | the Lean toolchain is fetched without the retry | `run-install-script-cases.sh` | seen as another wrong verdict |
+| IE11 | `tooling/install-elan.sh` | a lean-toolchain file naming a moving channel is fetched | `run-install-script-cases.sh` | seen as accepted |
+| IE12 | `tooling/install-elan.sh` | a toolchain elan already lists is fetched again | `run-install-script-cases.sh` | seen as accepted |
+| IE13 | `tooling/install-elan.sh` | the elan archive is fetched without the retry | `run-install-script-cases.sh` | seen as another wrong verdict |
+| AL5 | `tooling/install-actionlint.sh` | the actionlint archive is fetched without the retry | `run-install-script-cases.sh` | seen as accepted |
+| LK1 | `tooling/check-lockfiles.sh` | cargo resolves without --locked, so a stale lockfile is rewritten rather than refused | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK17 | `tooling/check-lockfiles.sh` | the list is git's default output, quoted and newline-separated, so a lockfile in a directory whose name git quotes is dropped without a line | `run-lockfile-check-cases.sh` | seen as accepted |
+| LK20 | `tooling/check-lockfiles.sh` | the name and directory are cut with basename and dirname, so a top-level directory named -dash or --help is dropped with exit 0 and a directory whose name ends in a newline is read as its sibling | `run-lockfile-check-cases.sh` | seen as accepted |
+| LK21 | `tooling/check-lockfiles.sh` | cd without --, so a directory named -dash or --help is never entered and cargo never reads its lockfile | `run-lockfile-check-cases.sh` | seen as another wrong verdict |

@@ -449,7 +449,7 @@
               "id": "translation_fetch",
               "working-directory": "tacenta-proofs/translation",
               "shell": "bash",
-              "run": "export MATHLIB_CACHE_DIR=\"$GITHUB_WORKSPACE/.cache/tacenta-mathlib\"\nlake exe cache get\n"
+              "run": "export MATHLIB_CACHE_DIR=\"$GITHUB_WORKSPACE/.cache/tacenta-mathlib\"\nbash ../../tooling/retry-download.sh -- lake exe cache get\n"
             },
             {
               "if": "github.event_name == 'push' && matrix.part == 'all' && steps.mathlib-files.outputs.cache-hit != 'true'",

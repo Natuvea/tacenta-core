@@ -12,9 +12,16 @@
 # other fails here rather than installing something else.
 #
 # The toolchain itself is not chosen here. `--default-toolchain none` leaves
-# that to the `lean-toolchain` file in each Lake package, which elan reads on
-# the first `lake` invocation and installs, so the version the repository
-# pins is the version that builds.
+# that to the `lean-toolchain` file in each Lake package, so the version the
+# repository pins is the version that builds. This script installs each
+# toolchain those files name (`elan toolchain install`, a release of the
+# form `leanprover/lean4:vX.Y.Z`; any other form, such as a moving channel,
+# is refused) so that the download happens here, under the bounded retry of
+# `tooling/retry-download.sh`, and not inside the first `lake` command, where
+# one dropped connection failed a whole build step. A toolchain elan already
+# lists is not fetched again. The archive download of elan itself goes through
+# the same retry; its digest check runs once, afterwards, on what was fetched,
+# and a mismatch is never retried.
 #
 # On the self-hosted runner, two jobs run at once under one account and share
 # its `~/.elan`. The installer is not run twice at once (the second waits on a
@@ -26,6 +33,9 @@
 # `$GITHUB_PATH`. A developer installs elan however they like; the README's
 # prerequisites table says what version of Lean the packages need.
 set -euo pipefail
+
+here="$(cd "$(dirname "$0")" && pwd)"
+root="$(cd "$here/.." && pwd)"
 
 : "${ELAN_VERSION:?set ELAN_VERSION to the elan release tag, e.g. v4.2.4}"
 : "${ELAN_SHA256:?set ELAN_SHA256 to the sha256 of the x86_64-unknown-linux-gnu archive}"
@@ -44,7 +54,7 @@ else
   archive="$work/$archive_name"
 
   echo "install-elan: fetching elan $ELAN_VERSION"
-  curl -sSfL --retry 3 -o "$archive" "$url"
+  bash "$here/retry-download.sh" -- curl -sSfL --retry 3 -o "$archive" "$url"
 
   if ! echo "${ELAN_SHA256}  ${archive}" | sha256sum -c -; then
     echo "install-elan: the archive did not match ELAN_SHA256; refusing to run it" >&2
@@ -56,6 +66,31 @@ else
   rm -rf "$work"
   echo "install-elan: elan $ELAN_VERSION installed"
 fi
+
+# The Lean toolchains the packages pin, fetched now (see the header), still under the lock.
+elan="$HOME/.elan/bin/elan"
+toolchains=""
+while IFS= read -r -d '' file; do
+  name="$(head -n 1 "$root/$file" | tr -d '[:space:]')"
+  if ! [[ "$name" =~ ^leanprover/lean4:v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+    echo "install-elan: $file names '$name', not a pinned Lean release (leanprover/lean4:vX.Y.Z); refusing to fetch it" >&2
+    exit 1
+  fi
+  case " $toolchains " in *" $name "*) ;; *) toolchains="${toolchains}${toolchains:+ }$name" ;; esac
+done < <(git -C "$root" ls-files -z -- '*lean-toolchain')
+if [ -z "$toolchains" ]; then
+  echo "install-elan: no lean-toolchain file in the checkout; nothing would choose the toolchain" >&2
+  exit 1
+fi
+listed="$("$elan" toolchain list 2>/dev/null || true)"
+for name in $toolchains; do
+  if grep -qE -- "^${name//./\\.}( |\$)" <<<"$listed"; then
+    echo "install-elan: Lean toolchain $name is already installed"
+  else
+    echo "install-elan: fetching Lean toolchain $name"
+    bash "$here/retry-download.sh" -- "$elan" toolchain install "$name"
+  fi
+done
 
 if [ -n "${GITHUB_PATH:-}" ]; then
   echo "$HOME/.elan/bin" >> "$GITHUB_PATH"

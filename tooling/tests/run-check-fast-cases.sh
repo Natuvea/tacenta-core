@@ -22,6 +22,11 @@
 #                   lists its deep_only case runners without --deep (an indented one too) and runs
 #                   them with it, CI_FAST=1 in the environment does not make fast mode, and the
 #                   same stubs show a run without `--fast` does run them all
+#   prereq-*        the prerequisites of the full gate: check-gate-prerequisites.sh names a missing or
+#                   broken tool and fails, and asks lake where a lean-toolchain file chooses Lean (a lake that
+#                   answers only there passes; without the file, the missing default toolchain is named); `ci.sh` without `--fast` and run-gate-controls.sh fail at their
+#                   first line on a PATH without cargo (and without lake, for ci.sh), naming it, before any
+#                   step; `ci.sh --fast`, the reduced check, does not ask for them
 #   hook-*          the pre-push hook runs the fast check only when asked to
 set -euo pipefail
 
@@ -494,6 +499,8 @@ EOF
 $heavy_calls
 EOF
   lacks_log "ci-fast-$mode-no-rustup" "rustup"
+  lacks_log "ci-fast-$mode-no-prerequisites" "bash tooling/check-gate-prerequisites.sh"
+  has_out "ci-fast-$mode-lists-prerequisites" "(fast mode never runs it; the full gate does)"
   while IFS= read -r call; do
     [ -n "$call" ] && { lacks_log "ci-fast-$mode-deep-step-not-run" "$call"; \
       has_out "ci-fast-$mode-deep-step-listed" "${call#bash } (fast mode runs it only with --deep)"; }
@@ -532,6 +539,7 @@ has_log ci-env-not-fast-heavy-step "verify.sh"
 CI_FAST_FOR_RUN="" run_ci
 rc_is ci-full-control 0
 has_out ci-full-control "ci: all checks green"
+has_log ci-full-control-prerequisites "bash tooling/check-gate-prerequisites.sh the full gate (tooling/ci.sh) git python3 cargo cargo-fmt cargo-clippy lake"
 lacks_out ci-full-control-no-fast-line "fast mode: not run"
 while IFS= read -r call; do
   [ -n "$call" ] && { has_log "ci-full-control-heavy-step" "$call"; }
@@ -549,6 +557,7 @@ rc_is ci-fast-not-run 0
 has_out ci-fast-not-run-list "Lean: build the model"
 lacks_out ci-fast-not-run-excludes-cheap "Workflows parse"
 has_out ci-fast-not-run-lists-deep "tooling/tests/run-build-evidence-pack-cases.sh (fast mode runs it only with --deep)"
+has_out ci-fast-not-run-lists-full-only 'bash tooling/check-gate-prerequisites.sh "the full gate (tooling/ci.sh)" git python3 cargo cargo-fmt cargo-clippy lake (fast mode never runs it; the full gate does)'
 CI_FAST_FOR_RUN="" run_ci --fast-not-run --deep
 has_out ci-fast-not-run-deep-list "Lean: build the model"
 lacks_out ci-fast-not-run-deep-omits "(fast mode runs it only with --deep)"
@@ -567,6 +576,83 @@ CI_FAST_FOR_RUN="" run_ci --fast-not-run
 has_out ci-fast-not-run-indented-deep "tooling/tests/run-check-ledger-review-receipt-cases.sh (fast mode runs it only with --deep)"
 cp "$work/ci.sh.saved" "$ci_sandbox/tooling/ci.sh"
 [ ! -s "$log" ] || wrong ci-fast-not-run-runs-nothing "stub calls were made: $(tr '\n' ';' < "$log")"
+
+# --- prereq-*: the full gate's prerequisites ---------------------------------
+pre_sandbox="$work/prereq"
+rm -rf "$pre_sandbox"
+mkdir -p "$pre_sandbox/tooling/tests" "$work/brokencargo"
+cp "$root/tooling/ci.sh" "$root/tooling/check-gate-prerequisites.sh" "$root/tooling/retry-download.sh" "$pre_sandbox/tooling/"
+mkdir -p "$pre_sandbox/tacenta-model" "$work/pkglake"
+echo 'leanprover/lean4:v4.31.0' > "$pre_sandbox/tacenta-model/lean-toolchain"
+# A lake as elan's proxy behaves with no default toolchain: it answers only where a lean-toolchain file chooses Lean.
+cat > "$work/pkglake/lake" <<'STUB'
+#!/bin/sh
+if [ -f lean-toolchain ]; then echo "Lake version 5.0.0 (stub)"; exit 0; fi
+echo "error: no default toolchain configured. run \`elan default stable\` to install & configure the latest Lean 4 stable release." >&2
+exit 1
+STUB
+chmod +x "$work/pkglake/lake"
+cp "$root/tooling/tests/run-gate-controls.sh" "$root/tooling/tests/with-no-git-identity.sh" "$pre_sandbox/tooling/tests/"
+git init -q "$pre_sandbox"
+printf '#!/bin/sh\nexit 1\n' > "$work/brokencargo/cargo"
+chmod +x "$work/brokencargo/cargo"
+run_pre() {  # PATH, then the command (run from the sandbox)
+  local path="$1"
+  shift
+  : > "$log"
+  set +e
+  OUT="$(cd "$pre_sandbox" && env -u GITHUB_ACTIONS -u FAST_DEEP -u GATE_NO_GIT_IDENTITY PATH="$path" STUB_LOG="$log" \
+    SANDBOX="$pre_sandbox" GATE_CONTROLS_PROBE_ONLY=1 "$real_bash" "$@" 2>&1)"
+  RC=$?
+  set -e
+}
+run_pre "$work/tools" tooling/check-gate-prerequisites.sh "a test gate" git cargo
+rc_is prereq-missing 1
+has_out prereq-missing "a test gate needs cargo, which is not on PATH: install a stable Rust toolchain"
+has_out prereq-missing "This is a failure, not a skip"
+lacks_out prereq-missing-git-present "needs git"
+run_pre "$work/brokencargo:$work/tools" tooling/check-gate-prerequisites.sh "a test gate" git cargo
+rc_is prereq-broken 1
+has_out prereq-broken "a test gate needs cargo, which is on PATH but does not run"
+run_pre "$work/stubs:$work/tools" tooling/check-gate-prerequisites.sh "a test gate" git cargo
+rc_is prereq-present-first 0
+run_pre "$work/tools" tooling/check-gate-prerequisites.sh "a test gate"
+rc_is prereq-no-tools 2
+has_out prereq-no-tools "give the gate's name and at least one tool"
+run_pre "$work/stubs:$work/tools" tooling/check-gate-prerequisites.sh "a test gate" git cargo
+rc_is prereq-present 0
+has_out prereq-present "a test gate: git cargo present"
+# lake is asked where a lean-toolchain file chooses Lean, so elan with no default toolchain (as install-elan.sh
+# leaves it) passes; without that file the message names the missing default, not a missing lake.
+run_pre "$work/pkglake:$work/tools" tooling/check-gate-prerequisites.sh "a test gate" git lake
+rc_is prereq-lake-in-package 0
+has_out prereq-lake-in-package "a test gate: git lake present"
+mv "$pre_sandbox/tacenta-model/lean-toolchain" "$work/lean-toolchain.saved"
+run_pre "$work/pkglake:$work/tools" tooling/check-gate-prerequisites.sh "a test gate" git lake
+rc_is prereq-lake-no-default 1
+has_out prereq-lake-no-default "elan reports no default toolchain configured where it was asked"
+has_out prereq-lake-no-default-shown "no default toolchain configured. run"
+mv "$work/lean-toolchain.saved" "$pre_sandbox/tacenta-model/lean-toolchain"
+# The full ci.sh stops at its first line without cargo and lake, naming both, before its first step.
+run_pre "$work/tools" tooling/ci.sh
+rc_is prereq-ci-full 1
+has_out prereq-ci-full "the full gate (tooling/ci.sh) needs cargo, which is not on PATH"
+has_out prereq-ci-full "the full gate (tooling/ci.sh) needs lake, which is not on PATH"
+lacks_out prereq-ci-full-before-steps "== Workflows parse =="
+lacks_out prereq-ci-full-no-green "ci: all checks green"
+# Fast mode is the reduced check: it does not ask for them (it fails here only because the sandbox lacks its steps).
+run_pre "$work/tools" tooling/ci.sh --fast
+lacks_out prereq-ci-fast-not-required "needs cargo"
+has_out prereq-ci-fast-says-not-run "fast mode: not running bash tooling/check-gate-prerequisites.sh"
+has_out prereq-ci-fast-runs-steps "== Workflows parse =="
+# The gate controls stop before the identity probe without cargo, and reach it with one.
+run_pre "$work/tools" tooling/tests/run-gate-controls.sh
+rc_is prereq-controls 1
+has_out prereq-controls "the gate controls (run-gate-controls.sh) needs cargo, which is not on PATH"
+lacks_out prereq-controls-before-probe "no git identity here"
+run_pre "$work/stubs:$work/tools" tooling/tests/run-gate-controls.sh
+rc_is prereq-controls-present 0
+has_out prereq-controls-present "no git identity here, as on the hosted runner"
 
 # --- hook-*: the pre-push hook ------------------------------------------------
 hook_sandbox="$work/hook"
@@ -602,4 +688,4 @@ if [ "$failures" -ne 0 ]; then
   echo "run-check-fast-cases: $failures case(s) went wrong" >&2
   exit 1
 fi
-echo "run-check-fast-cases: $cases checks (selection from changed paths, the steps run for a git diff, failing, missing-tool and CI cases, the summary, a skip inside ci.sh --fast, ci.sh --fast against the full run, with and without --deep, the pre-push opt-in) gave the expected result"
+echo "run-check-fast-cases: $cases checks (selection from changed paths, the steps run for a git diff, failing, missing-tool and CI cases, the summary, a skip inside ci.sh --fast, ci.sh --fast against the full run, with and without --deep, the full gate's prerequisites, the pre-push opt-in) gave the expected result"

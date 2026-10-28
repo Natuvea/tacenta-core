@@ -30,7 +30,9 @@ cleanup() { rm -f "$archive_path"; }
 trap cleanup EXIT
 
 url="https://github.com/rhysd/actionlint/releases/download/v${version}/${archive}"
-curl -fsSL --retry 3 -o "$archive_path" "$url"
+# A dropped connection is tried again, a bounded number of times (tooling/retry-download.sh); the digest check
+# below runs once, on what was fetched, and a mismatch is never retried.
+bash "$(cd "$(dirname "$0")" && pwd)/retry-download.sh" -- curl -fsSL --retry 3 -o "$archive_path" "$url"
 actual="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
 if [ "$actual" != "$digest" ]; then
   echo "install-actionlint: SHA-256 mismatch for $archive" >&2

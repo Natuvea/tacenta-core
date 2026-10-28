@@ -423,6 +423,40 @@ one module against the build it finds, not the modules that import it. A pass fr
 gate: run `bash tooling/ci.sh` and read the hosted CI before a merge. `bash tooling/fast.sh --plan` prints what
 it would run, and `FAST_PRE_PUSH=1` makes the pre-push hook run it before each push (CONTRIBUTING.md).
 
+The full gate and the gate controls check their tools before anything else. `bash tooling/ci.sh` (without
+`--fast`) needs git, python3, cargo with its rustfmt and clippy components, and lake; `bash
+tooling/tests/run-gate-controls.sh`, the controls the hosted `checks` job runs as `checks_41`, needs git, python3
+and cargo, because the lockfile check's cases run the real cargo. Each calls `tooling/check-gate-prerequisites.sh`
+first and, when a tool is missing or does not answer `--version`, fails at its first line, naming the tool and how
+to provide it, before any step runs; nothing is skipped in its place. `lake` is asked in `tacenta-model`, whose
+`lean-toolchain` file chooses Lean, because elan as `tooling/install-elan.sh` installs it has no default toolchain;
+if that pinned toolchain is not installed yet, elan fetches it during the check (under the download retry below),
+as the first `lake build` would. To run the controls in a clean environment, keep cargo on PATH:
+
+    env -i HOME="$HOME" PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" bash tooling/tests/run-gate-controls.sh
+
+With an empty `HOME` the rustup proxies find no toolchain, so put the toolchain's own `bin` directory
+(`$(rustc --print sysroot)/bin`) on PATH instead. On a machine without cargo, `bash tooling/fast.sh` (and `bash
+tooling/ci.sh --fast`) is the reduced check: it skips the lockfile check with a line saying so, ends "ok WITH
+SKIPS", says it is not the gate, and a pass from it is not a pass of the gate or of the controls.
+
+Downloads in the workflow are retried only when they fail for a transient network reason. The elan archive and
+the Lean toolchain the packages' `lean-toolchain` files pin (both fetched by `tooling/install-elan.sh`, so the
+build steps after it no longer download Lean), the actionlint archive and Mathlib's cache (`lake exe cache get`)
+are fetched under `tooling/retry-download.sh`: at most four attempts, with waits of 15, 30 and 60 seconds, each
+attempt's output printed and numbered, and only after a transient failure. For curl that is its exit code alone:
+5, 6, 7, 18, 28, 35, 52, 55 or 56 (a name that did not resolve, no connection, a transfer cut off, a time-out, a
+TLS connect error, an empty reply, a send or receive failure); any other code, such as 22 for an HTTP error
+status or 60 for a certificate that did not verify, is not retried whatever the output says. For elan and Lake it
+is a message naming an error during download, a connection reset, an SSL connect error, a time-out, a transfer
+closed early or a partial file, matched byte by byte. The command runs with `LC_ALL=C` and `LANG=C`, so the C
+library's error text in elan's and Lake's output (for example "Connection reset by peer") is the untranslated
+English these words are matched against. A digest or integrity failure, or any other failure, is not retried and
+keeps its exit status; the pinned elan release and
+digest, the pinned Lean release and the download sources are unchanged, and the digest checks still run once on
+what was fetched. A `lean-toolchain` file that names anything other than a release (`leanprover/lean4:vX.Y.Z`) is
+refused rather than fetched.
+
 The two do not run exactly the same set, and the difference is stated
 rather than papered over. Six of those steps need tooling the workflow
 installs and a developer's machine may not have; the workflow always runs

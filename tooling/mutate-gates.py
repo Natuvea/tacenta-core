@@ -115,7 +115,9 @@ def run(cmd, cwd, timeout, env=None):
     env = isolated_env(cwd) if env is None else env
     started = time.time()
     try:
-        proc = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True,
+        # A runner may print bytes that are not UTF-8 (a case that feeds such bytes to a gate); read them
+        # with a replacement character rather than stopping the run.
+        proc = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, errors="replace",
                               timeout=timeout, env=env)
         return proc.returncode, proc.stdout + proc.stderr, time.time() - started
     except subprocess.TimeoutExpired:

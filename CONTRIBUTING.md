@@ -81,8 +81,16 @@ minutes, says at the end what it did not run, and is not a substitute for the
 gate or the hosted CI. Its cheap part includes the offline lockfile check
 (`tooling/check-lockfiles.sh`), which needs `cargo` and a cargo registry cache
 holding the locked packages, fetches nothing, and prints a SKIP for a lockfile
-it cannot resolve offline. Seven slow case files of the tooling run in it only with
-`--deep`, which a change under `tooling/` or `.github/` selects for you. The public CI runs the same steps, split into jobs, and the
+it cannot resolve offline. The default pre-push hook does not run it;
+`FAST_PRE_PUSH=1` does. Seven slow case files of the tooling run in it only with
+`--deep`, which a change under `tooling/` or `.github/` selects for you.
+The full gate (`bash tooling/ci.sh`) and the gate controls (`bash
+tooling/tests/run-gate-controls.sh`) check their tools first and fail at once,
+naming any that is missing: both need git, python3 and cargo, and the full
+gate also rustfmt, clippy and lake. If you run the controls in a clean
+environment with `env -i`, keep cargo on PATH (the README shows the command).
+The quick check is the reduced form for a machine without them; it says what it
+skipped and is not the gate. The public CI runs the same steps, split into jobs, and the
 README states the two ways they differ: the steps the workflow always runs
 that the script skips when their tooling is absent (it prints a line for
 each), and the three the script runs that the workflow does not. Any other

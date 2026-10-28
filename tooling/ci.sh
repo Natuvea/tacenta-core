@@ -35,8 +35,10 @@
 # those steps, and says what runs outside this repository altogether and why.
 #
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
-# stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and
-# the step that needs it says so when it skips.
+# stable toolchain (cargo, clippy, rustfmt), with git and python3. A run
+# without `--fast` checks these first (`tooling/check-gate-prerequisites.sh`)
+# and fails before any step, naming what is missing. Everything else is
+# optional, and the step that needs it says so when it skips.
 #
 # Fast mode (`bash tooling/ci.sh --fast`; only the flag selects it, so no
 # variable left in an environment turns `bash tooling/ci.sh`, the gate, into
@@ -48,12 +50,15 @@
 # ledger receipt ones),
 # are marked `deep_only`: fast mode runs them only with `--deep` (or
 # FAST_DEEP=1) and otherwise lists them as not run. A run without --fast runs
-# them always. It is not the gate and says so; `tooling/fast.sh` is the
+# them always. A step above the line that only the full gate runs (the
+# prerequisite check) is marked `full_only`: fast mode never runs it and always
+# lists it as not run. It is not the gate and says so; `tooling/fast.sh` is the
 # command a developer runs, which adds the diff-scoped Rust and Lean checks to
 # it. The list of steps a fast run did not run is read from this file's own
 # text (`--fast-not-run` prints it and runs nothing), so a step added below the
 # line is listed without anyone editing a second list, and a step added above
-# it is run by fast mode without anyone editing one. With neither switch this
+# it is run by fast mode without anyone editing one (or, marked `deep_only` or
+# `full_only`, listed as not run). With neither switch this
 # script behaves as it always has.
 set -euo pipefail
 self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
@@ -73,10 +78,13 @@ if [ "${FAST_DEEP:-}" = "1" ]; then
   deep=1
 fi
 
-# The steps below the stop line, by their headings, read from this file; without --deep, also the
-# case runners above it that only `deep_only` runs (a `deep_only` call is found at any indentation, inside
-# an `if` too; a heading below the line must be an `echo "== ... =="` line to be listed).
+# The steps below the stop line, by their headings, read from this file; the steps above it that only the
+# full gate runs (`full_only`); and without --deep, also the case runners above it that only `deep_only` runs
+# (a `deep_only` or `full_only` call is found at any indentation, inside an `if` too; a heading below the line
+# must be an `echo "== ... =="` line to be listed).
 fast_not_run() {
+  sed -n '1,/^# ---- fast mode stops here/p' "$self" \
+    | sed -n 's/^[[:space:]]*full_only \(.*\)$/  \1 (fast mode never runs it; the full gate does)/p'
   sed -n '/^# ---- fast mode stops here/,$p' "$self" \
     | sed -n 's/^ *echo "== \(.*\) ==".*$/  \1/p' | sed 's/ (\$msrv)//'
   if [ "$deep" -eq 0 ]; then
@@ -98,6 +106,21 @@ deep_only() {
   fi
   "$@"
 }
+
+# A step above the stop line that only the full gate runs: fast mode never runs it, says so, and lists it as not
+# run (fast_not_run reads these calls from this file's text, as it reads the deep_only ones).
+full_only() {
+  if [ "$fast" -ne 0 ]; then
+    echo "fast mode: not running $* (only the full gate does)"
+    return 0
+  fi
+  "$@"
+}
+
+# The full gate's tools, before anything runs: a missing one fails here, named, with how to provide it, rather
+# than hours later or as a skip (the lockfile check skips without cargo, which only the reduced fast mode may
+# do). Fast mode is the reduced check and does not require them.
+full_only bash tooling/check-gate-prerequisites.sh "the full gate (tooling/ci.sh)" git python3 cargo cargo-fmt cargo-clippy lake
 
 # Cross-file only: a workflow cannot check its own parseability, because a file
 # that does not parse runs nothing. In CI this catches the *other* workflow
@@ -174,7 +197,9 @@ bash tooling/check-conflict-markers.sh
 # workspace's lockfiles stale and only the hosted `--locked` clippy run saw it. It reads the local cargo
 # cache and fetches nothing, so a lockfile the cache cannot resolve is skipped with a line saying so (and
 # recorded in FAST_SKIP_LOG for tooling/fast.sh); with GITHUB_ACTIONS set that is a failure. Its cases run
-# real cargo against throwaway workspaces with an empty cache.
+# real cargo against throwaway workspaces with an empty cache. A full run of this script prints no aggregate of
+# skips: a skipped lockfile is only the lines the step prints, and the final green line does not by itself
+# mean the lockfiles were read; tooling/fast.sh lists such a skip under SKIPPED.
 echo "== Every Cargo.lock is current with its manifests (offline) =="
 bash tooling/check-lockfiles.sh
 deep_only bash tooling/tests/run-lockfile-check-cases.sh

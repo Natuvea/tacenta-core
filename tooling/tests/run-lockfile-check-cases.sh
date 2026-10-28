@@ -33,6 +33,10 @@
 #                       FAIL of `cargo metadata`
 #   no-auto-install     the gate runs cargo with RUSTUP_AUTO_INSTALL=0, so a rustup proxy cannot download a
 #                       toolchain a directory names (a stand-in `cargo` records what it was given)
+#   awkward-names       corrupt lockfiles in top-level directories named `-dash` and `--help` (which a
+#                       `basename` or `cd` without `--` reads as options), `nl` followed by a newline beside a
+#                       good `nl` (which a command substitution would strip to its sibling), `ws\back` and
+#                       `ws<tab>tab`: each found, refused by its own name and counted, the sibling still ok
 #   quoted-names        corrupt lockfiles in directories whose names git quotes (`ws é`, `ws "q"`): each found,
 #                       refused by name and counted, not dropped
 #   path-only-stale     the known limit, recorded: a lockfile whose only stale entries are path packages is
@@ -57,6 +61,8 @@ if ! command -v cargo >/dev/null 2>&1 || ! cargo --version >/dev/null 2>&1; then
   echo "run-lockfile-check-cases: cargo is not runnable here; these cases need it, and a control that cannot run fails" >&2
   exit 1
 fi
+# The hosted job uses the runner image's cargo, which floats; name it in the log.
+echo "run-lockfile-check-cases: using $(cargo --version)"
 real_bash="$(command -v bash)"
 empty_cargo_home="$work/cargo-home"
 mkdir -p "$empty_cargo_home"
@@ -308,6 +314,29 @@ has quoted-names 'lockfiles: FAIL ws é: cargo metadata failed'
 has quoted-names 'lockfiles: FAIL ws "q": cargo metadata failed'
 has quoted-names "4 lockfile(s): 2 ok, 2 failed"
 
+# awkward-names: names a basename, dirname or cd without `--`, or a command substitution, would misread.
+new_repo
+crate nl nl '' workspace
+lock nl
+for name in -dash --help $'nl\n' 'ws\back' $'ws\ttab'; do
+  crate "$name" awkward '' workspace
+  printf 'this is not a lockfile [[\n' > "$repo/$name/Cargo.lock"
+done
+git -C "$repo" add -A
+run_gate
+rc_is awkward-names 1
+has awkward-names 'lockfiles: FAIL -dash: cargo metadata failed: error: failed to parse lock file'
+has awkward-names 'lockfiles: FAIL --help: cargo metadata failed: error: failed to parse lock file'
+has awkward-names 'lockfiles: FAIL ws\back: cargo metadata failed: error: failed to parse lock file'
+has awkward-names $'lockfiles: FAIL ws\ttab: cargo metadata failed: error: failed to parse lock file'
+has awkward-names 'lockfiles: ok nl'
+has awkward-names "8 lockfile(s): 3 ok, 5 failed"
+cases=$((cases + 1))
+case "$OUT" in
+  *$'lockfiles: FAIL nl\n: cargo metadata failed: error: failed to parse lock file'*) ;;
+  *) wrong awkward-names "the directory 'nl' followed by a newline was not refused by its own name"; printf '%s\n' "$OUT" >&2 ;;
+esac
+
 # path-only-stale: `dep` drops a path dependency that both lockfiles still list. Recorded as accepted, the
 # behaviour of cargo's --locked; if a cargo release starts refusing it, this case says so and the limit in the
 # gate's header is to be revised.
@@ -328,4 +357,4 @@ if [ "$fail" -ne 0 ]; then
   echo "run-lockfile-check-cases: $fail check(s) went wrong" >&2
   exit 1
 fi
-echo "run-lockfile-check-cases: $cases checks (an unmodified tree, a stale lockfile by a path dependency, a dropped and a missing dependency, a broken manifest, a new directory staged, untracked and ignored, an orphan, a corrupt, a deleted and no lockfile, a missing cache, no cargo and a cargo that does not run, locally and in CI, RUSTUP_AUTO_INSTALL=0, directories whose names git quotes, and the recorded path-only limit) gave the expected result"
+echo "run-lockfile-check-cases: $cases checks (an unmodified tree, a stale lockfile by a path dependency, a dropped and a missing dependency, a broken manifest, a new directory staged, untracked and ignored, an orphan, a corrupt, a deleted and no lockfile, a missing cache, no cargo and a cargo that does not run, locally and in CI, RUSTUP_AUTO_INSTALL=0, directories whose names git quotes or a basename, cd or command substitution would misread, and the recorded path-only limit) gave the expected result"
