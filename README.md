@@ -171,11 +171,11 @@ flowchart TD
   derivation crate is translated rather than opaque: its HMAC-SHA256 and
   HKDF-SHA256 are code copied here, pinned in `tacenta-core/kdf/src/lib.rs` by
   commit and file digests, and distributed under this repository's licence:
-  written by the maintainer with tool assistance in a separate, unpublished
-  repository; the three Rust files were read in full by the maintainer on
-  2026-10-23, and before that only by tool-assisted sessions; no reader
-  independent of the maintainer has read the three files, and no human has read
-  their proofs. Eight
+  written with tool assistance under the maintainer's account in a separate,
+  unpublished repository; the review recorded on #272, the pull request that
+  copied them here, says every review and read of that change was
+  tool-assisted; no review or read of the three Rust files or their proofs by
+  anyone independent of the maintainer is recorded in this repository. Eight
   translations include it, and the six whose theorems take hypotheses about it
   prove that it computes tacenta-model's: the Session unit's (`UnitLifecycleKdf`),
   the classical ratchet's, the PQXDH session's, the sparse ratchet's and the
