@@ -57,7 +57,8 @@ than security requirements.
   Session/prekey orchestration can meet its recorded L2 target only for operations an isolated, specification-only reader can interpret.
 
   **Current evidence and remaining work:**
-  The committed 27-trace corpus, allowlisted v4 packet, Jie Sun's isolated reader, clean-room record and five passing controls are recorded in `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`. [The L2 target decision](tacenta-model/P6-L2-TARGET-DECISION.md) records the covered families, declared-crypto boundary and reopen triggers.
+  The committed 27-trace corpus, allowlisted v4 packet, Jie Sun's isolated reader, clean-room record and five passing controls (Jie Sun is a director of Natuvea Ltd, so this is related-party evidence, not independent review) are recorded in `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`.
+  [The L2 target decision](tacenta-model/P6-L2-TARGET-DECISION.md) records the covered families, declared-crypto boundary and reopen triggers.
 
   **Revisit or completion trigger:**
   Reopen on any trigger in the recorded decision.
