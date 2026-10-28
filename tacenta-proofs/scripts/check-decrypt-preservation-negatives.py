@@ -13,7 +13,10 @@ translated `Braid::receive` keeps `Braid::invariant` at every state.  The contro
   swapped for the encapsulation one (all refused in `decrypt_ratchet_keeps_invariant`); the key-pair clone record
   swapped for the erasure one (in `braid_receive_keeps_invariant`); the public call's budget claimed kept with no
   unit to spend (in `decrypt_keeps_invariant`); the reply run's budget claimed one operation past the clock (in
-  `initiator_receives_reply_via_general`);
+  `initiator_receives_reply_via_general`); the prepared receive's erasure agreement swapped for the key-pair clone
+  record (in `prepared_receive_keeps_invariant`); the responder's step claimed from the session after the call (in
+  `establish_responder_keeps_invariant`); the first frame's run without the `ct2` length law (in
+  `responder_first_frame_via_general`);
 * leaf lemmas: `Decoder::invariant` without its distinct-indices clause (`decoder_invariant_iff`); `add_chunk`
   claimed to grow `needed` (`add_chunk_keeps`); a completed message claimed one byte longer than the size
   (`decoder_message_len`); the model receive's role claimed kept through a failure (`receive_clauses`); the model's
@@ -93,6 +96,11 @@ D_ROOM = ("    (hinv : lifecycle.Session.invariant s = ok true) (hroom : Counter
           "    (hrel : SessionRefines dh K s m)\n"
           "    (msg : Slice U8) (rng : R) (pt : alloc.vec.Vec U8) (s' : lifecycle.Session) (rng' : R)\n"
           "    (hcall : lifecycle.Session.decrypt rc")
+PREP_HEAD = ("theorem prepared_receive_keeps_invariant (laws : ReceiveInvariantLaws)\n"
+             "    (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees) {K : Model.Braid.Kem}\n")
+EST_STEP = "      ∀ m', SessionRefines dh K s' m' → ReceiveStep oracle (responderModelOf dh p) m' →\n        lifecycle.Session.invariant s' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' := by\n  refine"
+FRAME_LAWS = ("    (henc2 : Encapsulate2Len) :\n"
+              "    lifecycle.Session.invariant sB' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by\n")
 LAWS_EK = "  keyPairEkVector : KeyPairEkVectorLen\n"
 LAWS_OEQ = "  optionEq : Tacenta.UnitHeadroomInvariant.OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq)\n"
 BR_HEAD = ("theorem braid_receive_keeps_invariant (L : BraidLens) (hkcl : Tacenta.SessionUnitBraidT3.KemCloneAgrees)\n")
@@ -126,6 +134,15 @@ MUTANTS = [
     ('module', 'reply-run-budget-claimed-beyond-the-clock',
      [(RUN_BUDGET, RUN_BUDGET.replace("j + 2 <", "j + 1 <"))],
      r"hj\nhas type\n  j \+ 1 < U32\.max\nbut is expected to have type\n  j \+ 2 < U32\.max\nin the application\n  key j hj", ['initiator_receives_reply_via_general']),
+    ('module', 'prepared-receive-erasure-agreement-swapped-for-the-key-pair-clone-record',
+     [(PREP_HEAD, PREP_HEAD.replace("(hea : Tacenta.SessionUnitBraidT3.ErasureAgrees)", "(hea : Tacenta.SessionUnitBraidT3.KemCloneAgrees)"))],
+     r"hea\nhas type\n  SessionUnitBraidT3\.KemCloneAgrees\nbut is expected to have type\n  SessionUnitBraidT3\.ErasureAgrees\nin the application\n  @UnitLifecycleEstablishResponder\.sessionRefines_responder_prepared", ['prepared_receive_keeps_invariant']),
+    ('module', 'establish-responder-step-claimed-from-the-session-after-the-call',
+     [(EST_STEP, EST_STEP.replace("ReceiveStep oracle (responderModelOf dh p) m' →", "ReceiveStep oracle m' m' →"))],
+     r"hstep\nhas type\n  ReceiveStep oracle m' m'\nbut is expected to have type\n  ReceiveStep oracle \(responderModelOf dh p\) m'\nin the application\n  prepared_receive_keeps_invariant", ['establish_responder_keeps_invariant']),
+    ('module', 'first-frame-run-without-the-ct2-length-law',
+     [(FRAME_LAWS, FRAME_LAWS.replace("(henc2 : Encapsulate2Len) :", "(henc2 : KeyPairEkVectorLen) :"))],
+     r"henc2\nhas type\n  KeyPairEkVectorLen\nbut is expected to have type\n  Encapsulate2Len\nin the application\n  ReceiveInvariantLaws\.mk", ['responder_first_frame_via_general']),
     # leaf lemmas
     ('module', 'decoder-invariant-without-distinct-indices',
      [("        d.«have».val.length ≤ d.needed.val ∧ (d.«have».val.map (fun c => c.index.val)).Nodup := by\n",
@@ -193,6 +210,9 @@ COMPOSING = {
     'decrypt_keeps_invariant',
     'braid_receive_keeps_invariant',
     'initiator_receives_reply_via_general',
+    'prepared_receive_keeps_invariant',
+    'establish_responder_keeps_invariant',
+    'responder_first_frame_via_general',
 }
 
 # The controls labelled inside a composing proof, with the declaration each is refused in.  For each, the script
@@ -206,6 +226,9 @@ INSIDE = {
     'agreement-receive-key-pair-clone-record-swapped-for-the-erasure-one': 'braid_receive_keeps_invariant',
     'public-receive-budget-claimed-kept-without-a-unit-to-spend': 'decrypt_keeps_invariant',
     'reply-run-budget-claimed-beyond-the-clock': 'initiator_receives_reply_via_general',
+    'prepared-receive-erasure-agreement-swapped-for-the-key-pair-clone-record': 'prepared_receive_keeps_invariant',
+    'establish-responder-step-claimed-from-the-session-after-the-call': 'establish_responder_keeps_invariant',
+    'first-frame-run-without-the-ct2-length-law': 'responder_first_frame_via_general',
 }
 
 # The controls refused in a composing proof where it places a conjunct of a called theorem's conclusion unchanged,

@@ -313,7 +313,8 @@ and `decrypt_ratchet` keeps the invariant and the whole budget with no law. A su
 `decrypt_ratchet` at every agreement state and transition, with or without the agreement's output, keeps
 `Session::invariant` and spends one unit of that budget, given the relation after the call and a model step in the
 in-order scope, under existing records and two new assumed length laws of the KEM wrapper (its premises exhibited at one
-state on one run, and with a transition or output on no run). No successful receive outside the in-order scope (a stored
+state on one run, and with a transition or output on no run), and so does every session `establish_responder` returns,
+given the same of its inner receive. No successful receive outside the in-order scope (a stored
 key, a skip, an eviction) is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
 receipt, is refused in the two places it can arrive at that point of the run, with no effect on the session or the store: the responder's `decrypt` at the session its
 first receipt returned recognises the repeat, refuses it as out of order, returns that session unchanged and takes one draw,

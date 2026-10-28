@@ -44,6 +44,17 @@ in-order scope of the Triple with the output (`InOrderOut`).
 * `initiator_receives_reply_via_general`: the initiator's receipt of the responder's reply keeps the invariant and has
   the budget of `initiator_receives_reply_successor`, derived through the general step.
 * `modelT3_keyPairEkVectorLen`, `modelT3_encapsulate2Len`: the two new laws hold in `Interp.modelT3`.
+* `prepared_receive_keeps_invariant`, `establish_responder_keeps_invariant`: **every session `establish_responder`
+  returns, at every identity, prekey store, initial message and source, is the session its inner `decrypt_ratchet`
+  returned at the prepared session (`establish_responder_cases`), and for every prepared parts whose inner receive
+  returned it, that session passes `Session::invariant` and meets the four ceilings when it refines a model session
+  that is a `ReceiveStep` from the prepared model session.**  The prepared session's invariant, relation and room for
+  one operation are the earlier modules'; the step is `decrypt_ratchet_keeps_invariant`.  Under
+  `ReceiveInvariantLaws` and the four Braid agreements the prepared session's relation takes (`ErasureAgrees`,
+  `KemLenAgrees`, `BraidHkdfAgrees`, `ZeroizingArrayRoundTrip`).
+* `responder_first_frame_via_general`: the responder's session after the initiator's first frame, under the hypotheses
+  of `responder_first_frame_successor` and the three laws, passes `Session::invariant` and meets the ceilings, derived
+  through `establish_responder_keeps_invariant`.
 
 ## The laws and premises
 
@@ -77,6 +88,9 @@ in-order scope of the Triple with the output (`InOrderOut`).
 * Every premise of `decrypt_keeps_invariant` holds together on the reply's run at `KeysSampled`
   (`initiator_receives_reply_via_general`), under the hypotheses of `initiator_receives_reply_successor` and the laws
   `TruncatePrefix`, `KeyPairEkVectorLen` and `Encapsulate2Len`.  That step has no agreement transition and no output.
+* Every premise of `establish_responder_keeps_invariant` holds together on the first frame's run at `NoHeaderReceived`
+  (`responder_first_frame_via_general`), under the hypotheses of `responder_first_frame_successor` and the same three
+  laws; the agreement there takes one header chunk and stays.
 * No run in the tree reaches a receive with an agreement transition or an output, so the general step's premises are
   not exhibited together there.  The agreement lemma (`braid_receive_keeps_invariant`) and the model lemmas are
   stated of every state and need no run.
@@ -91,7 +105,10 @@ in-order scope of the Triple with the output (`InOrderOut`).
 * That the shipping KEM meets `KeyPairEkVectorLen`, `Encapsulate2Len` or `KemCloneAgrees`, that `usize::div_ceil` and
   `Vec::truncate` meet `DivCeilValue` and `TruncatePrefix`, or that the opaque `Option<u64>` comparison meets
   `OptionEqU64Shape`.
-* `establish_responder` at a general input; the budget at a session `Session::import` returns.
+* That an `establish_responder` input's inner receive is a `ReceiveStep` (an initial frame that skips or names a
+  stored key is outside it) or that its relation after the call holds, at any input other than the first frame's run.
+* The budget at a session `Session::import` returns: `Session::invariant` does not give it, and the counters a
+  restored session holds are its bytes'.
 * That the ceilings are kept (false of the code, so the statements spend a budget).
 * That `Session::invariant` says a session is reachable: it is a predicate on fields.
 -/
@@ -2190,6 +2207,194 @@ theorem modelT3_encapsulate2Len : Encapsulate2LenShape Interp.modelT3 := by
 
 end Laws
 
+/-! ## `establish_responder` at every input -/
+
+section Establish
+open Tacenta.UnitLifecycleSendPreserve (CounterRoom counterRoom_zero)
+open Tacenta.UnitLifecycleT3 (DhView DhCodecOf SessionRefines)
+open Tacenta.UnitLifecycleEstablishResponder (ResponderPreparedParts responderModelOf PrepareRefusal ResponderCommit)
+
+/-- **The inner receive of `establish_responder` keeps `Session::invariant` and leaves the four ceilings**, at every
+input that reaches it: for the prepared parts `p` the code reads off the input (`ResponderPreparedParts`), every
+successful `decrypt_ratchet` of `p.message` at `p.session` whose session refines a model session that is a
+`ReceiveStep` from `responderModelOf dh p` returns a session that passes `Session::invariant` and meets
+`CounterHeadroom`.  The prepared session passes the invariant (`responder_prepared_invariant`), refines
+`responderModelOf dh p` (`sessionRefines_responder_prepared`) and has room for one operation
+(`counterRoom_responder_prepared`); the step is `decrypt_ratchet_keeps_invariant`. -/
+theorem prepared_receive_keeps_invariant (laws : ReceiveInvariantLaws)
+    (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees) {K : Model.Braid.Kem}
+    (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K) (hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (dh : DhView) (codec : DhCodecOf dh) (oracle : Model.Lifecycle.Oracle)
+    (hdhPublic : ∀ secret, ∃ publicKey, tacenta_boundary.dh.PrivateKey.public_key secret = ok publicKey ∧
+      dh.publicKey publicKey = oracle.dhPublic (dh.privateKey secret))
+    {our : lifecycle.Identity} {store : lifecycle.PrekeyStore} {msg : Slice U8}
+    (p : ResponderPreparedParts our store msg) (rng : R)
+    (pt : alloc.vec.Vec U8) (s' : lifecycle.Session) (rng' : R)
+    (hin : lifecycle.Session.decrypt_ratchet rc crc p.session p.message rng = ok (core.result.Result.Ok pt, s', rng'))
+    (m' : Model.Lifecycle.Session) (hrel' : SessionRefines dh K s' m')
+    (hstep : ReceiveStep oracle (responderModelOf dh p) m') :
+    lifecycle.Session.invariant s' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' := by
+  have hinvP := Tacenta.UnitLifecycleEstablishResponder.responder_prepared_invariant laws.dhPublicValid
+    laws.optionEq laws.divCeil laws.headerLen p
+  have hrelP : SessionRefines dh K p.session (responderModelOf dh p) :=
+    Tacenta.UnitLifecycleEstablishResponder.sessionRefines_responder_prepared hea hlens hkdf hz laws.divCeil dh p
+  obtain ⟨hinv, hroom⟩ := decrypt_ratchet_keeps_invariant laws rc crc dh codec K oracle hdhPublic p.session
+    (responderModelOf dh p) m' 0 hinvP (Tacenta.UnitLifecycleReceivePreserve.counterRoom_responder_prepared p)
+    hrelP p.message rng pt s' rng' hin hrel' hstep
+  exact ⟨hinv, (counterRoom_zero _).mp hroom⟩
+
+/-- **Every session `establish_responder` returns is the inner receive's, which keeps `Session::invariant`**, at
+every identity, prekey store, initial message and source: a return `Ok (s', pt)` is the successful
+`decrypt_ratchet` of the prepared parts' message at the prepared session with the store after `ResponderCommit`
+(`establish_responder_cases`), and for every prepared parts whose inner receive returned it
+`prepared_receive_keeps_invariant` applies.  The refusals return no session. -/
+theorem establish_responder_keeps_invariant (laws : ReceiveInvariantLaws)
+    (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees) {K : Model.Braid.Kem}
+    (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K) (hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (dh : DhView) (codec : DhCodecOf dh) (oracle : Model.Lifecycle.Oracle)
+    (hdhPublic : ∀ secret, ∃ publicKey, tacenta_boundary.dh.PrivateKey.public_key secret = ok publicKey ∧
+      dh.publicKey publicKey = oracle.dhPublic (dh.privateKey secret))
+    (our : lifecycle.Identity) (store : lifecycle.PrekeyStore) (msg : Slice U8) (rng : R)
+    (s' : lifecycle.Session) (pt : alloc.vec.Vec U8) (store' : lifecycle.PrekeyStore) (rng' : R)
+    (h : lifecycle.establish_responder rc crc our store msg rng = ok (core.result.Result.Ok (s', pt), store', rng')) :
+    (∃ p : ResponderPreparedParts our store msg,
+      lifecycle.Session.decrypt_ratchet rc crc p.session p.message rng = ok (core.result.Result.Ok pt, s', rng') ∧
+      ResponderCommit store p.decoded.kem_prekey_id p.decoded.one_time_prekey_id p.lastResort p.replay store') ∧
+    ∀ p : ResponderPreparedParts our store msg,
+      lifecycle.Session.decrypt_ratchet rc crc p.session p.message rng = ok (core.result.Result.Ok pt, s', rng') →
+      ∀ m', SessionRefines dh K s' m' → ReceiveStep oracle (responderModelOf dh p) m' →
+        lifecycle.Session.invariant s' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s' := by
+  refine ⟨?_, fun p hin m' hrel' hstep =>
+    prepared_receive_keeps_invariant laws hea hlens hkdf hz rc crc dh codec oracle hdhPublic p rng pt s' rng' hin m'
+      hrel' hstep⟩
+  rcases Tacenta.UnitLifecycleEstablishResponder.establish_responder_cases rc crc our store msg rng _ h with
+    ⟨e, -, hout⟩ | ⟨p, inner, hin, ⟨e, -, hout⟩ | ⟨pt0, store0, hpt, hcommit, hout⟩⟩
+  · simp at hout
+  · simp at hout
+  obtain ⟨r1, s1, rng1⟩ := inner
+  simp only at hpt hout
+  subst hpt
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at hout
+  obtain ⟨⟨rfl, rfl⟩, rfl, rfl⟩ := hout
+  exact ⟨p, hin, hcommit⟩
+
+section Regression
+
+variable {RA : Type} {rcA : rand_core_1.RngCore RA} {crcA : rand_core_1.CryptoRng RA}
+  {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
+
+open Tacenta.UnitLifecycleT3 (vecOf sliceOf modelChunkOf modelCodewordOf CodewordViewSendOf)
+open Tacenta.UnitLifecycleEstablishInitiatorShape (DhPublicValid establishedModelOf dhPublicValid_canonical)
+open Tacenta.UnitLifecycleEstablishedEncrypt (firstFrame initialWire)
+open Tacenta.UnitLifecycleResponderFirstFrame (InitiatorSecretParts DhAgreeSymmetric PrekeyIdsDistinct
+  FirstKemAgrees responder_first_frame_prepares)
+open Tacenta.UnitLifecycleDecryptRatchetT3 (DecryptOracleOf DecryptRatchetAgreements)
+open Tacenta.UnitLifecycleResponderFirstReceipt (firstKey firstReceiptSession DhAgreeContributory AeadRoundTrip
+  parts_of_first_frame responder_first_frame_inner_succeeds establish_responder_commit_of_inner first_init_pair
+  responder_triple_first first_kdf_model zeroized_eq)
+open Tacenta.UnitLifecycleEstablishResponder (ResponderPreparedParts responderModelOf)
+open Tacenta.UnitSatisfiabilityJoint (Interp Interp.real)
+open Tacenta.UnitHeadroomInvariant (OptionEqU64Shape)
+
+open Tacenta.UnitLifecycleT3 (KemView vecOf sliceOf OracleOf arrayOf)
+open Tacenta.UnitLifecycleEstablishInitiatorShape (dhPublicValid_canonical)
+open Tacenta.UnitLifecycleReceivePreserve (firstReceipt_inOrderStep)
+open Tacenta.UnitLifecycleResponderFirstReceipt (firstReceiptSession receiverAfterFirst firstReceiverTriple)
+
+theorem responder_first_frame_via_general [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type}
+    (rcB : rand_core_1.RngCore E) (crcB : rand_core_1.CryptoRng E)
+    (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)
+    (hpub : DhPublicValid) (hsym : DhAgreeSymmetric) (hcon : DhAgreeContributory) (haead : AeadRoundTrip)
+    (hrt : Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip)
+    (hct : Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf)
+    (hbound : Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound)
+    (hoeq : OptionEqU64Shape (@core.option.Option.Insts.CoreCmpPartialEqOption.eq))
+    {dh : DhView} (codec : DhCodecOf dh) (view : Model.Lifecycle.CodewordView)
+    (oracleA : Model.Lifecycle.Oracle) (hsealA : Tacenta.UnitOracleShape.AeadSealClause Interp.real oracleA)
+    (traceB : E → List Model.Lifecycle.Key) (oracleB : Model.Lifecycle.Oracle)
+    (oracleOfB : DecryptOracleOf rcB crcB dh traceB oracleB)
+    (agreements : DecryptRatchetAgreements oracleB.braidKem)
+    (q : InitiatorSecretParts rcA crcA our bundle) (pending : Model.Lifecycle.PendingInitial)
+    (hpend : (establishedModelOf dh q.session).pendingInitial = some pending)
+    (plaintext : Slice U8) (hroom : plaintext.val.length + 48 ≤ Usize.max)
+    (src : Model.Lifecycle.Bytes) (hsrc : src.length = Model.Braid.headerSize + Model.Braid.macSize)
+    (c : tacenta_erasure.Chunk) (hcw : Tacenta.SessionUnitBraidT3.CodewordOf src c)
+    (hsend : view.send (establishedModelOf dh q.session).braid (modelChunkOf src c) = modelCodewordOf c)
+    (msg : Slice U8)
+    (hmsg : sliceOf msg = initialWire (establishedModelOf dh q.session) pending
+      (firstFrame view oracleA (establishedModelOf dh q.session) (sliceOf plaintext)
+        (firstKey (arrayOf q.sendChain) (arrayOf q.sparseSend)) (modelChunkOf src c)))
+    (ourB : lifecycle.Identity) (storeB : lifecycle.PrekeyStore)
+    (hpublish : lifecycle.PrekeyStore.publish storeB = ok bundle)
+    (hidentity : lifecycle.Identity.public ourB = ok storeB.identity_public)
+    (hdistinct : PrekeyIdsDistinct storeB)
+    (hkem : FirstKemAgrees storeB bundle.kem_prekey_id q.kemCiphertext q.kemSecret)
+    (rngB : E) (htraceB : traceB rngB = oracleB.draws) (dB : Model.Lifecycle.Key)
+    (restB : List Model.Lifecycle.Key) (hdrawB : traceB rngB = dB :: restB)
+    (ptB : alloc.vec.Vec U8) (sB' : lifecycle.Session) (storeB' : lifecycle.PrekeyStore) (rngB' : E)
+    (hcallB : lifecycle.establish_responder rcB crcB ourB storeB msg rngB =
+      ok (core.result.Result.Ok (sB', ptB), storeB', rngB'))
+    (htr : Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefix) (hekl : KeyPairEkVectorLen)
+    (henc2 : Encapsulate2Len) :
+    lifecycle.Session.invariant sB' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by
+  have hsize := Tacenta.UnitLifecycleEstablishResponder.establish_responder_ok_fits rcB crcB ourB storeB
+    msg rngB _ _ _ hcallB
+  rcases responder_first_frame_prepares rcB crcB contracts hpub hsym hrt hct hbound codec q pending hpend _ msg
+      hmsg hsize ourB storeB hpublish hidentity hdistinct hkem rngB with ⟨-, e, -, hrefuse⟩ |
+    ⟨p, -, -, h3, -, h5, -, -, h8, -⟩
+  · rw [hrefuse] at hcallB
+    cases hcallB
+  obtain ⟨-, -, hsp, hop⟩ := parts_of_first_frame contracts.decrypt.braid.zeroizingArray hpub codec hct
+    hbound q pending hpend _ msg hmsg ourB storeB hpublish hidentity p
+  obtain ⟨ec, dSend, ptB0, sB0, rngB0, hkdfr, -, hinner, -, -, hrel⟩ :=
+    responder_first_frame_inner_succeeds rcB crcB contracts hpub hsym hcon haead hoeq codec view oracleA hsealA
+      traceB oracleB oracleOfB agreements q plaintext hroom src hsrc c hcw hsend p h3 h5 hsp hop h8 rngB
+      htraceB dB restB hdrawB
+  obtain ⟨storeB0, -, hout⟩ := establish_responder_commit_of_inner rcB crcB p rngB ptB0 sB0 rngB0 hinner _ hcallB
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at hout
+  obtain ⟨⟨rfl, rfl⟩, -, rfl⟩ := hout
+  -- the model's step on the frame is an in-order receive step
+  obtain ⟨ec', hkdfr', htrip⟩ := first_init_pair q.sharedSlice q.ratchetBytes q.peerRatchetBytes q.dhOutBytes
+    p.ratchetBytes q.rootKey q.sendChain q.sparseRoot q.sparseSend q.sparseReceive p.triple q.hTriple
+    (by rw [← h3]; exact p.hTriple)
+  have hB := responder_triple_first dh p ec' q.sparseRoot q.sparseSend q.sparseReceive htrip
+  have hdo : q.dhOutBytes = q.dhOut :=
+    zeroized_eq contracts.decrypt.braid.zeroizingArray q.hDhOutZ q.hDhOutBytes
+  have hkdf := first_kdf_model agreements.hkdf agreements.zeroizing64 hkdfr
+  have hkdf' := first_kdf_model agreements.hkdf agreements.zeroizing64 hkdfr'
+  rw [hdo] at hkdf hkdf'
+  have hcanA : Model.Messages.canonicalKey (arrayOf q.ratchetBytes) = true :=
+    Tacenta.UnitLifecycleResponderFirstFrame.canonicalKey_arrayOf _
+      (dhPublicValid_canonical hpub q.hRatchetPublic q.hRatchetBytes)
+  have hstep := firstReceipt_inOrderStep oracleB (responderModelOf dh p) (arrayOf p.ratchetBytes) (arrayOf ec)
+    (arrayOf ec') (arrayOf q.sparseRoot) (arrayOf q.sparseSend) (arrayOf q.sparseReceive) (arrayOf q.ratchetBytes)
+    (arrayOf q.dhOut) dSend (arrayOf q.rootKey) (arrayOf q.sendChain) dB (sliceOf p.braidSecret) (modelChunkOf src c)
+    _ _ hB rfl hkdf hkdf' hcanA
+  -- the narrow step is a general step: a header chunk of epoch 1 reaches the agreement it leaves
+  have hstep' : ReceiveStep oracleB (responderModelOf dh p) _ := receiveStep_of_inOrder oracleB hstep
+    ⟨1, .hdr, some (modelChunkOf src c)⟩
+    (by simp [Model.Braid.receive, responderModelOf, firstReceiptSession, Model.Braid.initBob,
+      Model.Braid.Decoder.addChunk, Model.Braid.Decoder.new, Model.Braid.Decoder.message,
+      Model.Braid.Decoder.hasMessage, Model.Braid.chunkBytes, Model.Braid.headerSize, Model.Braid.macSize])
+    (fun ht _ => absurd (congrArg (fun t => t.classical.events) ht)
+      (by rw [hB]; simp [firstReceiptSession, receiverAfterFirst, firstReceiverTriple]))
+  -- the laws of the receive side, from the run's records and the three named laws
+  have laws : ReceiveInvariantLaws := ⟨agreements.kemClone, contracts.divCeilValue, htr,
+    contracts.decrypt.braid.headerLen, contracts.decrypt.braid.ekVectorLen, contracts.decrypt.braid.ct1Len,
+    contracts.decrypt.braid.ct2Len, hekl, henc2, hoeq, hpub⟩
+  -- the general preservation at `establish_responder`
+  exact (establish_responder_keeps_invariant laws agreements.erasure agreements.kemLen agreements.hkdf
+    contracts.decrypt.braid.zeroizingArray rcB crcB dh codec oracleB oracleOfB.dhPublic ourB storeB msg rngB _ _ _ _
+    hcallB).2 p hinner _ hrel hstep'
+
+end Regression
+
+end Establish
+
 end Tacenta.UnitLifecycleDecryptPreserve
 
 -- The pins `genpins.py` writes after this line print each statement whole: with no cut at depth 50
@@ -3472,6 +3677,197 @@ info: 'Tacenta.UnitLifecycleDecryptPreserve.modelT3_encapsulate2Len' depends on 
 #print axioms Tacenta.UnitLifecycleDecryptPreserve.modelT3_encapsulate2Len
 
 /--
+info: 'Tacenta.UnitLifecycleDecryptPreserve.prepared_receive_keeps_invariant' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.aead.encrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_boundary.dh.is_prime_order_public,
+ tacenta_boundary.kem.KeyPair,
+ tacenta_boundary.kem.ciphertext_len,
+ tacenta_boundary.kem.decapsulate,
+ tacenta_boundary.kem.encapsulate,
+ tacenta_boundary.xeddsa.verify,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptPreserve.prepared_receive_keeps_invariant
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptPreserve.establish_responder_keeps_invariant' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.aead.encrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_boundary.dh.is_prime_order_public,
+ tacenta_boundary.kem.KeyPair,
+ tacenta_boundary.kem.ciphertext_len,
+ tacenta_boundary.kem.decapsulate,
+ tacenta_boundary.kem.encapsulate,
+ tacenta_boundary.xeddsa.verify,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptPreserve.establish_responder_keeps_invariant
+
+/--
+info: 'Tacenta.UnitLifecycleDecryptPreserve.responder_first_frame_via_general' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_boundary.aead.decrypt,
+ tacenta_boundary.aead.encrypt,
+ tacenta_boundary.dh.PrivateKey,
+ tacenta_boundary.dh.PublicKeyBytes,
+ tacenta_boundary.dh.is_prime_order_public,
+ tacenta_boundary.kem.KeyPair,
+ tacenta_boundary.kem.ciphertext_len,
+ tacenta_boundary.kem.decapsulate,
+ tacenta_boundary.kem.encapsulate,
+ tacenta_boundary.xeddsa.verify,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
+ TupleABC.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.capacity,
+ alloc.vec.Vec.is_empty,
+ alloc.vec.Vec.pop,
+ alloc.vec.Vec.truncate,
+ core.num.Usize.div_ceil,
+ core.option.Option.as_mut,
+ tacenta_boundary.dh.PrivateKey.agree,
+ tacenta_boundary.dh.PrivateKey.from_bytes,
+ tacenta_boundary.dh.PrivateKey.public_key,
+ tacenta_boundary.dh.PrivateKey.to_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.as_bytes,
+ tacenta_boundary.dh.PublicKeyBytes.from_bytes,
+ tacenta_boundary.kem.KeyPair.public_key,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ core.option.Option.Insts.CoreCmpPartialEqOption.eq,
+ tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitLifecycleDecryptPreserve.responder_first_frame_via_general
+
+/--
 info: Tacenta.UnitLifecycleDecryptPreserve.inv_loop_general : ∀ (d : tacenta_erasure.Decoder),
   d.invariant_loop (Array.repeat 8192#usize 0#u8) true 0#usize ⦃ r =>
     r = (d.size, d.needed, d.have, decide (List.map (fun c => ↑c.index) ↑d.have).Nodup) ⦄
@@ -4393,6 +4789,155 @@ info: Tacenta.UnitLifecycleDecryptPreserve.modelT3_encapsulate2Len : Tacenta.Uni
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleDecryptPreserve.modelT3_encapsulate2Len
+
+/--
+info: Tacenta.UnitLifecycleDecryptPreserve.prepared_receive_keeps_invariant : Tacenta.UnitLifecycleDecryptPreserve.ReceiveInvariantLaws →
+  Tacenta.SessionUnitBraidT3.ErasureAgrees →
+    ∀ {K : Model.Braid.Kem},
+      Tacenta.SessionUnitBraidT3.KemLenAgrees K →
+        Tacenta.SessionUnitBraidT3.BraidHkdfAgrees →
+          Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip →
+            ∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+              (dh : Tacenta.UnitLifecycleT3.DhView),
+              Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                ∀ (oracle : Model.Lifecycle.Oracle),
+                  (∀ (secret : tacenta_boundary.dh.PrivateKey),
+                      ∃ publicKey,
+                        secret.public_key = ok publicKey ∧
+                          dh.publicKey publicKey = oracle.dhPublic (dh.privateKey secret)) →
+                    ∀ {our : lifecycle.Identity} {store : lifecycle.PrekeyStore} {msg : Slice U8}
+                      (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts our store msg) (rng : R)
+                      (pt : alloc.vec.Vec U8) (s' : lifecycle.Session) (rng' : R),
+                      lifecycle.Session.decrypt_ratchet rc crc p.session p.message rng =
+                          ok (core.result.Result.Ok pt, s', rng') →
+                        ∀ (m' : Model.Lifecycle.Session),
+                          Tacenta.UnitLifecycleT3.SessionRefines dh K s' m' →
+                            Tacenta.UnitLifecycleDecryptPreserve.ReceiveStep oracle
+                                (Tacenta.UnitLifecycleEstablishResponder.responderModelOf dh p) m' →
+                              s'.invariant = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s'
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptPreserve.prepared_receive_keeps_invariant
+
+/--
+info: Tacenta.UnitLifecycleDecryptPreserve.establish_responder_keeps_invariant : Tacenta.UnitLifecycleDecryptPreserve.ReceiveInvariantLaws →
+  Tacenta.SessionUnitBraidT3.ErasureAgrees →
+    ∀ {K : Model.Braid.Kem},
+      Tacenta.SessionUnitBraidT3.KemLenAgrees K →
+        Tacenta.SessionUnitBraidT3.BraidHkdfAgrees →
+          Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip →
+            ∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+              (dh : Tacenta.UnitLifecycleT3.DhView),
+              Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                ∀ (oracle : Model.Lifecycle.Oracle),
+                  (∀ (secret : tacenta_boundary.dh.PrivateKey),
+                      ∃ publicKey,
+                        secret.public_key = ok publicKey ∧
+                          dh.publicKey publicKey = oracle.dhPublic (dh.privateKey secret)) →
+                    ∀ (our : lifecycle.Identity) (store : lifecycle.PrekeyStore) (msg : Slice U8) (rng : R)
+                      (s' : lifecycle.Session) (pt : alloc.vec.Vec U8) (store' : lifecycle.PrekeyStore) (rng' : R),
+                      lifecycle.establish_responder rc crc our store msg rng =
+                          ok (core.result.Result.Ok (s', pt), store', rng') →
+                        (∃ p,
+                            lifecycle.Session.decrypt_ratchet rc crc p.session p.message rng =
+                                ok (core.result.Result.Ok pt, s', rng') ∧
+                              Tacenta.UnitLifecycleEstablishResponder.ResponderCommit store p.decoded.kem_prekey_id
+                                p.decoded.one_time_prekey_id p.lastResort p.replay store') ∧
+                          ∀ (p : Tacenta.UnitLifecycleEstablishResponder.ResponderPreparedParts our store msg),
+                            lifecycle.Session.decrypt_ratchet rc crc p.session p.message rng =
+                                ok (core.result.Result.Ok pt, s', rng') →
+                              ∀ (m' : Model.Lifecycle.Session),
+                                Tacenta.UnitLifecycleT3.SessionRefines dh K s' m' →
+                                  Tacenta.UnitLifecycleDecryptPreserve.ReceiveStep oracle
+                                      (Tacenta.UnitLifecycleEstablishResponder.responderModelOf dh p) m' →
+                                    s'.invariant = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom s'
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptPreserve.establish_responder_keeps_invariant
+
+/--
+info: @Tacenta.UnitLifecycleDecryptPreserve.responder_first_frame_via_general : ∀ {RA : Type} {rcA : rand_core_1.RngCore RA}
+  {crcA : rand_core_1.CryptoRng RA} {our : lifecycle.Identity} {bundle : lifecycle.PublishedBundle}
+  [Tacenta.SessionUnitT1.DerivedKeysModel] {E : Type} (rcB : rand_core_1.RngCore E) (crcB : rand_core_1.CryptoRng E)
+  (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB),
+  Tacenta.UnitLifecycleEstablishInitiatorShape.DhPublicValid →
+    Tacenta.UnitLifecycleResponderFirstFrame.DhAgreeSymmetric →
+      Tacenta.UnitLifecycleResponderFirstReceipt.DhAgreeContributory →
+        Tacenta.UnitLifecycleResponderFirstReceipt.AeadRoundTrip →
+          Tacenta.UnitLifecycleSessionCodec.DhPublicBytesRoundTrip →
+            Tacenta.UnitLifecycleEstablishInitiatorShape.KemCiphertextLenOf →
+              Tacenta.UnitLifecycleRestoredSession.KemCiphertextLenBound →
+                Tacenta.UnitHeadroomInvariant.OptionEqU64Shape @core.option.Option.Insts.CoreCmpPartialEqOption.eq →
+                  ∀ {dh : Tacenta.UnitLifecycleT3.DhView},
+                    Tacenta.UnitLifecycleT3.DhCodecOf dh →
+                      ∀ (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle),
+                        Tacenta.UnitOracleShape.AeadSealClause Tacenta.UnitSatisfiabilityJoint.Interp.real oracleA →
+                          ∀ (traceB : E → List Model.Lifecycle.Key) (oracleB : Model.Lifecycle.Oracle),
+                            Tacenta.UnitLifecycleDecryptRatchetT3.DecryptOracleOf rcB crcB dh traceB oracleB →
+                              Tacenta.UnitLifecycleDecryptRatchetT3.DecryptRatchetAgreements oracleB.braidKem →
+                                ∀
+                                  (q :
+                                    Tacenta.UnitLifecycleResponderFirstFrame.InitiatorSecretParts rcA crcA our bundle)
+                                  (pending : Model.Lifecycle.PendingInitial),
+                                  (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf dh
+                                          q.session).pendingInitial =
+                                      some pending →
+                                    ∀ (plaintext : Slice U8),
+                                      (↑plaintext).length + 48 ≤ Usize.max →
+                                        ∀ (src : Model.Lifecycle.Bytes),
+                                          List.length src = Model.Braid.headerSize + Model.Braid.macSize →
+                                            ∀ (c : tacenta_erasure.Chunk),
+                                              Tacenta.SessionUnitBraidT3.CodewordOf src c →
+                                                view.send
+                                                      (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                          dh q.session).braid
+                                                      (Tacenta.UnitLifecycleT3.modelChunkOf src c) =
+                                                    Tacenta.UnitLifecycleT3.modelCodewordOf c →
+                                                  ∀ (msg : Slice U8),
+                                                    Tacenta.UnitLifecycleT3.sliceOf msg =
+                                                        Tacenta.UnitLifecycleEstablishedEncrypt.initialWire
+                                                          (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                            dh q.session)
+                                                          pending
+                                                          (Tacenta.UnitLifecycleEstablishedEncrypt.firstFrame view
+                                                            oracleA
+                                                            (Tacenta.UnitLifecycleEstablishInitiatorShape.establishedModelOf
+                                                              dh q.session)
+                                                            (Tacenta.UnitLifecycleT3.sliceOf plaintext)
+                                                            (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                                              (Tacenta.UnitLifecycleT3.arrayOf q.sendChain)
+                                                              (Tacenta.UnitLifecycleT3.arrayOf q.sparseSend))
+                                                            (Tacenta.UnitLifecycleT3.modelChunkOf src c)) →
+                                                      ∀ (ourB : lifecycle.Identity) (storeB : lifecycle.PrekeyStore),
+                                                        storeB.publish = ok bundle →
+                                                          ourB.public = ok storeB.identity_public →
+                                                            Tacenta.UnitLifecycleResponderFirstFrame.PrekeyIdsDistinct
+                                                                storeB →
+                                                              Tacenta.UnitLifecycleResponderFirstFrame.FirstKemAgrees
+                                                                  storeB bundle.kem_prekey_id q.kemCiphertext
+                                                                  q.kemSecret →
+                                                                ∀ (rngB : E),
+                                                                  traceB rngB = oracleB.draws →
+                                                                    ∀ (dB : Model.Lifecycle.Key)
+                                                                      (restB : List Model.Lifecycle.Key),
+                                                                      traceB rngB = dB :: restB →
+                                                                        ∀ (ptB : alloc.vec.Vec U8)
+                                                                          (sB' : lifecycle.Session)
+                                                                          (storeB' : lifecycle.PrekeyStore) (rngB' : E),
+                                                                          lifecycle.establish_responder rcB crcB ourB
+                                                                                storeB msg rngB =
+                                                                              ok
+                                                                                (core.result.Result.Ok (sB', ptB),
+                                                                                  storeB', rngB') →
+                                                                            Tacenta.UnitSatisfiabilityBraidAgreements.TruncatePrefix →
+                                                                              Tacenta.UnitLifecycleDecryptPreserve.KeyPairEkVectorLen →
+                                                                                Tacenta.UnitLifecycleDecryptPreserve.Encapsulate2Len →
+                                                                                  sB'.invariant = ok true ∧
+                                                                                    Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                      sB'
+-/
+#guard_msgs in
+#check @Tacenta.UnitLifecycleDecryptPreserve.responder_first_frame_via_general
 
 /--
 info: def Tacenta.UnitLifecycleDecryptPreserve.prefixIdx : tacenta_erasure.Decoder → ℕ → List ℕ :=

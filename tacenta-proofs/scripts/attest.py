@@ -1442,6 +1442,9 @@ REQUIRED_PINS = frozenset(
         "Encapsulate2Len_is",
         "modelT3_keyPairEkVectorLen",
         "modelT3_encapsulate2Len",
+        "prepared_receive_keeps_invariant",
+        "establish_responder_keeps_invariant",
+        "responder_first_frame_via_general",
     )]
     # The restated dispatch records and that honest runs meet them (`UnitLifecycleRepair.lean`).
     + ["Tacenta.UnitLifecycleRepair." + n for n in (
@@ -3238,6 +3241,9 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "Encapsulate2Len_is",
         "modelT3_keyPairEkVectorLen",
         "modelT3_encapsulate2Len",
+        "prepared_receive_keeps_invariant",
+        "establish_responder_keeps_invariant",
+        "responder_first_frame_via_general",
         "prefixIdx",
         "BraidLens",
         "KeyPairEkVectorLen",

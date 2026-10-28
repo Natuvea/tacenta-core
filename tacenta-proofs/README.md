@@ -105,7 +105,8 @@ at the sampling state on no run; every refused `encrypt`, `decrypt` and `decrypt
 whole budget, with no law; a successful `decrypt` and `decrypt_ratchet` at every agreement state and transition, with or
 without the agreement's output, keeping `Session::invariant` and spending one unit of that budget, given the relation
 after the call and a model step in the in-order scope, under existing records and two new assumed length laws of the KEM
-wrapper, its premises exhibited at `KeysSampled` on the reply's run and with a transition or output on no run; no
+wrapper, its premises exhibited at `KeysSampled` on the reply's run and with a transition or output on no run, and every
+session `establish_responder` returns keeping it, given the same of its inner receive; no
 successful receive outside the in-order scope (a stored key, a skip, an eviction) covered by a preservation result; and the
 initiator's first frame
 delivered a second time on that run, refused by the

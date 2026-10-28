@@ -227,7 +227,8 @@ this section says in one place what is not proved.
   without the agreement's output, keeps `Session::invariant` and spends one unit of that budget, given the relation after
   the call and a model step in the in-order scope with the output, under existing records and two new assumed length
   laws of the KEM wrapper, `KeyPairEkVectorLen` and `Encapsulate2Len`; its premises are exhibited together at
-  `KeysSampled` on the reply's run and with a transition or an output on no run ("Proved (tier T3, session lifecycle:
+  `KeysSampled` on the reply's run and with a transition or an output on no run; every session `establish_responder`
+  returns keeps it too, given the same of its inner receive, exhibited on the first frame's run ("Proved (tier T3, session lifecycle:
   `Session::decrypt` and `decrypt_ratchet` keep `Session::invariant` and the counter budget at every agreement state
   ...)"). A successful receive outside that scope (a stored key, a skip, an eviction) is not covered by any preservation
   result.
@@ -7481,16 +7482,30 @@ about the Triple, the header and the output; it says nothing of the result. No p
   `decrypt_keeps_invariant`.
 - `KeyPairEkVectorLen_is`, `Encapsulate2Len_is`, `modelT3_keyPairEkVectorLen`, `modelT3_encapsulate2Len`: each new law
   is its shape at the real constants, and holds in `Interp.modelT3`: consistency of the statement only.
+- `prepared_receive_keeps_invariant`, `establish_responder_keeps_invariant`: every return `Ok (s', pt)` of
+  `establish_responder`, at every identity, prekey store, initial message and source, is the successful `decrypt_ratchet`
+  of the prepared parts' message at the prepared session, with the store after `ResponderCommit`; and for every prepared
+  parts whose inner receive returned `s'`, `s'` passes `Session::invariant` and meets `CounterHeadroom` whenever it
+  refines a model session that is a `ReceiveStep` from the prepared model session, under `ReceiveInvariantLaws`, the
+  oracle's `dhPublic` clause, the view's codec relation and the four Braid agreements the prepared session's relation
+  takes (`ErasureAgrees`, `KemLenAgrees`, `BraidHkdfAgrees`, `ZeroizingArrayRoundTrip`). A refusal returns no session.
+- `responder_first_frame_via_general`: under the hypotheses of `responder_first_frame_successor` and the laws
+  `TruncatePrefix`, `KeyPairEkVectorLen` and `Encapsulate2Len`, the session `establish_responder` returns on the
+  initiator's first frame passes `Session::invariant` and meets `CounterHeadroom`, derived through
+  `establish_responder_keeps_invariant` (the narrow first-receipt step made a `ReceiveStep` by `receiveStep_of_inOrder`).
 
 **Non-vacuity.** Every premise of `decrypt_keeps_invariant` holds together on the reply's run at `KeysSampled`
 (`initiator_receives_reply_via_general`), under the hypotheses of `initiator_receives_reply_successor` and the laws
 `TruncatePrefix`, `KeyPairEkVectorLen` and `Encapsulate2Len`; that step has no agreement transition and no output. No
 run in the tree reaches a receive with an agreement transition or an output, so the general step's premises are not
-exhibited together there. The agreement lemma and the model lemmas are stated at every state and need no run.
+exhibited together there. The agreement lemma and the model lemmas are stated at every state and need no run. Every
+premise of `establish_responder_keeps_invariant` holds together on the first frame's run at `NoHeaderReceived`
+(`responder_first_frame_via_general`), under the hypotheses of `responder_first_frame_successor` and the same three laws.
 
 **What this establishes, and what it does not.** Every successful `decrypt` and `decrypt_ratchet`, at every agreement
 state and every transition, keeps `Session::invariant` and spends at most one unit of the budget, given the relation
-after the call and a model step in the in-order scope with the output, under the laws above. **Not shown:** a receive
+after the call and a model step in the in-order scope with the output, under the laws above; and so does every session
+`establish_responder` returns, given the same of its inner receive. **Not shown:** a receive
 outside `InOrderOut` (a stored key, a skip on either chain, an eviction from a full store: the out-of-order family), so
 reordered, delayed or dropped delivery is not covered; that the relation after the call holds or that the model's step
 is a `ReceiveStep` (hypotheses; no composition with the decrypt refinement here); a receive with an agreement transition
@@ -7498,31 +7513,36 @@ or an output on any run; that the shipping KEM meets `KeyPairEkVectorLen` or `En
 copies libcrux's `pk2` slice of `pk2_len()` bytes, which `EK_VECTOR_LEN` is defined as, and the value of libcrux's second
 ciphertext half; the crate tests `the_sizes_are_the_specifications_sizes` and
 `the_split_encapsulation_agrees_with_decapsulation` check one call each; that is not a proof), or the other records and
-laws; `establish_responder` at a general input; the budget at a session `Session::import` returns; that the ceilings are
+laws; that an `establish_responder` input's inner receive is a `ReceiveStep` or that its relation after the call holds,
+at any input but the first frame's run (an initial frame that skips or names a stored key is outside the scope); the
+budget at a session `Session::import` returns (the invariant does not give it); that the ceilings are
 kept (false of the code); that `Session::invariant` says a session is reachable (it is a predicate on fields).
 
 **Compiler trust and pins.** No result here lists a compiler-trust axiom; there is no compiler-trusted result to set
-apart. Of the other 59 results, 16 rest on `propext`, `Classical.choice` and `Quot.sound` alone, or a subset of them
+apart. Of the other 62 results, 16 rest on `propext`, `Classical.choice` and `Quot.sound` alone, or a subset of them
 (`inv_loop_general`, `model_chunk_len`, `add_mac`, `receive_clauses`, `triple_receive_advance`,
 `modelTripleInv_advanced`, `modelTripleInv_receive_out`, `receiveWithEviction_inOrderOut`,
 `decryptRatchet_receiveStep`, `decrypt_receiveStep`, `receive_epoch_le`, `modelCounterRoom_receive_any`,
-`step_frame_any`, `u64_mod2`, `inOrderOut_none`, `receiveStep_of_inOrder`), and 43 on those and between 1 and 58 opaque
-constants of the unit. Each of the 59 results carries an axiom pin and a statement pin, and each of the 15 definitions
+`step_frame_any`, `u64_mod2`, `inOrderOut_none`, `receiveStep_of_inOrder`), and 46 on those and between 1 and 58 opaque
+constants of the unit. Each of the 62 results carries an axiom pin and a statement pin, and each of the 15 definitions
 (`prefixIdx`, `BraidLens`, `KeyPairEkVectorLen`, `Encapsulate2Len`, `modelTag`, `modelSendsHeader`, `modelIsInit`,
 `ModelClauseB`, `advancedOf`, `InOrderOut`, `ReceiveStep`, `CodeClauseB`, `ReceiveInvariantLaws`,
 `KeyPairEkVectorLenShape`, `Encapsulate2LenShape`) a `#print` pin. As for every statement pin, the pin is not the whole
 elaborated statement, and that the pinned statement is the right one is decided by reading.
-`check-decrypt-preservation-negatives.py` plants 20 faults in copies of the module, every one a change to a statement or
+`check-decrypt-preservation-negatives.py` plants 23 faults in copies of the module, every one a change to a statement or
 a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false). What it establishes is that each
 control is refused at its named place, and that each control it labels inside a composing proof is also accepted there
-when that proof is replaced by `sorry` (attribution to that proof, nothing more). Inside the composing proofs (seven):
+when that proof is replaced by `sorry` (attribution to that proof, nothing more). Inside the composing proofs (ten):
 the receive step's budget claimed unspent, its relation after the call claimed to the model session before it, the
 laws' `Option<u64>` comparison shape dropped, and the laws' key-pair length law swapped for the encapsulation one
 (`decrypt_ratchet_keeps_invariant`); the key-pair clone record swapped for the erasure one
 (`braid_receive_keeps_invariant`); the public call's budget claimed kept with no unit to spend
-(`decrypt_keeps_invariant`); and the reply run's budget claimed one operation past the clock
-(`initiator_receives_reply_via_general`). On the leaf lemmas (eleven): `Decoder::invariant` without its
+(`decrypt_keeps_invariant`); the reply run's budget claimed one operation past the clock
+(`initiator_receives_reply_via_general`); the prepared receive's erasure agreement swapped for the key-pair clone record
+(`prepared_receive_keeps_invariant`); the responder's step claimed from the session after the call
+(`establish_responder_keeps_invariant`); and the first frame's run without the `ct2` length law
+(`responder_first_frame_via_general`). On the leaf lemmas (eleven): `Decoder::invariant` without its
 distinct-indices clause, `add_chunk` claimed to grow `needed`, a completed message claimed one byte longer, the model
 receive's role claimed kept through a failure, the model's budget claimed kept with no unit to spend, clause (b) after
 a step claimed at the old sparse epoch, the structural clauses with clause (b) read at the Triple before the call,

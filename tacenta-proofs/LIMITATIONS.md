@@ -3402,8 +3402,14 @@ with no transition and no output; a receive with an agreement transition or an o
 out-of-order family (a stored key, a skip, an eviction), so reordered, delayed or dropped delivery; that the relation after
 the call holds or that the model's step is a `ReceiveStep` (no composition with the decrypt refinement here); a receive
 with a transition or an output on any run; that the shipping KEM meets `KeyPairEkVectorLen`, `Encapsulate2Len` or
-`KemCloneAgrees`, or that the opaque operations meet the value and shape laws; `establish_responder` at a general input;
-the budget at a session `Session::import` returns; that `Session::invariant` says a session is reachable.
+`KemCloneAgrees`, or that the opaque operations meet the value and shape laws; that an `establish_responder` input's inner
+receive is a `ReceiveStep` or that its relation after the call holds, at any input but the first frame's run; the budget
+at a session `Session::import` returns; that `Session::invariant` says a session is reachable. **`establish_responder` at
+every input** (`establish_responder_keeps_invariant`, same module): every session it returns is its inner receive's at
+the prepared session, which passes the invariant and has room for one operation, so the step above applies; it adds the
+four Braid agreements the prepared session's relation takes (`ErasureAgrees`, `KemLenAgrees`, `BraidHkdfAgrees`,
+`ZeroizingArrayRoundTrip`, ASSUMED, existing) and no new law; its premises are exhibited together on the first frame's
+run (`responder_first_frame_via_general`).
 
 **The initiator's second message** (`UnitLifecycleInitiatorSecondMessage.lean`). `initiator_sends_second_message`
 joins the second send with the receive step on one run, under exactly the hypotheses of `initiator_second_send_after_reply`
