@@ -608,8 +608,15 @@ dir="$(variant index-leading-zeros)"
 edit "$dir/s1/results-2" 'text = text.replace("0\tskip", "000\tskip", 1)'
 combine index-leading-zeros fast "$dir" "$K" "$only"
 refuses index-leading-zeros "shard 2/6: line 1 of its list of cases is not a case"
+# The seconds recorded for the case are the difference of two readings of the shell's whole-second counter, so
+# they are 0 or more on any machine (a short case that spans a tick records 1). The edit puts a zero in front of
+# whatever is there, and the control refuses to go on unless the line it changed now holds a seconds field of a
+# leading zero and at least one more digit.
 dir="$(variant seconds-leading-zero)"
-edit "$dir/s0/results-0" 'text = text.replace("0\tran\tok\t0\t", "0\tran\tok\t00\t", 1)'
+edit "$dir/s0/results-0" 'import re
+text, n = re.subn(r"\A(0\tran\tok\t)([0-9]+)\t", lambda m: m.group(1) + "0" + m.group(2) + "\t", text, count=1)
+if n != 1 or not re.match(r"\A0\tran\tok\t0[0-9]+\t", text):
+    raise SystemExit("control: results-0 does not begin with case 0 run and ok with a numeric seconds field; this control is out of date")'
 combine seconds-leading-zero fast "$dir" "$K" "$only"
 refuses seconds-leading-zero "shard 0/6: line 1 of its list of cases is not a case"
 # ---------------------------------------------------------------------------
