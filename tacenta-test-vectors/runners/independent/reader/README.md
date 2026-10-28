@@ -8,6 +8,13 @@ this file records below.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 
+The directory name `runners/independent/`, the title "Independent reader" and the
+text of the pass records `GAPS-8.md` to `GAPS-12.md`, and "the independent reader"
+in earlier `tacenta-spec/CHANGELOG.md` entries and release notes are legacy names for
+this reader. It is the specification-only, project-controlled reader: project-controlled
+evidence, not independent of the project and not independent review
+(`GAP-REGISTER.md`, `READER-INDEPENDENCE`).
+
 **Specification revision.** Fourteenth pass, against the tree as found:
 
 - `SOURCE-REVISION` `98591a2c50f82c3f1a134649eafa37140ba43b0e`;
@@ -1286,7 +1293,7 @@ python3 tacenta-test-vectors/runners/independent/reader/run.py
 
 `tooling/ci.sh` and the CI `vectors` job both run it.
 
-**Keeping it independent** (ADR-0006). This is the rule for a clean-room pass;
+**Keeping it specification-only** (ADR-0006). This is the rule for a clean-room pass;
 passes 8 to 11 did not follow it, and the record above says so:
 
 - A change to this reader is made from the specification and the vectors only,

@@ -498,8 +498,8 @@ satisfiable (`Translation/Satisfiability.lean`,
 
 ### ASM-19: the unproved orchestration
 
-`tacenta-core/lifecycle/src`, which is translated but neither modelled nor proved, does what
-the protocol pages say. In particular it:
+`tacenta-core/lifecycle/src`, which is translated and modelled (`Model.Lifecycle`) but not proved as
+a whole, does what the protocol pages say. In particular it:
 - pairs the old ratchet key pair with the receiving chain and a fresh one with
   the sending chain at a Diffie-Hellman step;
 - runs each receive on a copy, and adopts the copy only after the message
@@ -509,15 +509,15 @@ the protocol pages say. In particular it:
   the Triple Ratchet's four size bounds and the counters' step of headroom
   (CLAIMS.md, "Read this first: what is not proved").
 
-This is established by tests and by reading, not by proof. The bounded P6 L2
+This is supported by tests. It is not proved as a whole: some lifecycle operations have results on the Session unit's translation of this code (`tacenta-proofs/CLAIMS.md`, the session lifecycle sections): most under recorded hypotheses, and seven, that a refused `decrypt_ratchet`, `decrypt`, `encrypt` or `establish_responder` leaves its state as given (apart from `encrypt`'s recorded exception), under none about the opaque operations; none establishes the four points above in general; no recorded reading of the orchestration against the protocol pages is in this repository. The bounded P6 L2
 operation model, vectors, concrete checks and the specification-only operation
 reader (written and run by a related party, `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`) provide evidence for its recorded surface; `tacenta-model/P6-L2-TARGET-DECISION.md`
 states that surface and its exclusions. ASM-19 remains an assumption for the
 orchestration beyond that bounded target, which is translated since the
-Phase 0 carve-out but has no theorem.
+Phase 0 carve-out and has no theorem that establishes the four points above in general.
 
 - **Relied on by:** every requirement, as a statement about `tacenta-core`; in
   particular REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-05, REQ-AUTH-09 to
   REQ-AUTH-13, REQ-AUTH-15, REQ-CONF-02, REQ-CONF-04, REQ-CONF-09, REQ-FS-03
   and REQ-PCS-02, whose evidence is at that layer.
-- **Proofs:** none. It is where their preconditions land.
+- **Proofs:** none that establishes it in general; the results about some lifecycle operations are in `tacenta-proofs/CLAIMS.md`. It is where their preconditions land.

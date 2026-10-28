@@ -1,7 +1,7 @@
 # Gap report: ML-KEM and Braid key generation
 
 Copy this file to `GAPS-MLKEM.md` at the root of your directory. It is the form
-the earlier independent-reader gap reports use. A gap is something the
+the earlier gap reports of the specification-only, project-controlled reader use. A gap is something the
 specification text leaves unsaid or says in a way that allows more than one
 reading. A hypothesis that a vector confirms is still a gap.
 

@@ -292,7 +292,7 @@ deep_only bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 # it cannot confirm, is a question about the specification, not about this
 # runner. The sweep corrupts every byte it says it checks and requires it to
 # notice.
-echo "== Independent reader: the vectors, and the specification's rules =="
+echo "== Specification-only, project-controlled reader: the vectors, and the specification's rules =="
 python3 tacenta-test-vectors/runners/independent/reader/run.py | tail -n 22
 python3 tacenta-test-vectors/runners/independent/reader/test_skip_allowlist.py
 python3 tacenta-test-vectors/runners/independent/reader/test_session_e2e_sweep.py

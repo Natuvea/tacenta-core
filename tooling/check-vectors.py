@@ -22,7 +22,7 @@ they name themselves.
 The group files (`vectors/groups/`) predate the shared known-answer envelope
 because their inputs include structured inventory bindings. Each has an
 explicit, closed shape below, nested values included, and is checked by the
-core group-vector integration tests as well as by the independent reader. A
+core group-vector integration tests as well as by the specification-only, project-controlled reader. A
 file claiming one of these schemas cannot fall through to the generic reader or
 be accepted as an unrecognised format.
 

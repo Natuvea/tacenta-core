@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mutation controls for the independent reader's real skip gate."""
+"""Mutation controls for the specification-only, project-controlled reader's real skip gate."""
 
 import contextlib
 import io

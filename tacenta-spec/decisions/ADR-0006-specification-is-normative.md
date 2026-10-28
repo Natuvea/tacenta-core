@@ -13,10 +13,13 @@ are too.
 Amended 2026-09-12: a normative page may cite non-normative evidence for a
 status it states, and such a citation is not part of the protocol's definition
 (point 7). What a page *requires* must still be readable from the
-specification alone. The independent reader's fifth pass found every
+specification alone. The specification-only, project-controlled reader's fifth pass found every
 requirement's status citing `CLAIMS.md`, `LIMITATIONS.md`, a Lean theorem or a
 `tacenta-core` test, none of them in the normative tree, and two statements
 taking their *content* from implementation files (`GAPS-5.md`, G5-07).
+
+Amended 2026-10-28: the reader is called the specification-only, project-controlled reader;
+nothing else changed (`tacenta-spec/CHANGELOG.md`).
 
 ## Context
 
@@ -115,10 +118,10 @@ implementations, and what it promises ends up being whatever that code does.
 - A pull request that changes behaviour says which specification text it
   implements. The pull-request template asks.
 - Protocol vectors are regenerated from the model. A model change that the
-  prose does not follow either fails the independent reader or is caught at
-  review.
+  prose does not follow either fails the specification-only, project-controlled reader or is caught
+  at review.
 - Changes are slower: the specification is written before the code, and the
-  independent reader has to be maintained alongside both.
+  specification-only, project-controlled reader has to be maintained alongside both.
 - `tacenta-proofs/CLAIMS.md` remains the record of what is proven. This
   record decides what is specified.
 - This would be reopened if the project chose a different normative artifact

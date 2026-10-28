@@ -117,12 +117,14 @@ Method. Baseline first, in a fresh clone of the repository at `dea57eaf`: `run-b
 | CT3 | indirect calls and jumps not counted | constant-time gate | survived: the runner's fixtures hold no branch; a fixture with an indirect jump or call is still refused, as an unexpected callee, so the mutant changes the diagnostic and not the verdict |
 | CT4 | in CI, having neither Linux target is not a failure | constant-time gate | survived; no case; on a GitHub-hosted runner the host is a Linux target, so the rule cannot fire there |
 | CT5 | `subtle` and `conditional_` callees accepted | constant-time gate | survived; no case; a fixture with a `subtle` or `conditional_` callee is also refused as off the allow-list |
-| RD1 | `aead-encrypt.json`: first hex digit of the first `output` flipped | independent reader | caught: `aead/aead-encrypt.json :: empty-plaintext` |
-| RD2 | `protobuf-ratchet-body.json`: first `ratchet_key` digit flipped | independent reader | caught: `protobuf/protobuf-ratchet-body.json :: ascending-order` |
-| RD3 | reader `COMPOSITE_LEN` 102 to 103 | independent reader | caught: `aead/aead-decrypt.json :: session-associated-data` |
-| RD4 | reader `BUNDLE_LEN_MLKEM1024` 1811 to 1810 | independent reader | caught: `negative :: PB-01 bundle round trip` |
+| RD1 | `aead-encrypt.json`: first hex digit of the first `output` flipped | specification-only, project-controlled reader | caught: `aead/aead-encrypt.json :: empty-plaintext` |
+| RD2 | `protobuf-ratchet-body.json`: first `ratchet_key` digit flipped | specification-only, project-controlled reader | caught: `protobuf/protobuf-ratchet-body.json :: ascending-order` |
+| RD3 | reader `COMPOSITE_LEN` 102 to 103 | specification-only, project-controlled reader | caught: `aead/aead-decrypt.json :: session-associated-data` |
+| RD4 | reader `BUNDLE_LEN_MLKEM1024` 1811 to 1810 | specification-only, project-controlled reader | caught: `negative :: PB-01 bundle round trip` |
 
-Tally: 60 rows, 59 single edits and one scenario with no edit to a gate (`Rself`). Receipt writer, collector and validator 22 (20 caught, 2 survived); manifest builder and validator 6 (0 caught); `check-workflows.sh` 17 (15 caught; `R2` was an incomplete edit and `R2b` is its caught form; `CR1` survived); `Rself` survived; DCO check 5 (2 caught); constant-time gate 5 (0 caught); independent reader 4 (4 caught).
+Tally: 60 rows, 59 single edits and one scenario with no edit to a gate (`Rself`). Receipt writer, collector and validator 22 (20 caught, 2 survived); manifest build script and validator 6 (0 caught); `check-workflows.sh` 17 (15 caught; `R2` was an incomplete edit and `R2b` is its caught form; `CR1` survived); `Rself` survived; DCO check 5 (2 caught); constant-time gate 5 (0 caught); specification-only, project-controlled reader 4 (4 caught).
+
+On 2026-10-28 the gate label "independent reader" in this section was renamed "specification-only, project-controlled reader", and the tally names the manifest script the "manifest build script"; no row, result or count changed.
 
 Live check of the `B` survivors. To rule out equivalent mutants, a manifest was built with the runner's method and `--validate` was called on the unchanged manifest and on seven tampered copies. The unmutated `--validate` accepted the unchanged one and refused all seven tampers (another commit, another tree, `clean_tree` false, an altered source digest, a missing review requirement, an accepted review requirement, a failed required check). With `B1` to `B4` applied together it accepted `clean_tree` false, the altered digest, and both review-requirement tampers. `B1` alone is largely redundant with the receipt check, as noted in the table.
 
@@ -743,8 +745,8 @@ gate run on the tree before the lockfiles were fixed (the parent of the commit t
 old dependencies from them) refused `tacenta-core/fuzz` and `tacenta-test-vectors/runners/rust` by name and passed
 `tacenta-core`. Writing the cases found one limit, now recorded as a case (`path-only-stale`) and in the gate's
 header: cargo's `--locked` does not refuse a lockfile whose only stale entries are path packages, so neither does
-this gate, and neither do the hosted builds. An independent read then found that a directory whose name git quotes
-was dropped from the list without a line; the list is now read NUL-separated with quotePath off, held by the case
+this gate, and neither do the hosted builds. A later tool-assisted read for the maintainer found that a directory whose
+name git quotes was dropped from the list without a line; the list is now read NUL-separated with quotePath off, held by the case
 `quoted-names` and the edit LK17. The `sort -zu` that removes repeated paths has no edit: a path repeats only as an
 unmerged index entry, and a repeat would print and count a directory twice without changing a verdict.
 

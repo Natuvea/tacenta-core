@@ -4,9 +4,12 @@
 
 Accepted.
 
+Amended 2026-10-28: the reader is called the specification-only, project-controlled reader;
+nothing else changed (`tacenta-spec/CHANGELOG.md`).
+
 ## Context
 
-Under ADR-0006, behaviour the specification did not define is a finding: the specification either specifies it or the implementation removes it. The independent reader's second pass, and the work that closed its gaps, wrote three such behaviours into the pages as built and marked each one undecided:
+Under ADR-0006, behaviour the specification did not define is a finding: the specification either specifies it or the implementation removes it. The specification-only, project-controlled reader's second pass, and the work that closed its gaps, wrote three such behaviours into the pages as built and marked each one undecided:
 
 1. **The receiving epoch.** The sparse ratchet receives on the chain of the epoch the composite header names (`pq_epoch`), not the epoch the agreement's receive returns (sparse-pq-ratchet.md, Receiving). Double Ratchet revision 4, §5.6, looks the chain up by the returned epoch, and its header carries none.
    - Where the agreement keeps its guarantee, the two are the same.

@@ -1,6 +1,6 @@
 # ML-KEM and Braid key-generation replay packet
 
-This is the brief for a person who extends the independent reader to compute the
+This is the brief for a person who extends the specification-only, project-controlled reader to compute the
 ML-KEM-1024 and Braid key-generation values of the session end-to-end vector and
 the one identity vector the reader skips today. It exists to make that work
 small and to say, before it starts, exactly what is asked.

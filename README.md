@@ -113,7 +113,7 @@ flowchart TD
     end
 
     subgraph CHECK["Checked"]
-        TESTS["Rust tests, property tests, fuzzing,<br/>vector runners and the independent reader"]
+        TESTS["Rust tests, property tests, fuzzing,<br/>vector runners and the specification-only,<br/>project-controlled reader"]
         TRANS["Charon and Aeneas<br/>(pinned, run outside the repository)<br/>generated Lean, committed with checksums"]
         PROOFS["Lean proofs<br/>T1: the translated code cannot panic<br/>T3: the translated code refines the model<br/>model-layer proofs about the model itself"]
     end
@@ -157,7 +157,7 @@ flowchart TD
   record says which of those checks are claimed, what each one assumes, and
   what is still open.
 - **Two kinds of evidence about the Rust.** Tests, fuzzing, the vectors the
-  model generates and the independent reader show that the code agrees with
+  model generates and the specification-only, project-controlled reader show that the code agrees with
   the model on the cases they cover. The Lean proofs are about the translated
   code: T1 says a function cannot panic, T3 says it refines the model. The
   README's Status section says which crates carry which theorems.
@@ -334,7 +334,7 @@ session path, and sessions and prekey stores serialize.
 Identity records (ADR-0009: the identity pair digest, the verification number, the classification and lookup of a key
 against a party's records, and initiator establishment under an expectation) are in `tacenta-core/src/sessions/identity.rs`,
 outside the translated crates, and are tested only for `tacenta-core`: tests, a fuzz target (`identity_records`, which the
-hosted workflow does not run), and 128 vectors that the model generates or checks and the independent reader reads. The
+hosted workflow does not run), and 128 vectors that the model generates or checks and the specification-only, project-controlled reader reads. The
 model's theorems about them are about the model alone. The application, FFI and SDK layers above the crate have not adopted
 them yet, so the product does not use them. The initiator is now
 established through that module's `establish_initiator`, which checks the expectation and then calls the leaf's
@@ -397,8 +397,8 @@ runner that GitHub lets only this workflow, as it is on main, use.
 Before each commit, `bash tooling/fast.sh` is the quick check, a few minutes where the gate takes much
 longer. It runs `bash tooling/ci.sh --fast`, which is every step of `ci.sh` above the line that file marks
 (the workflow, proof-hygiene, label, vector-schema, traceability and authentication-boundary checks, the
-generated-unit checks, the preflight of the lifecycle proof modules, the offline lockfile check, the independent
-reader, the sign-off check, and the case files that hold each of them; seven slow case files among them, the
+generated-unit checks, the preflight of the lifecycle proof modules, the offline lockfile check, the specification-only,
+project-controlled reader, the sign-off check, and the case files that hold each of them; seven slow case files among them, the
 workflow checker's, the container regeneration's, the lockfile check's and those of the assurance manifest,
 receipts, evidence pack and ledger receipt,
 run only with `--deep`, which a change under `tooling/` or `.github/` or to `regenerate-in-container.sh`

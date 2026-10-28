@@ -3,7 +3,7 @@
 
 The packet deliberately contains no implementation, model, proof, Rust-runner
 or repository-history path. Its manifest records every included file's digest,
-so the independent author can name the exact input revision they read.
+so the specification-only author (a related party) can name the exact input revision they read.
 """
 from __future__ import annotations
 

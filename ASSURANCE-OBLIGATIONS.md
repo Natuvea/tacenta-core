@@ -6,6 +6,7 @@ remaining readiness work assessable; it is not evidence that the work is done.
 Last assessed: 2026-09-30, at `dea57eaff4e516b6f56df08f7ced44d0ee87d024`, for the gate evidence inventory and the rows that cite it. The rest of this file was last assessed on 2026-09-14, at `c7499a9b6fedb9d211198671848c1e3acbe592af`. The Gate 2 row was re-read on 2026-09-30 against `GAP-REGISTER.md` after `SESSION-CONTRACT-VACUITY` was added, and again on 2026-10-01 after `DISPATCH-EVIDENCE-VACUITY` was added. On 2026-10-22, for identity records (ADR-0009), the Gate 2 row was re-read against `GAP-REGISTER.md` after reader pass 14, and the requirement count of the practice 8 row, the revisit triggers of the MU-01 and Session rows and the zones of the authentication-boundary row were updated, by their author with tool assistance and no independent reader.
 On 2026-10-28 the P6 evidence entry of the Session orchestration row was labelled related-party, and the Gate 2 row's count was updated when `READER-INDEPENDENCE` moved to BLOCKING, with tool assistance under the maintainer's account and no independent reader.
 Later on 2026-10-28 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` after `AEAD-LENGTH-CONTRACTS` was also made BLOCKING, and the Gate 2 row's closure evidence and a note after the gate classes were changed to say that no recorded decision closes or re-classes `E2E-01`, `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or, while its class condition fails, `READER-INDEPENDENCE`, with tool assistance under the maintainer's account and no independent reader; nothing else was re-read.
+Later again on 2026-10-28 the project's reader was called the specification-only, project-controlled reader where this file said "the independent reader", and the P6 decision's surface the "model/concrete/operation-reader" surface; wording only, with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 
 ## Gate classes
 
@@ -282,7 +283,7 @@ than security requirements.
 
   **Current target deficit:**
   [ERASURE-CODEC-TARGET-DECISION.md](tacenta-proofs/ERASURE-CODEC-TARGET-DECISION.md) records L3 as the current engagement target.
-  Field arithmetic, codec T1, vectors, the independent reader and live-path tests remain the evidence.
+  Field arithmetic, codec T1, vectors, the specification-only, project-controlled reader and live-path tests remain the evidence.
   `ERASURE-DECODER-REFINEMENT.md` records the distinct L4 programme:
   a concrete codec relation, barycentric equivalence, decoder/encoder preservation and a port to the Braid-and-erasure unit.
 
@@ -299,7 +300,7 @@ than security requirements.
   Session orchestration and prekey store
 
   **Current target deficit:**
-  [P6-L2-TARGET-DECISION.md](tacenta-model/P6-L2-TARGET-DECISION.md) records the bounded model/concrete/independent-reader surface, its declared-crypto boundary and reopen triggers.
+  [P6-L2-TARGET-DECISION.md](tacenta-model/P6-L2-TARGET-DECISION.md) records the bounded model/concrete/operation-reader surface, its declared-crypto boundary and reopen triggers.
 
   **Gate class:**
   AMBIGUOUS
@@ -463,7 +464,7 @@ than security requirements.
   **Closure evidence:**
   [P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md) names the required review record;
   it still needs a reviewer, frozen revision, artifacts read and findings/disposition.
-  Before it, a person who did not write the model runs or extends the independent reader for the ML-KEM and Braid key-generation values (`HL-IMP-01-READER`).
+  Before it, a person who did not write the model runs or extends the specification-only, project-controlled reader for the ML-KEM and Braid key-generation values (`HL-IMP-01-READER`).
   Not yet requested.
 
 - **Component or gate:**
@@ -577,7 +578,7 @@ recorded decision or a target-closing slice:
   Retain its command, environment and diagnostic-free candidate result.
 
 - **Gate/check:**
-  Independent reader
+  Specification-only, project-controlled reader (`tacenta-test-vectors/runners/independent/`)
 
   **Protected property:**
   Specification-only reader can interpret and check committed vectors.
@@ -1985,7 +1986,7 @@ This records evidence for gate 4. It is not a verdict that gate 4 passes or fail
 10. The receipt writer, collector and validator. Each commit and tree comparison, per receipt and per document, has a case of its own.
 11. `build-assurance-manifest.py`. Each check of `--validate` and the dirty-tree refusals have cases.
 12. `check-signoff.sh`. Partial: three of five single edits survived, and the push-mode step has no control.
-13. `build-evidence-pack.py` (with its git authentication and `publish-evidence-archive.py`, `reproduce-evidence.py`), 14. `check-ledger-review-receipt.py` (with `ledger-review-sections.py` and `validate-reviewed-evidence.py`), 15. `attest.py --check`, 16. `check-lean-constructs.sh`, 17. `Model.AxiomAudit`, 18. the lifecycle translation coverage, Session witness coverage and initial-dispatch guards, and 19. the independent reader's skip gate, sweep and operation controls.
+13. `build-evidence-pack.py` (with its git authentication and `publish-evidence-archive.py`, `reproduce-evidence.py`), 14. `check-ledger-review-receipt.py` (with `ledger-review-sections.py` and `validate-reviewed-evidence.py`), 15. `attest.py --check`, 16. `check-lean-constructs.sh`, 17. `Model.AxiomAudit`, 18. the lifecycle translation coverage, Session witness coverage and initial-dispatch guards, and 19. the specification-only, project-controlled reader's skip gate, sweep and operation controls.
 
 **A control that runs only locally.** `tooling/mutate-inventory.py`, for `tacenta-core/src/groups/inventory.rs` (124 mutants). Its own docstring says nothing in it runs in CI. The three calibration controls of the timing harness (`control_the_harness_detects_*` in `tacenta-core/tests/timing.rs`) are `#[ignore]`d and run only by hand. `tooling/miri.sh` is run by no workflow in this tree, and `tooling/fuzz-smoke.sh` only by `tooling/ci.sh` when `cargo-fuzz` and a nightly toolchain are present; neither has a negative control listed here. `tacenta-proofs/scripts/check-hypothesis-witnesses-negatives.sh`, the control for `check-hypothesis-witnesses.sh`, needs the built translation package and rebuilds a copy of it for each of its mutating cases; it is run by no workflow.
 **A control that runs only locally.** `tooling/mutate-evidence-gates.py` makes 121 single edits that remove or weaken a check of the receipt, manifest, pack, publisher, reproduction and review tooling and requires a case runner to fail for each. A case that accepts a wrong input or misbehaves sees 103 of them; 17 are seen only as a changed message and one is not seen, and the harness lists those 18 as unable to change a verdict, each with its reason, which is by reading and is not proved. Nothing in CI runs it. `tooling/mutate-inventory.py`, for `tacenta-core/src/groups/inventory.rs` (124 mutants). Its own docstring says nothing in it runs in CI. The three calibration controls of the timing harness (`control_the_harness_detects_*` in `tacenta-core/tests/timing.rs`) are `#[ignore]`d and run only by hand. `tooling/miri.sh` is run by no workflow in this tree, and `tooling/fuzz-smoke.sh` only by `tooling/ci.sh` when `cargo-fuzz` and a nightly toolchain are present; neither has a negative control listed here.

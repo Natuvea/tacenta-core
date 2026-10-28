@@ -499,7 +499,7 @@ this section says in one place what is not proved.
   translated crates. For `tacenta-core` they are tested only: unit tests there,
   `tacenta-core/tests/identity_expectation.rs` and `identity_responder.rs`, and
   128 vectors in five files, generated from the model or checked against it,
-  which the Rust runner checks against the crate and the independent reader reads
+  which the Rust runner checks against the crate and the specification-only, project-controlled reader reads
   with no failure (125 of them at its fourteenth pass, and three added after it
   that pass without a change to the reader). The model states them, and what is
   proved is about the model alone: the section "Proved (tier T2, in the model:
@@ -1367,7 +1367,7 @@ record, the lookup across records, and the initiator's establishment under an
 expectation (ADR-0009; REQ-AUTH-02, REQ-AUTH-15, REQ-AUTH-16). The theorems below
 are properties of those definitions, tier T2. None of them says that the
 definitions compute what the pages say, which rests on a reading of the pages, on
-the vectors and on the independent reader; and none says that `tacenta-core`
+the vectors and on the specification-only, project-controlled reader; and none says that `tacenta-core`
 computes them, which is tested only, by the five identity-record vector files
 (`pair-digest.json`, `verification-number.json`, `identity-classification.json`,
 `identity-lookup.json`, `initiator-expectation.json`: 128 vectors), checked against

@@ -170,6 +170,16 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `decisions/ADR-0006-specification-is-normative.md` (Status and
+  Consequences), `decisions/ADR-0007-behaviours-kept-as-built.md` (Context)
+  and `decisions/ADR-0008-assurance-expectations.md` (decisions 4, 6 and 7,
+  and the L2 row of the level table), `protocol/session-persistence.md` (one sentence), `security-properties/authentication.md` (three status
+  notes) and `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md`: the project's reader is
+  called "the specification-only, project-controlled reader" where they said "the independent reader", and ADR-0008 calls its passes a second reading of sufficiency where it said an adversarial one. Its directory, `tacenta-test-vectors/runners/independent/`,
+  keeps its name as a legacy identifier, which does not imply independence from
+  the project. Earlier entries in this file, in this section and in released ones, call it "the independent reader"; that name is the same legacy identifier. The Status sections of ADR-0006, ADR-0007, ADR-0008 and ADR-0010 record the amendments of 2026-10-28. `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md` said "P6 L2 decision and independent-reader evidence", which may mean the P6 operation reader's evidence or the project's reader's; it now names both: the P6 operation reader's evidence (related-party evidence) and the pass records of the specification-only, project-controlled reader. What the reader does and what L2 requires are unchanged; the
+  wording now matches `GAP-REGISTER.md`, which calls it project-controlled
+  evidence (`READER-INDEPENDENCE`).
 - `threat-model/assumptions.md` ASM-03, ASM-05, ASM-06, ASM-07, ASM-08,
   ASM-09 and ASM-18,
   `security-properties/limitations.md` LIM-06 and LIM-12 and the
@@ -907,11 +917,25 @@ is SemVer against the specified protocol (not the implementation).
     director of Natuvea Ltd, so it is related-party evidence, not independent
     review. The evidence file now says so, and so do ASM-19 in `threat-model/assumptions.md`
     and a `missing_evidence` kind in `security-properties/evidence-index.json`, which called it "the independent
-    reader". The L2 target decision still says "independently authored" (lines 8 and 9) and "the independent reader" (line 39), and `tacenta-model/SESSION-OPERATION-MODEL.md` (line 5) says "independent reader"; both change with the next refresh of the source attestation, which hashes `tacenta-model` (`GAP-REGISTER.md`,
+    reader". The corpus `source` string of `tacenta-test-vectors/traces/session-operation-trace.json` ("independent clean-room author") and the docstring of `tooling/prepare-operation-reader-packet.py` ("the independent author") said the same and were corrected on 2026-10-28; with the two files above they make four files in the tags that call its author independent; seven more files in the same tags, and `ASSURANCE.md` in `tacenta-assurance-v0.2.0`, call the reader itself independent, and `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md`'s "independent-reader evidence" beside the P6 L2 decision may mean the operation reader's; `GAP-REGISTER.md`, `READER-INDEPENDENCE`, lists them. The L2 target decision still says "independently authored" (lines 8 and 9) and "the independent reader" (line 39), and `tacenta-model/SESSION-OPERATION-MODEL.md` (line 5) says "independent reader"; both change with the next refresh of the source attestation, which hashes `tacenta-model` (`GAP-REGISTER.md`,
     `STALE-WORDING-KNOWN`). Row `READER-INDEPENDENCE` is BLOCKING while
     independence claims the repository does not support remain. The earlier
     wording stands in the tags `tacenta-assurance-v0.2.0` to
     `tacenta-assurance-v0.4.6`.
+  - `threat-model/assumptions.md` ASM-19 said the orchestration's behaviour
+    "is established by tests and by reading". No recorded reading of the
+    orchestration against the protocol pages is in this repository; it now
+    says the behaviour is supported by tests and that no such reading is
+    recorded. It also said `tacenta-core/lifecycle/src` was "neither modelled
+    nor proved", "has no theorem" and had "Proofs: none", although
+    `Model.Lifecycle` models it and `tacenta-proofs/CLAIMS.md` lists results
+    about some lifecycle operations on the Session unit's translation of
+    that code, most under recorded hypotheses and seven, about refused calls, under none about the opaque operations. It now says the orchestration is modelled and not proved as a
+    whole, and that no theorem establishes its four points in general.
+  - `decisions/ADR-0010-key-derivation-written-here.md`, Consequences: the
+    tool-assisted reviews of #272 listed among what replaces "vetted" now note
+    that their statement that the tree recorded a reading by the maintainer
+    was withdrawn on #272 on 2026-10-28.
 
 ### Decided
 - `decisions/ADR-0009-identity-verification.md` (accepted).

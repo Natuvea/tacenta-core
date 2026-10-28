@@ -21,7 +21,7 @@ from `tacenta-test-vectors/traces/session-operation-trace.json`. Its 36
 ordinary steps passed. All five controls failed as required: the original
 wrong durable effect and missing responder message, an incorrectly accepted
 duplicate, a missing terminal-failure receive message, and an incorrectly
-pending malformed initiator bundle. Every diagnostic cites the source rule.
+pending malformed initiator bundle. Every diagnostic cites the source rule. The corpus's `source` string was relabelled on 2026-10-28 ("independent clean-room author" to "specification-only author (related party)"); no trace, step or control changed.
 
 This is related-party, specification-only evidence for the committed corpus
 only; it is not independent review. It now covers the

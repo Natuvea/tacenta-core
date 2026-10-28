@@ -1258,7 +1258,7 @@ success arms, so no witness exercises a refusal arm, and no vector does either:
 the vector generator has only `toyKem`, which never refuses, and the vector
 format has no field that makes a call refuse, so the four arms are checked
 against the Rust by the refinement proofs, under `KemAgreesFor`, and against
-the model by nothing a vector carries. The independent reader drives its own KEM to refuse (its case
+the model by nothing a vector carries. The specification-only, project-controlled reader drives its own KEM to refuse (its case
 BR-12) and tests the four arms against its reading of the specification, not
 against the model. That the real wrapper does refuse, and when, is not shown
 here in Lean. By test it refuses one known class of input: a restored
@@ -1912,7 +1912,7 @@ sites in sixteen declarations across six files: fourteen hypotheses, one
 conclusion, two assumption-bundle definitions, and four restatements of the
 bound inside one proof. Three of the sixteen declarations are in
 `ImportInv.lean`, which took the platform fact as an argument. That matches a
-reviewer's independent count file for file, and each of the twenty-one reported
+separate count made for that round, file for file, and each of the twenty-one reported
 columns lands on the offending maximum.
 
 **The class is proved to be the right thing to refuse.**
@@ -2330,7 +2330,7 @@ island or unit, is about any function in it.
   `identity-lookup.json` 14, `initiator-expectation.json` 47), the first four
   generated from the model and the fifth written by
   `generate-identity-vectors.py` with every outcome checked against the model.
-  The Rust runner checks them against `tacenta-core`, and the independent reader
+  The Rust runner checks them against `tacenta-core`, and the specification-only, project-controlled reader
   reads all 128 with no failure (125 at its fourteenth pass; three were added
   after it and pass with the reader unchanged). A fuzz target of their own,
   `identity_records` (`tacenta-core/fuzz/fuzz_targets/identity_records.rs`),
@@ -2356,7 +2356,7 @@ island or unit, is about any function in it.
   partly, and not in the hosted workflow. Since L2 includes L1, they do not
   reach L2 either, although they have its other elements: the model states
   them, and vectors pin them that are checked against the implementation and
-  read by the independent reader (`initiator-expectation.json` is written by
+  read by the specification-only, project-controlled reader (`initiator-expectation.json` is written by
   a script with each outcome checked against the model, not generated from
   it). The Session row in `ASSURANCE.md` stays at L2, because a tick there
   means that the component has that kind of evidence, not that every part of
@@ -2589,8 +2589,8 @@ generation draws 64 bytes, and `tacenta-core` fills a 64-byte seed there. The ta
 theorems that took it are not claims, and with the signing clause they had no model
 (`braidSendTrace_conflicts_with_sigSign`). The second fixes an order the specification leaves open: the model draws
 the initiator's ephemeral key before it checks the bundle's KEM key, and the check refuses before the 32 bytes of `m`
-are read. `GAPS-13.md` (G13-04, under `READER-OPEN-GAPS`) records that the order is not stated, and the independent
-reader chose the other order. The model follows `establish_initiator_for`.
+are read. `GAPS-13.md` (G13-04, under `READER-OPEN-GAPS`) records that the order is not stated, and the specification-only,
+project-controlled reader chose the other order. The model follows `establish_initiator_for`.
 
 The lifecycle model draws randomness as 32-byte entries of one ordered trace, and reads a 64-byte fill as two
 consecutive entries. `RngCore` does not promise that one 64-byte fill equals two 32-byte fills; the model assumes
@@ -4486,7 +4486,7 @@ argument to sixteen closed cases, which the kernel evaluates.
   `runners/rust/tests/persistence.rs` asserts that, and the differential
   harness offers those tags only at a length both sides refuse. Every other
   rule of the Braid's stored format, and the whole of the triple ratchet
-  state's, is modelled. The scoping is what closed the independent reader's
+  state's, is modelled. The scoping is what closed the specification-only, project-controlled reader's
   `GAPS-5.md`, G5-02.
 
 - The security properties are formalised against a symbolic attacker and not
