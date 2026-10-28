@@ -251,6 +251,17 @@ phase_atomicity() {
 python3 scripts/check-atomicity-negatives.py || fail=1
 }
 
+# Session::decrypt and decrypt_ratchet keep Session::invariant and spend one unit of the counter budget at every
+# agreement state, in the in-order scope with the agreement's output (`UnitLifecycleDecryptPreserve.lean`).
+# A copy with a budget claimed unspent, the relation after the call claimed to the model before it, a law of the
+# receive side dropped or swapped, the key-pair clone record swapped, a decoder, model or structural lemma
+# restated wrongly, the model step's relation shape changed, and the key-pair length law with its pins kept must
+# each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies
+# are accepted.
+phase_decrypt_preservation() {
+python3 scripts/check-decrypt-preservation-negatives.py || fail=1
+}
+
 # The restated dispatch records' witnesses (`UnitLifecycleRepair.lean`): a witness for a wrong or
 # weaker statement would hold nothing, so make one change to a copy of each and require Lean to
 # refuse it, after requiring the unmodified copies to be accepted.
@@ -761,6 +772,7 @@ phases() {
   run_phase braid-agreement plain "Braid agreement witnesses control" phase_braid_agreement
   run_phase initial-dispatch sliceable "initial dispatcher proof-dependency controls" phase_initial_dispatch units_initial_dispatch
   run_phase atomicity plain "lifecycle frame-proof controls" phase_atomicity
+  run_phase decrypt-preservation plain "decrypt-preservation proof-dependency control" phase_decrypt_preservation
   run_phase repair plain "restated dispatch record controls" phase_repair
   run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal

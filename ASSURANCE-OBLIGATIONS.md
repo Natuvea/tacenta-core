@@ -1035,6 +1035,7 @@ recorded decision or a target-closing slice:
   `check-initiator-repeated-reply-negatives.py`,
   `check-initiator-second-message-negatives.py`,
   `check-atomicity-negatives.py`,
+  `check-decrypt-preservation-negatives.py`,
   `check-repair-negatives.py`,
   `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
@@ -1144,6 +1145,11 @@ recorded decision or a target-closing slice:
   the step without that law, the composed budget), the refusals' budget, the established run's budget, the model's
   advance, chain counters, budget and outcomes, the two drawing sends, the fresh encoder's cap, the failed commit's
   and the folded step's clauses, the composed relation's shape, and the size law's definition;
+  `check-decrypt-preservation-negatives.py` keeps the receive step at every agreement state (the budget, the relation
+  after the call, the `Option<u64>` comparison shape, the key-pair length law, the key-pair clone record, the public
+  call's budget), the reply run's budget, the decoder's distinct indices, `needed` and message length, the model
+  receive's role, budget, clause (b) and epoch, the structural clause (b), the sparse epoch's room, the two length
+  laws at their states, the model step's relation shape, and the key-pair length law's definition;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1243,6 +1249,22 @@ recorded decision or a target-closing slice:
   each in the composing proof and accepted there with that proof emptied,
   and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
+  `check-decrypt-preservation-negatives.py` (two unmodified copies accepted and twenty changes refused, each at a
+  named declaration or pin:
+  the receive step's budget claimed unspent and its relation after the call claimed to the model before it,
+  the laws' `Option<u64>` comparison shape dropped and their key-pair length law swapped for the encapsulation one,
+  the key-pair clone record swapped for the erasure one in the agreement's receive,
+  the public call's budget claimed kept with no unit to spend,
+  the reply run's budget claimed one operation past the clock (seven inside composing proofs, each accepted with that
+  proof emptied);
+  `Decoder::invariant` without its distinct-indices clause, `add_chunk` claimed to grow `needed`, a completed message
+  claimed one byte longer, the model receive's role claimed kept through a failure, the model's budget claimed kept
+  with no unit to spend, clause (b) after a step claimed at the old sparse epoch, the structural clauses with clause
+  (b) read at the Triple before the call, clause (b) read without the sparse epoch's room, the finished encapsulation
+  without the `ct2` length law, the `KeysSampled` receive without the `ek_vector` length law, the model receive
+  claimed to keep the epoch;
+  the model step's relation claimed to the model before the call (statement-shape, still refused with the projected
+  proof emptied); and `KeyPairEkVectorLen` with its bound vector renamed, its pins kept),
   `check-decrypt-ratchet-negatives.py` (fourteen unmodified copies accepted and forty-two changes refused,
   each at a named declaration or pin:
   four in the loop correspondence,

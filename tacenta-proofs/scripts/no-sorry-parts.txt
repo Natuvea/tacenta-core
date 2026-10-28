@@ -56,6 +56,7 @@ hosted decrypt:
   kdf-realisation
   receive-preservation
   audit-negatives
+  decrypt-preservation
 hosted responder:
   restored
   encrypt

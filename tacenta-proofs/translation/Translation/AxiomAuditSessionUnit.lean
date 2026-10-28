@@ -42,6 +42,7 @@ import Translation.NumericWitnessSession
 import Translation.SessionUnitDecodedStateDischarge
 import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
+import Translation.UnitLifecycleDecryptPreserve
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleResponderEstablishReplay
 import Translation.UnitLifecycleIntegrationScreen
@@ -268,6 +269,12 @@ composed with the encrypt refinement, under the existing KEM records and one ass
 and every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole budget, with no law.
 Not shown: a successful receive outside the in-order scope, the step at `HeaderReceived` on a run, or that the
 shipping KEM meets the laws.
+`UnitLifecycleDecryptPreserve.lean`: `Session::decrypt` and `decrypt_ratchet` keep `Session::invariant` and spend
+at most one unit of the counter budget at every agreement state and every agreement transition, with or without the
+agreement's output, given the relation after the call and a model step in the in-order scope with the output, under
+existing records and two assumed length laws of the KEM wrapper, `KeyPairEkVectorLen` and `Encapsulate2Len`; the
+translated `Braid::receive` keeps `Braid::invariant` at every state.  Not shown: a receive outside the in-order scope,
+a receive with a transition or an output on a run, or that the shipping KEM meets the laws.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

@@ -83,6 +83,7 @@ py_controls=(
   check-initiator-repeated-reply-negatives.py
   check-initiator-second-message-negatives.py
   check-atomicity-negatives.py
+  check-decrypt-preservation-negatives.py
   check-repair-negatives.py
   check-responder-establish-replay-negatives.py
   check-send-refusal-negatives.py
@@ -194,6 +195,7 @@ for called in \
   check-hypothesis-witnesses.sh \
   check-braid-agreement-negatives.sh \
   check-atomicity-negatives.py \
+  check-decrypt-preservation-negatives.py \
   check-repair-negatives.py \
   check-responder-establish-replay-negatives.py \
   check-send-refusal-negatives.py \

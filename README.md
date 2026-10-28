@@ -309,8 +309,12 @@ covered. A successful `encrypt` at every agreement state, the two whose send dra
 and spends one unit of that budget, given the relation after the call or composed with the general encrypt refinement
 (whose two per-call records stay hypotheses), under existing KEM records and one new assumed size law of encapsulation
 (used at the sampling state only; its premises there are exhibited on no run), and every refused `encrypt`, `decrypt`
-and `decrypt_ratchet` keeps the invariant and the whole budget with no law. No successful receive outside that
-in-order scope is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
+and `decrypt_ratchet` keeps the invariant and the whole budget with no law. A successful `decrypt` and
+`decrypt_ratchet` at every agreement state and transition, with or without the agreement's output, keeps
+`Session::invariant` and spends one unit of that budget, given the relation after the call and a model step in the
+in-order scope, under existing records and two new assumed length laws of the KEM wrapper (its premises exhibited at one
+state on one run, and with a transition or output on no run). No successful receive outside the in-order scope (a stored
+key, a skip, an eviction) is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
 receipt, is refused in the two places it can arrive at that point of the run, with no effect on the session or the store: the responder's `decrypt` at the session its
 first receipt returned recognises the repeat, refuses it as out of order, returns that session unchanged and takes one draw,
 refining the model's step; `establish_responder` at the store the first success committed refuses it as

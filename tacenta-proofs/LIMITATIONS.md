@@ -3330,7 +3330,8 @@ one, within the weights of `CounterRoom`; the budget is computed at the initiato
 `j + 1` operations whenever `j + 2 < u32::MAX`) and at the responder's prepared session (room for one), and at no other
 session. **Not shown:** a receive that uses a stored key, skips, or evicts, so reordered, delayed or dropped delivery; a
 receive with an agreement output or one that moves the agreement to another state (the header completing, a `ct1` chunk),
-or at any other agreement state; a decoder holding more than one chunk before the call; the session a refused
+or at any other agreement state, and a decoder holding more than one chunk before the call (here; the paragraph on
+`decrypt` at every agreement state, below, covers them under two further assumed laws); the session a refused
 `decrypt` returns (here; the next paragraph shows it keeps the invariant); that the relation after the call holds or that the model's step is in order (hypotheses, supplied on the
 two runs); the initiator's second send composed with the invariant at the session its receipt returns (the second-send
 paragraph above states its code-level part under that condition; the next paragraph joins the two, this module does
@@ -3364,11 +3365,45 @@ established initiator's first send (`established_encrypt_via_general_reachable`,
 `established_encrypt_successor_reachable`, which a toy model holds together); at `HeaderReceived`, on no run (no run in
 the tree reaches that state); at the nine no-draw states as the send paragraph above says. **The budget** is spent as
 before: one unit per call, the sparse epoch stepping by one on a send with an agreement output and the new chains' counters
-bounded through the clock's room. **Not shown:** a successful receive outside the in-order scope of the paragraph above; the
+bounded through the clock's room. **Not shown:** a successful receive outside the in-order scope of the paragraph above (a
+receive with an agreement transition or output is in the next paragraph; a stored key, a skip or an eviction in none); the
 step at `HeaderReceived` on a run; that the shipping KEM meets `Encaps1SizesOf` or the other KEM records and laws, or that
 `usize::div_ceil` meets `DivCeilValue`; whether the shipping `encapsulate1` can refuse an authenticated 64-byte header
 (not determined; the refusal arm is covered, not shown reachable); the budget at a session `Session::import` returns;
 that `Session::invariant` says a session is reachable.
+
+**`decrypt` at every agreement state** (`UnitLifecycleDecryptPreserve.lean`). The general step
+(`decrypt_ratchet_keeps_invariant`, `decrypt_keeps_invariant`) rests on the kernel and opaque constants and takes, besides
+the relation after the call and the model step (hypotheses, as for the in-order receive above), the record
+`ReceiveInvariantLaws` (with a `#print` pin), whose fields are: `KemCloneAgrees` (ASSUMED record); `DivCeilValue` and
+`TruncatePrefix` (ASSUMED value laws of `usize::div_ceil` and `Vec::truncate`, existing); the four length totality records
+`HeaderLenTotal`, `EkVectorLenTotal`, `Ct1LenTotal` and `Ct2LenTotal` (ASSUMED, existing); `OptionEqU64Shape` (ASSUMED,
+the establishment's: the opaque `Option<u64>` comparison clause (b) uses compares by value); `DhPublicValid` (ASSUMED, the
+establishment's); and two new laws about the opaque KEM wrapper: **`KeyPairEkVectorLen` (ASSUMED, used at `KeysSampled`):
+every key pair's `ek_vector` has `EK_VECTOR_LEN` bytes**, for every key pair, a restored one included; and
+**`Encapsulate2Len` (ASSUMED, used where the agreement finishes its encapsulation): every `ct2` that `encapsulate2` returns
+has `CT2_LEN` bytes**. Of the shipping wrapper both hold by reading (`tacenta-core/kem/src/lib.rs`: `ek_vector` copies the
+slice libcrux's `pk2` returns, `pk2_len()` bytes of the key pair, and `EK_VECTOR_LEN` is `pk2_len()`; `encapsulate2`
+copies the value of libcrux's second ciphertext half, and `CT2_LEN` is 160; the crate tests
+`the_sizes_are_the_specifications_sizes` and `the_split_encapsulation_agrees_with_decapsulation` check one call each),
+which is not a proof; each would be false of a wrapper whose call returned another length. Both hold in `Interp.modelT3`
+(`modelT3_keyPairEkVectorLen`, `modelT3_encapsulate2Len`), which shows each statement consistent with the six agreements
+and the laws `DivCeilValue` and `TruncatePrefix` held there, and nothing about the shipping KEM. The wrapper laws of
+`UnitKemWrapperModel` give the `ek_vector` length for a generated key pair only (`LawGeneratedKeyPair`), not for a
+restored one. **The agreement half** is a walk of the translated `Braid::receive` alone, at every state and arm
+(`braid_receive_keeps_invariant`), with no model relation; the decoder lemmas now cover any number of chunks
+(`add_chunk_keeps`). **The Triple half, clause (b) and the budget** go through the model, through the relation, as for the
+in-order receive. **Its scope:** the model step must be a `ReceiveStep`: the session as it was, or the agreement's next
+state for some message with the Triple's receive of a header in `InOrderOut`, the in-order scope read at the sparse state
+the agreement's output leaves (no stored key used, no message skipped on either chain, no eviction). **Where the premises
+are exhibited.** Together at `KeysSampled` on the reply's run (`initiator_receives_reply_via_general`, under the hypotheses
+of `initiator_receives_reply_successor` and the laws `TruncatePrefix`, `KeyPairEkVectorLen` and `Encapsulate2Len`), a step
+with no transition and no output; a receive with an agreement transition or an output on no run. **Not shown:** the
+out-of-order family (a stored key, a skip, an eviction), so reordered, delayed or dropped delivery; that the relation after
+the call holds or that the model's step is a `ReceiveStep` (no composition with the decrypt refinement here); a receive
+with a transition or an output on any run; that the shipping KEM meets `KeyPairEkVectorLen`, `Encapsulate2Len` or
+`KemCloneAgrees`, or that the opaque operations meet the value and shape laws; `establish_responder` at a general input;
+the budget at a session `Session::import` returns; that `Session::invariant` says a session is reachable.
 
 **The initiator's second message** (`UnitLifecycleInitiatorSecondMessage.lean`). `initiator_sends_second_message`
 joins the second send with the receive step on one run, under exactly the hypotheses of `initiator_second_send_after_reply`
