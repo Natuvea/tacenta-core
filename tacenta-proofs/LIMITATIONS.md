@@ -3283,7 +3283,8 @@ states whose send takes no draw; its premises, that relation and the agreement w
 only at `NoHeaderReceived`, on the reply's run, and at the other eight states no run here exhibits them (the relation after
 the call there would come from an encrypt refinement whose leaf hypotheses are not discharged at those states). It does
 not cover `KeysUnsampled` or `HeaderReceived`, whose sends draw and (at `HeaderReceived`) hand the Triple an
-agreement output; a Triple send with an output (`advance`, a new chain pair, `clearOldEpochs`) is not covered. **The
+agreement output; a Triple send with an output (`advance`, a new chain pair, `clearOldEpochs`) is not covered here (the
+paragraph on `encrypt` at every agreement state, below, covers both, under one further assumed law). **The
 ceilings are a budget, not preserved.** The refinement theorems ask for one step below each ceiling (`CounterHeadroom`),
 and by reading the code refuses one step later: the ratchet's clock clamps at `u32::MAX - 1` and never refuses
 (`tacenta-core/ratchet/src/lib.rs`, `age_store`), a sparse chain counter steps to `u64::MAX` (the send after it refuses,
@@ -3296,8 +3297,8 @@ per-run budget: it excludes runs longer than its `k` and the parked clock, and a
 at the responder's session after the first receipt (clock 1, so room for every `j` with `j + 2 < u32::MAX`) and concludes
 `CounterHeadroom` after the reply; the budget at any other session is not computed. The weights are for operations in general;
 nothing here covers a receive (an in-order receive at two agreement states stays within them, the next paragraph;
-whether any other receive does is not checked). **Not shown:** `encrypt` at
-a state whose send draws; the session a refused `encrypt` returns; any receive keeping the invariant; that the real key pair
+whether any other receive does is not checked). **Not shown** here: `encrypt` at
+a state whose send draws and the session a refused `encrypt` returns (both in the paragraph below); any receive keeping the invariant; that the real key pair
 meets `KemCloneAgrees`; that `Session::invariant` says a session is reachable.
 
 **Receive preservation on an in-order receive** (`UnitLifecycleReceivePreserve.lean`). The general step
@@ -3330,12 +3331,44 @@ one, within the weights of `CounterRoom`; the budget is computed at the initiato
 session. **Not shown:** a receive that uses a stored key, skips, or evicts, so reordered, delayed or dropped delivery; a
 receive with an agreement output or one that moves the agreement to another state (the header completing, a `ct1` chunk),
 or at any other agreement state; a decoder holding more than one chunk before the call; the session a refused
-`decrypt` returns; that the relation after the call holds or that the model's step is in order (hypotheses, supplied on the
+`decrypt` returns (here; the next paragraph shows it keeps the invariant); that the relation after the call holds or that the model's step is in order (hypotheses, supplied on the
 two runs); the initiator's second send composed with the invariant at the session its receipt returns (the second-send
 paragraph above states its code-level part under that condition; the next paragraph joins the two, this module does
 not); any later message; a restored
 copy of a session; that the real primitives meet the records and laws; that `Session::invariant` says a session is
 reachable.
+
+**`encrypt` at every agreement state, and every refused call** (`UnitLifecycleEncryptPreserve.lean`). The refusal results
+(`encrypt_err_keeps_invariant`, `decrypt_err_keeps_invariant`, `decrypt_ratchet_err_keeps_invariant` and the two size
+instances) assume nothing about any opaque operation: a refused `decrypt` or `decrypt_ratchet` returns its session, and a
+refused `encrypt` returns its session or commits a `Failed` agreement, which passes the invariant and counts its epoch as
+zero. The general step (`encrypt_keeps_invariant`) rests on the kernel and opaque constants and assumes, besides the
+relation after the call (a hypothesis, as for the send above): `KemCloneAgrees`; the key-generation and encapsulation
+clauses of `KemAgreesFor` (ASSUMED records; their model randomness is existential, and no seeded encapsulation law is
+used: the invariant does not depend on which randomness was drawn); `RngTotal` and `Ct1LenTotal` (ASSUMED, fields of
+`BraidSendRefinementContracts`); `KemLenAgrees`, `KeyGenSizesOf`, `ValidateEkAgrees` and `DivCeilValue` (ASSUMED,
+existing, bundled in the record `SendInvariantLaws`, which has a `#print` pin); and one new law, **`Encaps1SizesOf K`
+(ASSUMED, used at `HeaderReceived` only): every `ct1` the model KEM's `encaps1` returns has `K.ct1Size` bytes**, the twin
+of `KeyGenSizesOf` for encapsulation. It has a toy model (`encaps1Sizes_toyKemR`: consistency of the statement only). It
+is not derived at the KEM model read off the wrapper: no wrapper law states the length of `encapsulate1`'s `ct1`. Of the
+shipping wrapper it holds by reading (`tacenta-core/kem/src/lib.rs`, `encapsulate1` copies libcrux's fixed-size first
+ciphertext half, 1408 bytes; the crate test `the_sizes_are_the_specifications_sizes` checks one call), which is not a
+proof; it would be false of a KEM whose `encapsulate1` returned a `ct1` of another length. Without it the step holds at
+every state but `HeaderReceived` (`encrypt_keeps_invariant_unless_sampling`). The composed theorem
+(`encrypt_keeps_invariant_of_contracts`) takes the hypotheses of `public_session_encrypt_of_send_contracts` unchanged;
+two of them, the per-call records `braidTrace` and `providers`, state what the agreement send and the model's Triple do
+at this call: they are intermediate hypotheses of the kind the E2E-01 acceptance criterion names (`GAP-REGISTER.md`), not
+discharged here, and at a `HeaderReceived` session no theorem in the tree supplies `braidTrace` (a seeded encapsulation
+law would be needed and is not assumed). **Where the premises are exhibited.** At `KeysUnsampled`, together on the
+established initiator's first send (`established_encrypt_via_general_reachable`, under the laws of
+`established_encrypt_successor_reachable`, which a toy model holds together); at `HeaderReceived`, on no run (no run in
+the tree reaches that state); at the nine no-draw states as the send paragraph above says. **The budget** is spent as
+before: one unit per call, the sparse epoch stepping by one on a send with an agreement output and the new chains' counters
+bounded through the clock's room. **Not shown:** a successful receive outside the in-order scope of the paragraph above; the
+step at `HeaderReceived` on a run; that the shipping KEM meets `Encaps1SizesOf` or the other KEM records and laws, or that
+`usize::div_ceil` meets `DivCeilValue`; whether the shipping `encapsulate1` can refuse an authenticated 64-byte header
+(not determined; the refusal arm is covered, not shown reachable); the budget at a session `Session::import` returns;
+that `Session::invariant` says a session is reachable.
 
 **The initiator's second message** (`UnitLifecycleInitiatorSecondMessage.lean`). `initiator_sends_second_message`
 joins the second send with the receive step on one run, under exactly the hypotheses of `initiator_second_send_after_reply`
@@ -3475,7 +3508,8 @@ bytes on the run (a tampered reply at `s''`; the general step covers a frame tha
 and changes its ciphertext, but no statement takes one on the run) and any other out-of-order delivery (a later message
 of the same chain arriving first,
 delay or loss, a receive that uses a stored skipped key); the arms an empty source or a refused agreement would give; that a
-refused call keeps `Session::invariant` in general (here the session returned is `s''` itself); every step that runs a KEM.
+refused call keeps `Session::invariant` in general here (the paragraph on `encrypt` at every agreement state shows it; here
+the session returned is `s''` itself); every step that runs a KEM.
 
 **What is not shown.**
 

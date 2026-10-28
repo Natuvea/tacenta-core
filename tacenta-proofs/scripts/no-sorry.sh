@@ -388,6 +388,17 @@ phase_encrypt() {
 python3 scripts/check-encrypt-negatives.py || fail=1
 }
 
+# Session::encrypt keeps Session::invariant and spends one unit of the counter budget at every agreement state,
+# and every refused encrypt, decrypt or decrypt_ratchet keeps both (`UnitLifecycleEncryptPreserve.lean`).
+# A copy with a budget claimed unspent, the relation after the call claimed to the model before it, the size law
+# of encapsulation or the key-pair clone record swapped, a step's scope dropped, a model lemma or an agreement
+# walk restated wrongly, the composed relation's shape changed, and the size law with its pins kept must each be
+# refused at a named declaration or pin, with a message naming the change, after the unmodified copies are
+# accepted.
+phase_encrypt_preservation() {
+python3 scripts/check-encrypt-preservation-negatives.py || fail=1
+}
+
 # `establish_responder` over every input (`UnitLifecycleEstablishResponder.lean`): a copy with a law or a
 # check the intermediate session's invariant rests on removed, the session's established ephemeral
 # dropped, the decoder bounds weakened, the ceilings or the relation asked of a wrong state, a refusal or a
@@ -764,6 +775,7 @@ phases() {
   run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored
   run_phase encrypt plain "established encrypt proof-dependency control" phase_encrypt
+  run_phase encrypt-preservation plain "encrypt-preservation" phase_encrypt_preservation
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
   run_phase responder-frame plain "first-frame responder proof-dependency control" phase_responder_frame
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt

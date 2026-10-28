@@ -1047,6 +1047,7 @@ recorded decision or a target-closing slice:
   `check-established-negatives.py`,
   `check-restored-negatives.py`,
   `check-encrypt-negatives.py`,
+  `check-encrypt-preservation-negatives.py`,
   `check-responder-negatives.py`,
   `check-responder-frame-negatives.py`,
   `check-responder-receipt-negatives.py`,
@@ -1138,6 +1139,11 @@ recorded decision or a target-closing slice:
   lower, the open-length law dropped, and the responder's composition fed a bound one under the nested limit);
   `check-size-witness-negatives.py` keeps the joint padded witness's padding (the open-length law fails without it),
   its model's open, the reach's use of the law and the received maximum at the run;
+  `check-encrypt-preservation-negatives.py` keeps the encrypt step at every agreement state (the budget at both
+  drawing states, the relation after the call, the encapsulation size law, the key-pair clone record, the scope of
+  the step without that law, the composed budget), the refusals' budget, the established run's budget, the model's
+  advance, chain counters, budget and outcomes, the two drawing sends, the fresh encoder's cap, the failed commit's
+  and the folded step's clauses, the composed relation's shape, and the size law's definition;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1259,6 +1265,21 @@ recorded decision or a target-closing slice:
   three in the public `decrypt` join (its target without the dispatch,
   its scope premise deleted,
   its inner step on the first form) and one that drops the `draws` conjunct from the join's recorded statement with its pins kept),
+  `check-encrypt-preservation-negatives.py` (two unmodified copies accepted and twenty changes refused, each at a
+  named declaration or pin:
+  the key-generation step's budget claimed unspent and its relation after the call claimed to the model before it,
+  the sampling step without `Encaps1SizesOf` and its budget claimed unspent,
+  the key-pair clone record swapped for the erasure one where the no-draw step is applied,
+  the scope of the step without the size law dropped,
+  the composed budget claimed unspent, a refusal's budget claimed to grow,
+  the established run's budget claimed one operation past the clock (nine inside composing proofs, each accepted
+  with that proof emptied);
+  `advance` claimed to keep the sparse epoch, the chains a send leaves claimed never stepped, the model's budget
+  claimed kept with no unit to spend, the model's failed commit claimed to clear the pending initial message, key generation's send claimed
+  to have an output, the sampling output claimed for epoch 0, the fresh encoder without its cap, the failed-commit
+  clauses claimed of a live agreement, the folded step claimed from tag 6;
+  the composed theorem's relation claimed to the model before the call (statement-shape, still refused with the
+  projected proof emptied); and `Encaps1SizesOf` with its binders reordered, its pins kept),
   `check-established-negatives.py` (three unmodified copies accepted and thirteen changes refused,
   each at a named declaration or pin:
   the walk's Triple with a clock other than the generated zero,

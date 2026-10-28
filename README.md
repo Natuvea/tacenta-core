@@ -305,8 +305,12 @@ on the plaintext, the responder's next `encrypt`, at the session that receipt re
 frame with no draw, writes only the Triple Ratchet, refines the model's step and leaves a session that passes
 `Session::invariant` and meets the four ceilings (no new law or per-run premise, no compiler-trust axiom; a reach at the
 real constants under the same assumed laws). The initiator's receipt of that second reply and every later step are not
-covered. No `encrypt`
-whose agreement send draws, no refusal and no receive outside that scope is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
+covered. A successful `encrypt` at every agreement state, the two whose send draws included, keeps `Session::invariant`
+and spends one unit of that budget, given the relation after the call or composed with the general encrypt refinement
+(whose two per-call records stay hypotheses), under existing KEM records and one new assumed size law of encapsulation
+(used at the sampling state only; its premises there are exhibited on no run), and every refused `encrypt`, `decrypt`
+and `decrypt_ratchet` keeps the invariant and the whole budget with no law. No successful receive outside that
+in-order scope is covered by a preservation result. The initiator's first frame delivered to the responder a second time, right after the first
 receipt, is refused in the two places it can arrive at that point of the run, with no effect on the session or the store: the responder's `decrypt` at the session its
 first receipt returned recognises the repeat, refuses it as out of order, returns that session unchanged and takes one draw,
 refining the model's step; `establish_responder` at the store the first success committed refuses it as

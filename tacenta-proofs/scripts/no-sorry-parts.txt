@@ -38,6 +38,7 @@ hosted refuted:
   pin-negatives
 hosted braid:
   braid-agreement
+  encrypt-preservation
   atomicity
   repair
   responder-second-send

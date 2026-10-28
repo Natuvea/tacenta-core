@@ -97,8 +97,13 @@ a bound on the plaintext, the responder's next `encrypt` at the session that rec
 reply frame with no draw, writing only the Triple Ratchet, refining the model's step and leaving a session that passes
 `Session::invariant` and meets the four ceilings, with no new law or per-run premise, no compiler-trust axiom and a
 reach at the real constants under the same assumed laws; the initiator's receipt of that second reply and later steps
-not covered; no `encrypt` whose agreement send
-draws, no refusal and no receive outside that scope covered by a preservation result; and the initiator's first frame
+not covered; a successful `encrypt` at every agreement state, the two whose send draws included, keeping
+`Session::invariant` and spending one unit of that budget, given the relation after the call or composed with the general
+encrypt refinement (whose two per-call records stay hypotheses), under existing KEM records and one new assumed size law
+of encapsulation (used at the sampling state only), its premises exhibited on the established initiator's first send and
+at the sampling state on no run; every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeping the invariant and the
+whole budget, with no law; no successful receive outside the in-order scope covered by a preservation result; and the
+initiator's first frame
 delivered a second time on that run, refused by the
 responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw
 taken, refining the model's step) and by `establish_responder` at the store the first success committed

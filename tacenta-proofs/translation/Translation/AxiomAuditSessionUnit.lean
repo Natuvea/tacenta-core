@@ -67,6 +67,7 @@ import Translation.SessionUnitDecodeEc
 import Translation.UnitLifecycleDecryptStates
 import Translation.UnitLifecycleInitialAgreementT3
 import Translation.UnitLifecycleDecryptT3
+import Translation.UnitLifecycleEncryptPreserve
 import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
 import Translation.UnitLifecycleSessionCodec
@@ -261,6 +262,12 @@ the received maximum's hypotheses (`hstep`, `hok` and the open-length law) and e
 `initiator_receives_reply` hold together at one call of a run, at the real constants under the reach's laws and
 `AeadOpenLengthLaw` (assumed), with every such law satisfied in one toy interpretation; consistency only, not that
 the shipping AEAD meets the laws, and only for that route and that received-maximum result.
+`UnitLifecycleEncryptPreserve.lean`: `Session::encrypt` keeps `Session::invariant` and spends at most one unit of
+the counter budget at every agreement state, the two that draw included, given the relation after the call or
+composed with the encrypt refinement, under the existing KEM records and one assumed size law, `Encaps1SizesOf`;
+and every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole budget, with no law.
+Not shown: a successful receive outside the in-order scope, the step at `HeaderReceived` on a run, or that the
+shipping KEM meets the laws.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

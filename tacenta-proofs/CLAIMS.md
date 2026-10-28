@@ -214,9 +214,17 @@ this section says in one place what is not proved.
   refinement; the premises are exhibited together only at `NoHeaderReceived`, on the run above, where it gives
   `Session::invariant` and the four ceilings at the session the responder's reply leaves, under the reply's hypotheses
   and no other, with no compiler-trust axiom. At the other eight states no run exhibits them. `Triple::invariant` holds of a code Triple exactly when the model predicate `ModelTripleInv` holds of
-  the model Triple it refines, kernel only. An `encrypt` whose agreement send draws, a refused `encrypt`, and every receive
-  are not covered by any preservation result ("Proved (tier T3, session lifecycle: `Session::encrypt` keeps
-  `Session::invariant` where the agreement's send takes no draw ...)").
+  the model Triple it refines, kernel only ("Proved (tier T3, session lifecycle: `Session::encrypt` keeps
+  `Session::invariant` where the agreement's send takes no draw ...)"). A successful `encrypt` at every agreement state,
+  the two whose send draws included (key generation, and the first half of encapsulation with the agreement's output and
+  the sparse advance), keeps `Session::invariant` and spends one unit of that budget, given the relation after the call,
+  or composed with the general encrypt refinement under its hypotheses (among them two per-call records, not
+  discharged), under existing KEM records and one new assumed size law, `Encaps1SizesOf`; its premises are exhibited
+  together at `KeysUnsampled` on the established initiator's first send and at `HeaderReceived` on no run. Every refused
+  `encrypt`, `decrypt` and `decrypt_ratchet` keeps `Session::invariant` and the whole budget, with no law ("Proved (tier
+  T3, session lifecycle: `Session::encrypt` keeps `Session::invariant` and the counter budget at every agreement state
+  ...)"). A successful receive outside the in-order scope of the receive-preservation section (an agreement transition or
+  output, a stored key, a skip, an eviction) is not covered by any preservation result.
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
   inhabitation shows only that each primitive returns, that its result depends only on the bytes of its arguments, and
   that it reads the random source in the stated order; it ties nothing to X25519, the AEAD, ML-KEM or XEdDSA. The KEM
@@ -4050,7 +4058,8 @@ Not shown: that a store passes `PrekeyStore::invariant` or that the invariant bo
 a pending initial message or an established ephemeral key passes `Session::invariant`; that any session here is one
 `establish_initiator` or `establish_responder` returns; that a send or a receive keeps the invariant (not here; a send at an
 agreement state whose send takes no draw is in the section "`Session::encrypt` keeps `Session::invariant` where the
-agreement's send takes no draw", and an in-order receive at two agreement states in the section after it).
+agreement's send takes no draw", an in-order receive at two agreement states in the section after it, and a send at every
+agreement state and every refused call in the section after that).
 
 **The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
@@ -6956,7 +6965,8 @@ send, where the session the responder's reply leaves passes `Session::invariant`
 rests on the encrypt refinement, which supplies the relation after the call, and, like the general step, on the kernel
 and opaque constants only. **Not shown:** the general step on a run at any of the other eight states; `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send
 with an agreement output (`advance`, a new chain pair, `clearOldEpochs`): the initiator's first send is not an instance,
-only its Triple leaf is re-derived; any statement about the session a refused `encrypt` returns; `decrypt` or
+only its Triple leaf is re-derived (both are in the section on `encrypt` at every agreement state, below, under one
+further assumed law); any statement about the session a refused `encrypt` returns (also in that section); `decrypt` or
 `decrypt_ratchet` keeping the invariant (no receive is covered here; the next section covers an in-order receive at two
 agreement states); that the ceilings are kept or refused at (false of the code,
 above); the budget at any session other than the model session after the first receipt; that the relation after the call
@@ -7148,7 +7158,7 @@ completing at `NoHeaderReceived`, a `ct1` chunk at `KeysSampled`), or one at any
 holding more than one chunk before the call, and the two-chunk case on a run; on the reply's run, a reply plaintext of the
 last fifteen lengths up to `MAX_PLAINTEXT_LEN` (`hfitR`, taken from `initiator_receives_reply`); any statement about the
 session a refused
-`decrypt` or `decrypt_ratchet` returns; that the relation after the call holds or that the model's step is an in-order
+`decrypt` or `decrypt_ratchet` returns (in the section on `encrypt` at every agreement state, below); that the relation after the call holds or that the model's step is an in-order
 step (hypotheses of the general step, supplied on the two runs by the decrypt refinement and by the model's own step
 there); that the ceilings are kept or refused at (false of the code, the section above); the budget at any session other
 than the initiator's after its first send and the responder's prepared session; the initiator's second send at `s''`
@@ -7225,6 +7235,163 @@ to case; a heartbeat or deterministic timeout never counts as the named refusal,
 logged.
 
 **The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
+## Proved (tier T3, session lifecycle: `Session::encrypt` keeps `Session::invariant` and the counter budget at every agreement state, and every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps both, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleEncryptPreserve.lean`.
+
+The section on send preservation above states the step at the nine agreement states whose send takes no draw. These
+results add the two that draw, key generation at `KeysUnsampled` and the first half of encapsulation at `HeaderReceived`
+(transition (7), whose send carries the agreement's output, so the Triple's sparse ratchet advances), state one step at
+every agreement state, derive the relation after the call from the general encrypt refinement, and show that every
+refused call keeps the invariant and the whole budget.
+
+**How, and its scope.** As in the send-preservation section, the Triple half goes through the model: `Triple::invariant`
+of the code Triple is `ModelTripleInv` of the model Triple it refines, which the model's Triple send now keeps with or
+without an agreement output (an output is an `advance`, which keeps `ModelSpqrInv`: the new epoch is one past the old
+and below `u64::MAX`, the new chain pair is the only entry at that epoch, and `clearOldEpochs` keeps exactly the window).
+The agreement half is a walk of the translated `Braid::send` at the two states that draw. At `KeysUnsampled` the next
+state is `Failed` (key generation refused) or `KeysSampled` at the same epoch, whose key pair passes `key_pair_valid`
+(from the key-generation clause of `KemAgreesFor`, `KeyGenSizesOf` and `ValidateEkAgrees`) and whose header encoder is
+a fresh encoder of the 64-byte header and its 32-byte MAC after one chunk. At `HeaderReceived` the next state is
+`Failed` (`encapsulate1` refused) or `Ct1Sampled` at the same epoch with the header and the `ek_vector` decoder carried,
+a `ct1` of `CT1_LEN` bytes (from the encapsulation clause of `KemAgreesFor` and the size law `Encaps1SizesOf`) and a
+fresh `ct1` encoder after one chunk, and the output is for the state's epoch. When the code's next state relates to the
+model's next session and is of a kind the model state cannot stay at, the model's `encrypt` took its success arm, so its
+Triple send carried the model agreement send's output; at `HeaderReceived` that output is for the agreement's epoch and
+the sparse epoch after the send is that epoch, which is clause (b) at tag 7. A `Failed` next state makes the call a
+refusal. The structural clauses are read off what the walk keeps; the budget is the model's. A refused call returns the
+session (or, for `encrypt`, the session with its agreement committed `Failed`, which is exempt from clauses (b) and (d),
+passes `Braid::invariant` and counts its epoch as zero).
+
+**Laws and premises.** One new law, assumed: `Encaps1SizesOf K`, every `ct1` the model KEM's `encaps1` returns has
+`K.ct1Size` bytes (the twin of `KeyGenSizesOf` for encapsulation), used at `HeaderReceived` only. The rest are existing
+records and laws: `KemCloneAgrees`; `KemAgreesFor K`, its key-generation and encapsulation clauses (their model
+randomness is existential; no seeded encapsulation law is used, since the invariant does not depend on which
+randomness was drawn); `RngTotal`; `Ct1LenTotal`; and `SendInvariantLaws K`, a record of four existing laws
+(`KemLenAgrees`, `KeyGenSizesOf`, `ValidateEkAgrees`, `DivCeilValue`), with a `#print` pin. The relation after the call
+is a hypothesis of the step theorems; `encrypt_keeps_invariant_of_contracts` derives it from
+`public_session_encrypt_of_send_contracts` under exactly that theorem's hypotheses, among which the per-call records
+`braidTrace` (`BraidSendTraceAgreementCounted`) and `providers` (`EncryptNonterminalRouteProviders`) say what the
+agreement send and the model's Triple do at this call: they are intermediate hypotheses of the kind the E2E-01
+acceptance criterion names, not discharged here. No premise names a platform width.
+
+- `encrypt_err_keeps_invariant`, `decrypt_err_keeps_invariant`, `decrypt_ratchet_err_keeps_invariant`: for every session
+  that passes `Session::invariant` and every refused call, the session returned passes `Session::invariant` and has every
+  budget the session given had. No hypothesis about any opaque operation.
+- `encrypt_size_refusal_keeps_invariant`, `decrypt_size_refusal_keeps_invariant`: the size refusals as instances: above
+  `MAX_PLAINTEXT_LEN`, and on a frame `check_frame_size` refuses, the call refuses with the session and the source as
+  given, and the session passes the invariant and keeps the budget. No hypothesis about any opaque operation.
+- `failed_iff`, `failed_invariant`, `structural_failed`, `counterRoom_failed`, `counterRoom_mono`, `strip_ite_else`: a
+  Braid reports failed exactly at `Failed`; a failed Braid passes `Braid::invariant`; committing it keeps the structural
+  clauses and every budget; a budget for more operations is one for fewer; a refusing `if` can be stripped from a `true`
+  result.
+- `advance_ok_parts`, `modelSpqrInv_advance`, `spqr_send_some_split`, `modelSpqrInv_send_any`, `spqr_send_dir_epoch`,
+  `modelTripleInv_send_any`: the sparse model's `advance` unfolded, and it keeps `ModelSpqrInv`; a sparse send with an
+  output is an `advance` and a send without one; the sparse send keeps `ModelSpqrInv` and the direction, and leaves the
+  epoch or moves it to the output's, one past the old; the Triple send keeps `ModelTripleInv` with or without an output.
+  Model only.
+- `sendAgreement_is_send`, `encrypt_model_outcomes`, `braid_send_epoch`, `braid_send_output`,
+  `braid_send_headerReceived_output`, `triple_send_parts`, `spqr_send_counters`, `modelCounterRoom_encrypt_any`: the
+  lifecycle's agreement send is the Braid model's at some randomness; the model's `encrypt` leaves the session, the
+  session with its agreement failed, or a successful Triple send at the agreement send's reported epoch and output with
+  the agreement's next state; the Braid model's send keeps the epoch or fails, and has an output only at
+  `headerReceived`, for its epoch (at `headerReceived`, whenever it does not fail); the Triple send is its two leaf sends;
+  every chain counter after a sparse send is at most 1 or at most one more than a counter before; and the model's
+  `encrypt` spends at most one unit of the budget at every agreement state (a new chain's counter is bounded through the
+  clock's room). Model only.
+- `fresh_encoder_step`, `extend_ok_val`: a fresh encoder of a message of at most `32 * 65536` bytes, after one chunk,
+  passes `Encoder::invariant` and is sized for the message, under `DivCeilValue`; a successful `extend_from_slice`
+  appends.
+- `braid_send_keysUnsampled`, `braid_send_headerReceived`: the translated `Braid::send` at the two states that draw keeps
+  `Braid::invariant` or commits `Failed`, as described above, under the records and laws named there.
+- `braid_eta`, `encrypt_ok_live`, `code_triple_frame`, `code_epoch_val`, `encrypt_model_success_of_moved`,
+  `needsDraw_false_of_kind`, `structural_folded`, `structural_congr_low`: a successful `encrypt` ran the agreement send to
+  a state that has not failed and a Triple send that succeeded; the code Triple's sending key, direction and sparse epoch
+  are read through the relation; the model's success arm is forced by a next state of another kind; a state of a kind
+  that takes no draw relates to a model state that takes none; the structural clauses hold after a step into tags 7 to
+  10 whose epoch is the sparse epoch, and read the same between two states below tag 7 with the same epochs.
+- `encrypt_keeps_invariant_keysUnsampled`, `encrypt_keeps_invariant_headerReceived`: for every session `s` that passes
+  `Session::invariant`, has room for `k + 1` operations and refines a model session `m`, at `KeysUnsampled` (any epoch)
+  or `HeaderReceived` (any epoch), and every successful return `(Ok bytes, s', rng')` of `encrypt` whose session refines
+  the model's `encrypt` step from `m` at any view, oracle and model plaintext: `s'` passes `Session::invariant` and has
+  room for `k`. Under `KemAgreesFor`, `RngTotal`, `SendInvariantLaws` and, at `HeaderReceived`, `Ct1LenTotal` and
+  `Encaps1SizesOf`.
+- `encrypt_keeps_invariant`, `encrypt_keeps_invariant_unless_sampling`: the same at every agreement state (the nine
+  no-draw states through `encrypt_keeps_invariant_no_draw`; at `Failed` no `encrypt` returns `Ok`), under
+  `KemCloneAgrees` and the laws above; and at every state but `HeaderReceived` without `Encaps1SizesOf` and
+  `Ct1LenTotal`.
+- `encrypt_keeps_invariant_of_witness`, `encrypt_keeps_invariant_of_contracts`: given the encrypt refinement's
+  conclusion at the call (`PublicEncryptWitness`), and composed with `public_session_encrypt_of_send_contracts` under
+  exactly its hypotheses (its Braid send records supplying `KemCloneAgrees`, `KemAgreesFor`, `RngTotal` and
+  `Ct1LenTotal`), `SendInvariantLaws`, `Encaps1SizesOf`, the invariant and room for `k + 1`: the call returns, and on
+  every outcome, success or refusal, the session it returns refines the model's `encrypt` step, passes
+  `Session::invariant` and has room for `k`.
+- `counterRoom_established`, `established_encrypt_invariant_via_general`: every `establish_initiator_for` output has room
+  for every `k` with `k + 1 < u32::MAX`; under the hypotheses of `established_encrypt_successor_refines`, the
+  establishment's laws `DhPublicValid` and `OptionEqU64Shape` and `SendInvariantLaws`, the session the first `encrypt`
+  leaves passes `Session::invariant`, has room for every `j` with `j + 2 < u32::MAX` and meets `CounterHeadroom`,
+  derived through the general step with no shape of that session.
+- `established_encrypt_via_general_reachable`: at the real constants, under the laws of
+  `established_encrypt_successor_reachable` (which a toy model holds together), at every 64-byte source where the model's
+  key generation answers, every hypothesis of `established_encrypt_invariant_via_general` holds at one establishment and
+  first `encrypt`, which returns `Ok`, and the session it leaves passes `Session::invariant` with that budget.
+- `encaps1Sizes_toyKemR`: `Encaps1SizesOf` holds at the toy KEM `toyKemR`: consistency of the statement only.
+
+**Non-vacuity.** The refusal results assume nothing about any opaque operation; that a refusal is reached is shown only
+for the terminal refusal at every failed session (the section on refused calls) and for the size refusals (the
+size-rule section). The step at `KeysUnsampled` has every premise exhibited together on the established initiator's first
+send (`established_encrypt_via_general_reachable`). The step at `HeaderReceived` is not exhibited on any run: no run in
+the tree reaches that state, and `Encaps1SizesOf` has a toy model only. The nine no-draw states are as the
+send-preservation section says (exhibited at `NoHeaderReceived` only). `encrypt_keeps_invariant_of_contracts` adds no
+reach.
+
+**What this establishes, and what it does not.** Every successful `encrypt`, at every agreement state and every epoch,
+keeps `Session::invariant` and spends at most one unit of the budget, given the relation after the call (or under the
+encrypt refinement's hypotheses, which supply it) and the records and laws above; every refused `encrypt`, `decrypt`
+and `decrypt_ratchet` keeps the invariant and the whole budget with no law. **Not shown:** a successful `decrypt` or
+`decrypt_ratchet` outside the in-order scope of the receive-preservation section (an agreement transition or output on a
+receive, a stored key, a skip, an eviction); the step at `HeaderReceived` on a run, or with its relation after the call
+derived there (no theorem supplies the per-call record `braidTrace` at that state; a seeded encapsulation law would be
+needed, and none is assumed here); that the shipping KEM meets `Encaps1SizesOf` or the other KEM records and laws (by
+reading, the wrapper returns libcrux's fixed-size 1408-byte first ciphertext half, and the crate test
+`the_sizes_are_the_specifications_sizes` checks one call; that is not a proof), or that `usize::div_ceil` meets
+`DivCeilValue`; whether the shipping `encapsulate1` can refuse an authenticated 64-byte header (not determined: the arm
+is covered, not shown reachable); that the ceilings are kept (false of the code); the budget at a session
+`Session::import` returns (the invariant does not give it); restored sessions beyond the restored-session section's scope;
+a second party or a conversation; that `Session::invariant` says a session is reachable (it is a predicate on fields).
+
+**Compiler trust and pins.** No result here lists a compiler-trust axiom; there is no compiler-trusted result to set
+apart. Of the other 47 results, 17 rest on `propext`, `Classical.choice` and `Quot.sound` alone, or a subset of them (`strip_ite_else`, `advance_ok_parts`, `modelSpqrInv_advance`,
+`spqr_send_some_split`, `modelSpqrInv_send_any`, `spqr_send_dir_epoch`, `modelTripleInv_send_any`,
+`sendAgreement_is_send`, `encrypt_model_outcomes`, `braid_send_epoch`, `braid_send_output`, `triple_send_parts`,
+`spqr_send_counters`, `modelCounterRoom_encrypt_any`, `braid_send_headerReceived_output`, `extend_ok_val`,
+`encaps1Sizes_toyKemR`), and 30 on those and between 1 and 56 opaque constants of the unit. Each of the 47 results
+carries an axiom pin and a statement pin, and each of the 3 definitions (`InChain`, `Encaps1SizesOf`, `SendInvariantLaws`)
+a `#print` pin. As for every statement pin, the pin is not the whole elaborated statement, and that the pinned statement is the
+right one is decided by reading. `check-encrypt-preservation-negatives.py` plants 20 faults in copies of the module,
+every one a change to a statement or a definition, and requires Lean to refuse each at a named declaration or pin,
+against a message naming the change (a proof-breakage check at that place, not a proof that the changed statement is
+false). What it establishes is that each control is refused at its named place, and that each control it labels inside
+a composing proof is also accepted there when that proof is replaced by `sorry` (attribution to that proof, nothing
+more). Inside the composing proofs (nine): the key-generation step's budget claimed unspent and its relation after the
+call claimed to the model session before it (`encrypt_keeps_invariant_keysUnsampled`); the sampling step without
+`Encaps1SizesOf` and its budget claimed unspent (`encrypt_keeps_invariant_headerReceived`); the key-pair clone record
+swapped for the erasure one (`encrypt_keeps_invariant`, where the no-draw step is applied); the scope of
+`encrypt_keeps_invariant_unless_sampling` dropped (there; a structural refusal); the composed budget claimed unspent
+(`encrypt_keeps_invariant_of_witness`); a refusal's budget claimed to grow (`encrypt_err_keeps_invariant`); and the
+established run's budget claimed one operation past the clock (`established_encrypt_invariant_via_general`). On the leaf
+lemmas (nine): `advance` claimed to keep the sparse epoch, the chains a send leaves claimed never stepped, the model's
+budget claimed kept with no unit to spend, the model's failed commit claimed to clear the pending initial
+message, key generation's send claimed
+to have an output, the sampling output claimed for epoch 0, the fresh encoder without its codeword cap, the
+failed-commit clauses claimed of an agreement that has not failed, and the folded step claimed from tag 6. Labelled
+statement-shape: the composed theorem's relation claimed to the model session before the call, refused in
+`encrypt_keeps_invariant_of_contracts` and again with the proof of `encrypt_keeps_invariant_of_witness` replaced by
+`sorry`. The last is `Encaps1SizesOf` with its binders reordered and its pins kept (refused at its pin). No projection is
+labelled. The script's labels and per-class counts are its own labelling and guidance, not a claim. An error that is
+not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout
+never counts as the named refusal, and one elsewhere in the copy is logged.
 
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt` at the session its receipt of the reply returns, with `Session::invariant` and the four ceilings derived there and kept through the send, on the eight-leaf unit)
 
@@ -7999,7 +8166,7 @@ skipped key); the arms an empty source or a refused agreement would give (`ceili
 nonContributoryAgreement`); the responder's second reply, the initiator's second send, the header's later chunks and
 every step that runs a KEM (here the agreement is at `KeysSampled`, the reply carries a message of type `none`, and the
 call clones the agreement, which the decrypt records cover through `KemCloneAgrees`; no fact relating the two parties'
-KEMs is used); that `Session::invariant` is kept by refused calls in general (here the session returned is `s''`
+KEMs is used); that `Session::invariant` is kept by refused calls in general here (the section on `encrypt` at every agreement state shows it; here the session returned is `s''`
 itself); that `hfreshB` or the second draw holds of a run with an honest random source, or of a source with no state of
 its own, such as `OsRng`; that the real primitives meet the boundary records or the laws the run rests on; the one-time
 path in a run; the model's own `establishResponder` equality; a reply plaintext of the last fifteen lengths up to

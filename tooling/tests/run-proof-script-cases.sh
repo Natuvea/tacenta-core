@@ -95,6 +95,7 @@ py_controls=(
   check-established-negatives.py
   check-restored-negatives.py
   check-encrypt-negatives.py
+  check-encrypt-preservation-negatives.py
   check-responder-negatives.py
   check-responder-frame-negatives.py
   check-responder-receipt-negatives.py
@@ -205,6 +206,7 @@ for called in \
   check-established-negatives.py \
   check-restored-negatives.py \
   check-encrypt-negatives.py \
+  check-encrypt-preservation-negatives.py \
   check-responder-negatives.py \
   check-responder-frame-negatives.py \
   check-responder-receipt-negatives.py \
