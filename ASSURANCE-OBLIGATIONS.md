@@ -860,7 +860,7 @@ recorded decision or a target-closing slice:
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a definition in the generated `TacentaLifecycle.lean`;
+  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a declaration (`def`, `opaque` or `axiom`) in the generated `TacentaLifecycle.lean`;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the Session Braid port scripts refuse a source whose anchor moved.
@@ -930,7 +930,7 @@ recorded decision or a target-closing slice:
   `check-braid-agreement-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a definition in the generated `TacentaLifecycle.lean`;
+  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a declaration (`def`, `opaque` or `axiom`) in the generated `TacentaLifecycle.lean`;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the Session Braid port scripts refuse a source whose anchor moved;
@@ -1044,7 +1044,7 @@ recorded decision or a target-closing slice:
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
   **Protected property:**
-  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a definition in the generated `TacentaLifecycle.lean`;
+  The coverage gate fails unless the public operations it reads from `tacenta-core/lifecycle/src/lifecycle.rs` (the public methods of `Identity`, `PrekeyStore` and `Session`, and the top-level `establish_*` functions) number exactly 30 and each has a declaration (`def`, `opaque` or `axiom`) in the generated `TacentaLifecycle.lean`;
   the Session contract coverage depends on each named witness;
   the initial dispatcher keeps its matching-key guards;
   the frame proofs of the four lifecycle bodies keep refusing a write on a refusal path;

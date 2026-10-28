@@ -73,7 +73,7 @@ this section says in one place what is not proved.
   `tacenta-core/tests/rng_fill_counts.rs`, exercises the seven totality assumptions and the two random-source laws on
   sampled inputs; the two view assumptions are conditions on the caller's views, read from the source only), and only at a byte-stream random source ("Proved (the clauses of `OracleOf` decided jointly ...)"). The four clauses the `decrypt_ratchet` refinements take (`DecryptOracleOf`) follow from four of those laws
   (`DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and the DH view assumption), without the KEM and signing laws, at the
-  same source ("Proved (`DecryptOracleOf` from four laws ...)"). The whole hypothesis set of
+  same source ("Proved (`DecryptOracleOf` from four laws ...)"). Two of the seven, `AeadSealBounded` and `AeadOpenTotal`, are not only assumed: by reading they are false of the shipping AEAD at long lengths (the open only in a 64-bit build with overflow checks, and there only formally, at sizes no real address space supplies, so a result that takes only the open is affected only there), so a result that takes them, `OracleOf` or `DecryptOracleOf` is conditional on a proposition that does not hold and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row). The whole hypothesis set of
   `decrypt_ratchet_refines_complete`, with `Session::invariant`, holds together at one witness built for it, under named
   laws that one interpretation satisfies, with the Braid agreements at the same oracle's KEM model ("Proved (the
   hypotheses of the `decrypt_ratchet` refinement together ...)"); the witness does not carry an agreement chunk, its
@@ -137,15 +137,15 @@ this section says in one place what is not proved.
   recorded, or a non-empty record whose count for the key has reached `MAX_LAST_RESORT_SEEN`, and only when the bundle names the last-resort key, with the store and the random source as
   given; otherwise it reaches the inner receive at a session whose shared secret is the initiator's, where the invariant,
   the ceilings and the relation hold. That is under one new assumed law, that X25519 agreement is symmetric
-  (`DhAgreeSymmetric`), a premise about the run, that the store's KEM key decapsulates the initiator's ciphertext to the
-  initiator's secret (`FirstKemAgrees`; ML-KEM decapsulation can fail with small probability, so it is not a law), and the
+  (`DhAgreeSymmetric`), a hypothesis that the store's KEM key decapsulates the initiator's ciphertext to the
+  initiator's secret (`FirstKemAgrees`, the real decapsulation's result, which ML-KEM can fail to give with small probability; in any form it cannot remain in a final theorem for `E2E-01`, which must cover both decapsulation outcomes), and the
   establishment's, restore and decrypt laws named there; the composed statement lists no compiler-trust axiom. The laws hold together in one interpretation, and at the real constants, under those laws and one more assumed
   shape (`FirstFrameSuccessShape`), one run from `publish` to the inner receive exists ("Proved (tier T3, session lifecycle:
   `establish_responder` on the frame the initiator's first `encrypt` emits ...)").
   Past the store's refusals, on those bytes, the call then returns exactly one of `Handshake(NonContributoryAgreement)` (the
   responder oracle refuses the agreement of its draw with the initiator's ratchet key), `Aead` (it refuses to open the
   initiator oracle's seal), each with the store as given and one draw taken, or what that open returns; under two more
-  assumed laws of the opaque boundary, that the AEAD opens what it sealed (`AeadRoundTrip`) and that an agreement with a key
+  assumed laws of the opaque boundary, that the AEAD opens what it sealed (`AeadRoundTrip`, false of the shipping AEAD by reading on a 64-bit target built with overflow checks for associated data of `2^61` bytes, a size no real 64-bit address space supplies; `LIMITATIONS.md`) and that an agreement with a key
   `public_key` returned is not refused (`DhAgreeContributory`), with the encrypt branch's size law of the model KEM
   (`KeyGenSizesOf`), the store bound of `establish_responder_no_panic` and per-run premises that the responder's source's
   trace is its oracle's and holds a draw, it succeeds: it returns the plaintext the initiator encrypted, takes exactly one
@@ -197,8 +197,7 @@ this section says in one place what is not proved.
   stated), the initiator's `decrypt` at the session its first `encrypt` left, from the source that `encrypt` left,
   refuses with `Aead`, leaves the session as it was and takes one draw. This holds for every frame that keeps the
   reply's 102-byte header and replaces its ciphertext, with no compiler-trust axiom, and conditional, like every
-  encrypt result here, on the seal's totality contract `AeadSealBounded`, which is false at the top of the length
-  range, and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks. A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
+  result here that takes the encrypt contract records or `OracleOf`, on the seal's totality contract `AeadSealBounded` (and on the seal clause of `OracleOf`, the only seal premise of the results that take that record alone), which is stated for every length and false of the shipping seal by reading, from a plaintext of `2^30 - 16` bytes on a 32-bit target (a size reachable in principle) and `2^62 - 16` on 64-bit (formally only, at a size no real address space supplies; `LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (formally only, at sizes no real address space supplies). Both contracts are stated for every length and are false of the shipping AEAD by reading, so, as stated, this result says nothing about the shipping code at any length (the totality row). A frame whose header bytes were changed is not covered ("Proved (tier T3, session lifecycle: the initiator's
   `decrypt` refuses a reply whose ciphertext was replaced ...)").
   The reply delivered to the initiator a second time, at the session its first receipt of the reply returned (right after a
   receipt that succeeded), under the receipt's hypotheses and a per-run premise that the second source holds a draw, is
@@ -540,7 +539,9 @@ this section says in one place what is not proved.
   No result in this file assumes the wrapper's checks: the results that start
   from a session `establish_initiator_for` returned are stated for every bundle
   and every expected key, and no hypothesis of theirs mentions identity records
-  (ADR-0009) or an `Expectation`; the reach witnesses fix the expected key to
+  (ADR-0009) or an `Expectation`; the reach witnesses, and the existence
+  theorems `establish_initiator_for_succeeds`, `established_initiator_inhabited`
+  and `restored_established_inhabited`, fix the expected key to
   the bundle's own. So none of them states REQ-AUTH-02 at the code. About the
   crate, that a session the wrapper returns has a peer key the expectation
   accepted, and that a refusal by the wrapper's expectation check draws
@@ -3252,12 +3253,14 @@ of `Decoder::new` is not a theorem.
   four receive-headroom fields. The fourth, a bound on the associated data
   length, follows from `Session::invariant` too: clause (c) fixes the associated data at the
   66 bytes that `identity_ad_length` proves (`invariant_gives_ad_length`, `decryptHeadroom_of_invariant`, in the section
-  "Proved (the lifecycle headroom records are satisfiable, and what `Session::invariant` gives)").
+  "Proved (the lifecycle headroom records are satisfiable, and what `Session::invariant` gives)"). They also take the contract records `EncryptContracts` and `DecryptRatchetContracts`, whose AEAD fields `AeadSealBounded` and `AeadOpenTotal` are false of the shipping AEAD by reading at long lengths (the open only in a 64-bit build with overflow checks, and there only formally, at sizes no real address space supplies, so the two decrypt theorems are affected only there), so, as stated, these three say nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 - `establish_initiator_for_no_panic`, `establish_responder_no_panic`:
   (`establish_responder_no_panic` took a record with a false field until the repair, see above) the two establishment
   entry points of the lifecycle leaf return, the responder's with room in its
   last-resort record. Neither covers `tacenta_core::sessions::establish_initiator`, the wrapper outside the translated
   crates through which the initiator is now established ("Read this first", the bullet on identity records).
+  `establish_responder_no_panic` takes `EstablishResponderContracts`, which holds the same open field, with the same
+  consequence; `establish_initiator_for_no_panic` takes no AEAD contract.
 - `invariant_gives_preconditions`: given `Ct1LenTotal` (the translated `CT1_LEN`
   returns a value of at most 4096), a session for which `Session::invariant`
   returns `true` has the preconditions the inner Triple and Braid theorems carry.
@@ -3545,6 +3548,8 @@ keeps its axiom list is not refused. What the pins do not hold is the classifica
 translated functions: the audit text in `tacenta-proofs/scripts/check-session-satisfiability-negatives.sh`
 checks it against the elaborated environment, and it runs there and not in `lake build`, because `check-lean-constructs.sh` refuses elaboration-time code in the translation
 package.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (the translated erasure coder of the Session unit refines the model: `ErasureAgrees`)
 
@@ -4046,6 +4051,8 @@ a pending initial message or an established ephemeral key passes `Session::invar
 agreement state whose send takes no draw is in the section "`Session::encrypt` keeps `Session::invariant` where the
 agreement's send takes no draw", and an in-order receive at two agreement states in the section after it).
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (what a refused lifecycle call leaves behind, on the translated code)
 
 Location: `Translation/UnitLifecycleAtomicity.lean`.
@@ -4196,7 +4203,7 @@ view meets the scoped fields for every inner message is the consumer-structure i
 The seven results of the previous section and the T1 results do not depend on any of this. `candidate_public_eq_draw` is the
 lemma that replaces the two dropped draw-quantified fields: the public bytes of the run's candidate ratchet key are
 `oracle.dhPublic` of the run's draw, from the oracle's `random32` and `dhPublic` clauses and the key codec. It is not pinned or
-claimed; it takes `OracleOf` and `DhCodecOf`, which are hypotheses and not shown to hold of the shipped primitives.
+claimed; it takes `OracleOf` and `DhCodecOf`, which are hypotheses and not shown to hold of the shipped primitives (and `OracleOf`'s AEAD clauses are false of them by reading, `LIMITATIONS.md`, the totality row).
 
 Each of the two claimed results carries an axiom pin and its statement pinned under `#guard_msgs in #check`, so a weaker
 statement that keeps its axiom list fails the module while that pin stands. `attest.py` lists them in `REQUIRED_PINS` and
@@ -4475,6 +4482,8 @@ conclusion (refused in `decrypt_ratchet_refines_unless_open`) and one that asks 
 in `evict_run_satisfiable`); an eleventh makes the disjunct broader with the pins kept and requires the pin of
 `TripleRefusalOpen` itself to refuse it.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: every Triple receive refusal, and `decrypt_ratchet` on every path, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleTripleRefusalT3.lean`, `Translation/UnitLifecycleDecryptRatchetCompleteT3.lean`,
@@ -4585,6 +4594,8 @@ named as another, the derivation refusal no longer located, the sparse epoch bou
 fixed), of the closure (the bridge without the public mapping, and the complete statement with the open disjunct put back,
 with its pins kept) and of the screen (the model's refusal there named as another), and requires Lean to refuse each at a
 named declaration, or the pin of `DecryptRatchetRefinesCompleteStatement` for the one kept with its pins.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: the sparse skip's refusal kind in both directions, on the eight-leaf unit)
 
@@ -4748,6 +4759,8 @@ counted in `negatives-control-counts.json`. The copied `Kdf*` proofs are not hel
 script; a change to one round constant of the copied Rust, re-translated, was refused in `KdfT3Compress.wordsOf_K` when
 this was written (a one-off run, not a gate).
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (the KDF hypotheses of the leaf translations and the three-leaf unit, of their own translated KDF)
 
 Location: `Translation/KdfLeafAgreements.lean`, `Translation/KdfTripleUnitAgreements.lean`.
@@ -4881,6 +4894,8 @@ from the Triple derivation, the parked clock moved one below the park, and the B
 without the pins, refused in `decryptRatchetRun_of_invariant`, and once with them, refused at the pin of `CounterHeadroom`) and
 requires Lean to refuse each at a named declaration or at that pin.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: the invariant, the counter ceilings and the model relation at every successful `establish_initiator_for` output, and the receive at that session, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleEstablishInitiatorShape.lean`, `Translation/UnitLifecycleEstablishedDecrypt.lean`.
@@ -5012,6 +5027,8 @@ with the clock parked at `u32::MAX - 1` and with the Braid epoch at `u64::MAX - 
 the model session with the Braid epoch one higher and with empty associated data (each refused in `sessionRefines_parts`);
 `InitiatorSuccessShape` without the key's self-equality (refused in `establish_initiator_for_succeeds`); and the joint model
 with `Interp.modelDecrypt`'s public key (refused in `established_decrypt_laws_model`).
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: `establish_responder` over every input, its outcomes and effects, and its inner receive, on the eight-leaf unit)
 
@@ -5189,6 +5206,8 @@ controls: they replace a step of a proof and leave the statement unchanged, so t
 statement needs it; the other fifteen change a statement or a definition. An error that is not a refusal (an unresolved name, a
 syntax error) voids a run anywhere in the copy, compared without regard to case.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3 witnesses, session lifecycle: invariant-passing session states that are not fresh, and the restated `decrypt_ratchet` hypotheses at stored keys, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleDecryptStates.lean`.
@@ -5298,6 +5317,8 @@ sparse epoch off the Braid's relation (clause (b) alone), the Braid at an even e
 (clause (d) alone), the responder on the initiator's sparse direction, the pending ciphertext one byte longer than
 `kem::ciphertext_len`, the ephemeral's curve byte wrong) and requires Lean to refuse each at a named declaration. At the
 parked clock the invariant proofs still pass and `storedSession_counterHeadroom` is refused.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: what an accepted `Session::import` gives, the restored session's relation and receive, and the round trip of an established initiator session, on the eight-leaf unit)
 
@@ -5476,6 +5497,8 @@ interpretation whose public-key reader drops the key (refused in `restored_laws_
 without its bound, with the pins kept (refused at its `#print` pin); and the joint model of the composed premise list with
 its round-trip half at `Interp.model`, two interpretations, with the pins kept (it compiles, and is refused at the statement
 pin of `restored_decrypt_laws_model`).
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: the public `encrypt` at every successful `establish_initiator_for` output, its two outcomes and the session a successful send leaves, on the eight-leaf unit)
 
@@ -5662,6 +5685,8 @@ with key generation that reads its 64 bytes but returns the source it was given 
 refusing arm, with the pins kept (refused at its `#print` pin). Two unmodified copies, without and with the pins, are
 accepted first.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: `establish_responder` on the frame the initiator's first `encrypt` emits, at a store whose `publish` returned the bundle, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleResponderFirstFrame.lean`.
@@ -5700,8 +5725,8 @@ ratchet frame for some message key and chunk, and `establish_responder` on them 
 the parts' frame.
 
 **The law and the premises.** `DhAgreeSymmetric` (new, assumed; `LIMITATIONS.md`): for private keys `a`, `b` with public keys
-`pa`, `pb`, `agree a pb = agree b pa`. `FirstKemAgrees` is a premise about the run, not a law: ML-KEM decapsulation of an
-honest ciphertext fails with small probability, and the wrapper's implicit rejection then returns another secret.
+`pa`, `pb`, `agree a pb = agree b pa`. `FirstKemAgrees` states the real decapsulation's result for this run's ciphertext; it is
+not stated for every run, since ML-KEM decapsulation of an honest ciphertext fails with small probability and the wrapper's implicit rejection then returns another secret. In any form it cannot remain in a final theorem for `E2E-01`, which must cover both decapsulation outcomes (`GAP-REGISTER.md`).
 `PrekeyIdsDistinct` is a named hypothesis about the store; it is what `PrekeyStore::invariant`'s identifier loop checks, but
 that the invariant gives it is not checked (the loop reads the pools through `IntoIterator for &Vec`, which the translation
 leaves opaque and no law describes). Reused: `DhPublicValid`, `DhPublicBytesRoundTrip` (the restore branch's law),
@@ -5766,7 +5791,7 @@ second arm `OptionEqU64Shape` and `DecryptRatchetAgreements`; the composed state
 
 **What this establishes, and what it does not.** On the actual bytes the initiator's actual first `encrypt` returns, at a
 store that published the bundle used, every refusal of the responder's prepare phase other than the three the store decides
-is excluded, and the responder's shared secret is the initiator's, under the law, the run premise and the store hypothesis
+is excluded, and the responder's shared secret is the initiator's, under the law, the decapsulation hypothesis and the store hypothesis
 named above. **Not shown here:** that the inner `decrypt_ratchet` succeeds on the first frame or which plaintext it returns
 (the next section shows it, under two further laws: the first message key agreeing on both sides in the model, by
 computation, and the AEAD round trip as a law); the responder's successor, its invariant and the draws on success (the next
@@ -5800,6 +5825,8 @@ with a legacy marker (refused in `first_send_responder_reachable`); the composed
 and the responder fed the plaintext instead of the bytes the first send returned (refused in
 `first_send_responder_prepares`); and the agreement law weakened with its pins kept (refused at the pin of
 `DhAgreeSymmetricShape`). An error that is not a refusal voids a run anywhere in the copy, compared without regard to case.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: `establish_responder` accepts the initiator's first frame and returns its plaintext, on the eight-leaf unit)
 
@@ -5850,7 +5877,7 @@ generation at its two draws), of which the proof shows the received codeword is 
 session compared against, not the bytes, the store, the draws or the call's result.
 
 **The laws and premises.** Two new laws of the opaque boundary, assumed (`LIMITATIONS.md`): `AeadRoundTrip` (the AEAD opens
-what it sealed, for a plaintext of at most `Usize.max - 48` bytes) and `DhAgreeContributory` (an agreement of any private
+what it sealed, for a plaintext of at most `Usize.max - 48` bytes; false of the shipping AEAD by reading on a 64-bit target built with overflow checks, for associated data of `2^61` bytes, formally only, at a size no real address space supplies, `LIMITATIONS.md`) and `DhAgreeContributory` (an agreement of any private
 key with a public key `public_key` returned is not refused). Per run: the responder's trace is its oracle's and holds a
 draw; the store bound of `establish_responder_no_panic`. A source with no state of its own, such as `OsRng`, is outside the
 statements about draws. `KeyGenSizesOf` of the initiator's oracle's KEM (the encrypt
@@ -5954,6 +5981,8 @@ the chain's own key step (the initiator's message key rewritten to the first key
 premise): planted there, a key change exhausts Lean's heartbeats, which does not count as a refusal. None of these is a
 proof that the responder refuses such inputs. An error that is not a refusal voids a run anywhere in the copy, compared
 without regard to case.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: `Session::invariant` and the four counter ceilings at the session `establish_responder` returns on the initiator's first frame, on the eight-leaf unit)
 
@@ -6074,6 +6103,8 @@ only that the corollaries and the reach project the headline's statement. Severa
 mismatch at the named place), not an unprovable goal. None is a proof that another session fails the invariant. An error
 that is not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic
 timeout never counts as the named refusal, and one elsewhere in the copy is logged.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: the responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame, on the eight-leaf unit)
 
@@ -6212,6 +6243,8 @@ are structural (a type mismatch at the named place), not an unprovable goal. Non
 the reply or that `encrypt` refuses anything. An error that is not a refusal voids a run anywhere in the copy, compared
 without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the
 copy is logged.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: the initiator's `decrypt` of the responder's reply, at the session its first `encrypt` left, on the eight-leaf unit)
 
@@ -6416,6 +6449,8 @@ None is a proof that `decrypt` refuses other inputs or that a second message is 
 voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as
 the named refusal, and one elsewhere in the copy is logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt`, at the session its receipt of the reply returns, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleInitiatorSecondSend.lean`.
@@ -6566,6 +6601,8 @@ frame, or that `encrypt` refuses anything. An error that is not a refusal voids 
 without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the
 copy is logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: the initiator's `decrypt` refuses a reply whose ciphertext was replaced, under an assumed AEAD law, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleTamperedReply.lean`.
@@ -6575,9 +6612,9 @@ the responder's receipt of it and the responder's reply, the initiator's public 
 first `encrypt` left, from the source `rng'` that `encrypt` left, accepts the reply's bytes `bytesR`. These results take, on
 the same run, every frame that keeps the reply's first 102 bytes (its header) and carries in place of the reply's ciphertext
 bytes `cT` that carry no HMAC-SHA256 tag under the reply's MAC key and associated data, and show that the same call, at the
-same `s'` from the same `rng'`, refuses it. Like every encrypt result here, the result is conditional on the seal's totality
+same `s'` from the same `rng'`, refuses it. Like every result here that takes the encrypt contract records or `OracleOf`, the result is conditional on the seal's totality
 contracts (`AeadSealBounded` and the seal clause of the oracle record `OracleOf`), which have no length premise and are false
-of the shipping seal at the top of the length range (`LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks.
+of the shipping seal by reading, from a plaintext of `2^30 - 16` bytes on a 32-bit target (a size reachable in principle) and `2^62 - 16` on 64-bit (formally only, at a size no real address space supplies; `LIMITATIONS.md`, the totality row), and on the open clause of the oracle record `OracleOf` (it asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`), which the refusal uses at the tampered ciphertext's length; `AeadOpenTotal` is false, by reading, from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (formally only, at sizes no real address space supplies). Because these contracts are stated for every length and are false of the shipping AEAD by reading, the result, as stated, says nothing about the shipping code at any length (the same row).
 
 **How, and its scope.** The bridge `open_none_of_not_tagged` turns the new law into a fact about the oracle the decrypt
 refinement reads: under `AeadOpenChecksTag` and the decrypt oracle record's open clause, the oracle's open of bytes that
@@ -6600,7 +6637,7 @@ of `tacenta-core/boundary/src/aead.rs`, and is not proved:
 
 - the open refuses fewer than 32 bytes;
 - it compares the full 32-byte tag with RustCrypto `Mac::verify_slice` before it decrypts;
-- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, while the hashed input (the 64-byte inner-pad block, the associated data and the ciphertext) is below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
+- `hmac` 0.12.1 over `sha2` 0.10.9 computes RFC 2104 HMAC-SHA256, which `Model.Kdf.hmac` defines, while the hashed input (the 64-byte inner-pad block, the associated data and the bytes of `c` before the tag) is below `2^61` bytes, where FIPS 180-4 defines SHA-256 (past it, by reading and on a 64-bit target only formally, the open panics under overflow checks or wraps the bit length exactly as `Model.Sha256.pad` does; see `LIMITATIONS.md`) (checked against RFC 4231
   examples by `native_decide` in `tacenta-model`, not in any proof's base).
 
 It would be false of a truncated or short-circuit comparison, of a tag over other bytes than `ad` and the ciphertext, or of
@@ -6618,8 +6655,8 @@ step, the key derivations), and the refusal is `Aead`, leaves the session as it 
 are those of `initiator_receives_reply`, unchanged, `hfreshB`, `AeadSealBounded` and the oracle record `OracleOf` (whose open clause asks the boundary's `decrypt` to return on every input, and so implies `AeadOpenTotal`, used here at the tampered ciphertext's length) included.
 
 It replaces an earlier law, `AeadOpenSealUnique` (an opened ciphertext reseals to itself). That law was false of the
-shipping functions at the top of the length range and under memory exhaustion, because the seal copies `ad ‖ ct` into one
-allocation and the open does not. `AeadOpenSealUniqueShape` is kept only to state that difference
+shipping functions wherever the reseal cannot return: from a padded ciphertext of half of `isize::MAX` (the seal's tag append; by reading, in principle on a 32-bit target and formally only on 64-bit),
+past `isize::MAX` (the seal's copy of `ad ‖ ct` into one allocation, which the open does not make) and under memory exhaustion. `AeadOpenSealUniqueShape` is kept only to state that difference
 (`taggedTop_checksTag_not_openSealUnique`).
 
 - `aeadOpenChecksTag_is`: at the real constants, the law is the statement about the real `decrypt`.
@@ -6671,8 +6708,8 @@ bytes, for which the refusal needs no cryptographic premise. The premise also ex
 tag (`tagMatches_append`), and the reply's own ciphertext (a conjunct of the headline).
 
 `taggedLenient_roundTrip_not_checksTag` shows the law is not implied by the round trip.
-`taggedTop_checksTag_not_openSealUnique` shows it survives a seal that fails at the top of the length range, as the shipping
-one does (the toy's threshold only approximates the shipping edge), where the earlier law does not, and `modelTagged_openSealUnique` shows the failing seal is what refutes it; the toy models the capacity edge only, and the law depends on neither that edge nor
+`taggedTop_checksTag_not_openSealUnique` shows it survives a seal that fails at long lengths, as the shipping
+one does (the toy fails past `isize::MAX`; the shipping seal fails, by reading, from about half of that, in principle on a 32-bit target and formally only on 64-bit), where the earlier law does not, and `modelTagged_openSealUnique` shows the failing seal is what refutes it; the toy models the capacity edge only, and the law depends on neither that edge nor
 memory. None of these toy results assumes a width: each is stated for the symbolic `Usize.max`, and the two contrasts use
 only `2 ^ 32 - 1 ≤ Usize.max`, so they hold at both widths. The run's other
 premises are reached at the real constants under the laws by `first_send_reply_receipt_reachable`.
@@ -6685,8 +6722,8 @@ frame with the reply's header whose ciphertext carries no HMAC-SHA256 tag under 
 implementation proves the same shape, a bad tag refused, of its own code and not of the shipping one); that a frame an
 attacker can produce meets `NotTagged` (the unforgeability of HMAC-SHA256, not stated); a frame whose tag verifies but whose
 padding is refused (refused by the shipping open, by reading, but outside the premise); that the responder's `encrypt`
-returns `bytesR` for reply plaintexts near `isize::MAX`, which the shipping seal does not (`AeadSealBounded` is assumed for
-every length; see `LIMITATIONS.md`, the totality row); that the initiator's `decrypt` returns at all on a tampered frame from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks, where the shipping open panics (`AeadOpenTotal` is assumed for every length; see `LIMITATIONS.md`, the totality row); a frame whose header bytes were changed (ratchet key, counters,
+returns `bytesR` for reply plaintexts from about half of `isize::MAX` (by reading; in principle on a 32-bit target, formally only on 64-bit), which the shipping seal does not (`AeadSealBounded` is assumed for
+every length; see `LIMITATIONS.md`, the totality row); that the initiator's `decrypt` returns at all on a tampered frame from about `2^61` bytes of associated data and ciphertext on a 64-bit target built with overflow checks (formally only, at sizes no real address space supplies), where the shipping open panics (the open clause of `OracleOf`, which implies `AeadOpenTotal`, is assumed for every length; see `LIMITATIONS.md`, the totality row); a frame whose header bytes were changed (ratchet key, counters,
 epochs, agreement type or chunk), a frame shorter than the header, or a frame of another type (those reach other associated
 data, another Diffie-Hellman step or a decode refusal, and are not covered); the tampered frame's refusal when the reply's
 ratchet key is the peer key the initiator holds, or when the initiator's draw's agreement is refused (`hfreshB` and the
@@ -6925,6 +6962,8 @@ receive keeps it, or anything about a refused call. An error that is not a refus
 compared without regard to case; a heartbeat or deterministic timeout never counts as the named refusal, and one
 elsewhere in the copy is logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: `Session::decrypt` keeps `Session::invariant` on an in-order receive at `NoHeaderReceived` or `KeysSampled`, and at the two receipts, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleReceivePreserve.lean`.
@@ -7122,6 +7161,8 @@ anything about a refused call. An error that is not a refusal voids a run anywhe
 to case; a heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the copy is
 logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt` at the session its receipt of the reply returns, with `Session::invariant` and the four ceilings derived there and kept through the send, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleInitiatorSecondMessage.lean`.
@@ -7236,6 +7277,8 @@ Several refusals are structural (a type mismatch at the named place), not an unp
 a later step or a refused call. An error that is not a refusal voids a run anywhere in the copy, compared without regard
 to case; a heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the copy is
 logged.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: the responder's `decrypt` of the initiator's second message at its session after its reply, with `Session::invariant` and the four ceilings kept through the receive, on the eight-leaf unit)
 
@@ -7404,6 +7447,8 @@ unprovable goal. None shows anything about a later step, a tampered frame or a r
 error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or
 deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: the responder's `encrypt` at the session its receipt of the initiator's second message returns, with `Session::invariant` and the four ceilings kept through the send, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleResponderSecondSend.lean`.
@@ -7551,6 +7596,8 @@ second reply, a refused `encrypt`, a tampered frame or a later step. An error th
 in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the named refusal,
 and one elsewhere in the copy is logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: the initiator's first frame delivered again through `Session::decrypt` at the responder's session after its first receipt, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleResponderRepeatedFrame.lean`.
@@ -7674,6 +7721,8 @@ place), not an unprovable goal. None is a proof that another delivery is refused
 run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never counts as the
 named refusal, and one elsewhere in the copy is logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: `establish_responder` on the initiator's first frame delivered again, at the store its first success committed, on the eight-leaf unit)
 
 Location: `Translation/UnitLifecycleResponderEstablishReplay.lean`.
@@ -7766,6 +7815,8 @@ fingerprint (refused in `replay_refused_of_mem`) and the commit claimed with a o
 its statement pin). Several refusals are structural (a type mismatch at the named place), not an unprovable goal. An
 error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or
 deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: the responder's reply delivered again through `Session::decrypt` at the initiator's session after its first receipt, on the eight-leaf unit)
 
@@ -7904,6 +7955,8 @@ refusals are structural (a type mismatch at the named place), not an unprovable 
 delivery is refused. An error that is not a refusal voids a run anywhere in the copy, compared without regard to case; a
 heartbeat or deterministic timeout never counts as the named refusal, and one elsewhere in the copy is logged.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`) or the round-trip law `AeadRoundTrip`. Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (tier T3, session lifecycle: the repeated-initial ephemeral comparison of `Session::decrypt`, and the translated `decode_ec` on every input, on the eight-leaf unit)
 
 Location: `Translation/SessionUnitDecodeEc.lean`, `Translation/UnitLifecycleInitialAgreementT3.lean`.
@@ -7972,6 +8025,8 @@ a model decode); that shows the script reads each decode, not that the restated 
 `encoded_comparison_does_not_refine` shows the statement false at some oracle meeting `OracleOf`, if some oracle meeting
 `OracleOf` exists; for the two one-sided restatements nothing shows the statement false. Nothing in this section is a claim
 that `Session::decrypt` refines the model on an initial frame.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (tier T3, session lifecycle: the public `decrypt` on frames that are not initial messages, on the eight-leaf unit)
 
@@ -8114,6 +8169,8 @@ bounds derived (`decrypt_refines_ratchet_frame_of_counter_headroom`, `decrypt_fr
 `decrypt_refines_ratchet_frame_of_hypotheses`, `decrypt_frame_at_invReal`); each is a short composition held by its
 axiom and statement pins.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (the hypotheses the session contract integration adds: which are empty, which have a model)
 
 Location: `Translation/UnitLifecycleIntegrationScreen.lean`.
@@ -8221,6 +8278,8 @@ and record definition pins, in turn, and plants the `#check` form for eight of t
 an initiator's establishment and first send consume; they fail if the count at `keysUnsampled` returns to one. They are
 anonymous, so no gate requires them; the pin on `braidSendDrawCount` is the part that is required.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (the clauses of `OracleOf` decided jointly: inhabited under named laws, with a model)
 
 Location: `Translation/UnitOracleShape.lean`, `Translation/UnitOracleModel.lean`, `Translation/UnitOracleDh.lean`,
@@ -8228,7 +8287,7 @@ Location: `Translation/UnitOracleShape.lean`, `Translation/UnitOracleModel.lean`
 
 The screen above decides five clauses of `OracleOf` under laws and leaves seven undecided (`dhPublic`, `dhAgree`,
 `identityValid`, `aeadSeal`, `aeadOpen`, `kemDecapsulate`, `sigVerify`). These results decide the seven, and `OracleOf` as a
-whole. None of the seven is refuted, and each is satisfiable as stated. The KEM success clause, which the screen showed too
+whole. None of the seven is refuted in Lean, and each is satisfiable as stated; the `aeadSeal` and `aeadOpen` clauses are nonetheless false of the shipping AEAD by reading at long lengths (`LIMITATIONS.md`, the totality row). The KEM success clause, which the screen showed too
 weak, has a guarded companion here, `OracleOfGuarded`, and `OracleOf` still leaves `dhAgree` free off 32-byte arguments
 (`E2E-04-SAME-EPHEMERAL-MODEL`). `OracleOf` and every pinned statement of the tree are unchanged. The oracle that inhabits
 the record is the code read through the byte views (`oracleOfLaws`): each primitive's verdict is the code's answer on
@@ -8305,8 +8364,8 @@ view of its result depends only on the views of its arguments, together with the
 oracle that `oracleOf_of_laws` supplies is read off the shipped primitives through those views (`oracleOfLaws`,
 `liftView`), so the clauses hold of it by construction; the inhabitation shows that the record is consistent with the
 totality assumptions and the two view laws, and shows nothing about what the oracle computes. That the real primitives meet
-any law: seven are totality fields the records already assume, and they hold of the real functions only on the inputs a
-Rust program can supply and memory allows (`LIMITATIONS.md`); `SignFillsOnce64` and `KemShape` are read from the source and
+any law: seven are totality fields the records already assume, and they are meant only over the inputs a
+Rust program can supply and memory allows (`LIMITATIONS.md`); none is shown to hold there, `KemDecapsulateTotal` at a restored key pair is not checked, and the two AEAD fields fail below `isize::MAX` by reading (on a 32-bit target the seal at a size reachable in principle; on a 64-bit target only at sizes no real address space supplies, the open only with overflow checks; `LIMITATIONS.md`, the totality row); `SignFillsOnce64` and `KemShape` are read from the source and
 tested by `tacenta-core/tests/rng_fill_counts.rs`, which counts the random source's calls, and not proved; and the two view
 laws are about the views a caller chooses. By reading, each real type has an injective view (its wrapped bytes), which also
 meets `DhCodecOf`; a result applies to a caller's view only if that view is injective, and Lean cannot show that an
@@ -8406,6 +8465,8 @@ unchanged, which only the axiom pin refuses (the signing constant among the adde
 `decryptRatchet_oracle_frame` for one about a field `decrypt` does not read, each refused because the proof then fails.
 That shows the proof uses each equality, not that the swapped statement is false; `decrypt_oracle_frame` fails with it only
 because it calls the helper, and `dispatchDecrypt_oracle_frame` is not mutated.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (the hypotheses of the `decrypt_ratchet` refinement together at one witness, under named laws with a model)
 
@@ -8528,6 +8589,8 @@ removed and the proof adjusted so that it builds, by the statement pin of `Decry
 shipped-size model's `CT1_LEN`, and its KEM's first-ciphertext size, to the toy size, refused by `modelShipped_sizes` and
 by `modelShipped_kemLen`.
 
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
+
 ## Proved (a Braid KEM model read off the `tacenta_kem` wrapper, and the KEM agreements at it, under eight laws with a model)
 
 Location: `Translation/UnitKemWrapperModel.lean`.
@@ -8618,6 +8681,8 @@ projects it; makes each refusing arm of the model (key generation, the second ha
 `some`, gives the hash a 32-byte fallback and sets the first-ciphertext size to the toy size, each refused by the agreement
 proofs; restates the corollary at `toyKem` under the joint bundle at `toyKem`, refused by its statement pin alone; and
 renames the model witness, refused by its pins.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (the hypotheses of the `decrypt_ratchet` refinement at a session whose Braid holds a key pair, with the KEM model read off the wrapper)
 
@@ -8738,6 +8803,8 @@ evidence that the relation fails at `toyKem` is the theorem `held_not_refines_to
 refutation at `toyKem` to `wrapperKem`, refused by its proof; removes the added law, refused; alters the chunk in one byte and gives
 it another index, each refused by the run's codeword proof; and drops from `HeldKemAt` its conjunct that the model holds
 the real bytes, with the proofs adjusted, refused by its `#print` pin alone (10 cases, 1 of them an acceptance).
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (bounded P6 session lifecycle observations)
 
@@ -8929,6 +8996,8 @@ passes `invariant` and fails `hcb`, and it fails `hepoch` too. The same holds fo
   `Session::invariant` meets `DecryptRatchetHeadroom` once `Ct1LenTotal` and `identity_ad.length + 106 ≤ usize::MAX` hold, and the two lifecycle
   panic-freedom theorems apply with it. `invariant_gives_preconditions` derived the record without the associated-data bound and no
   theorem used it; this is the connection. The theorems are conditional on `DecryptRatchetContracts` exactly as the ones they apply are.
+
+**The AEAD contracts.** Some results in this section take a record that holds the AEAD totality fields (`AeadSealBounded`, `AeadOpenTotal`, or the seal and open clauses of `OracleOf` or `DecryptOracleOf`). Those are not merely assumed: stated as written they are, by reading, false of the shipping AEAD at long lengths (on a 64-bit target only at sizes no real address space supplies, and the open only in a build with overflow checks), so a result that takes them at the real constants is conditional on a false proposition and, as stated, says nothing about the shipping code at any length (`LIMITATIONS.md`, the totality row).
 
 ## Proved (the numeric bounds against the caps they are compared with, at both platform widths)
 

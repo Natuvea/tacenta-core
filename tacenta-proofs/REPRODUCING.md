@@ -185,7 +185,7 @@ extracting every private and test-only item of that crate produced an LLBC
 file three orders of magnitude larger. Private helpers reachable from a
 public item are still translated; `scripts/check-lifecycle-translation-coverage.py`
 fails the run if any of the thirty public operations has no generated
-definition, and its negative control shows that it can.
+declaration (a `def`, `opaque` or `axiom`), and its negative control shows that it can.
 
 Expected tail (the file counts below were read from a tree at `dea57eaf`; the
 `attest`, `audit-reach`, `audit-negatives` and replay lines are from the log of the
