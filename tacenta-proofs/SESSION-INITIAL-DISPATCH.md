@@ -343,7 +343,7 @@ kernel replay of 68/11/35 modules. This includes the two cross-family arm-swap
 controls against the final source used by the audit.
 
 After refreshing the two ordinary proof manifests, `tooling/ci.sh` also passes
-on this exact tree through workflow controls, the independent reader, vectors,
+on this exact tree through workflow controls, the specification-only, project-controlled reader, vectors,
 the Rust workspace, dependency audit, constant-time host check, and all six
 fuzz-smoke targets. The translation attestation was not refreshed because no
 generated Aeneas file changed.

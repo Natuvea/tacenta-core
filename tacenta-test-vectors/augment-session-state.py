@@ -5,7 +5,7 @@ The Lean model intentionally does not compute X25519, so it cannot decide the
 session rule that ratchet_private's public half is the classical ratchet's
 `dhs_pub`. This post-processor keeps the model-generated file as the base and
 adds the one deterministic vector that needs the real curve operation. Both the
-independent reader and tacenta-core's Rust reader check that operation.
+specification-only, project-controlled reader and tacenta-core's Rust reader check that operation.
 """
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ SOURCE_NOTE = (
     "; the ratchet-private mismatch vector is appended by "
     "tacenta-test-vectors/augment-session-state.py from the responder fixture: "
     "it flips byte 7 of ratchet_private, away from X25519's clamped bits, and is "
-    "checked by the Rust and independent readers because the Lean model does "
-    "not compute the curve."
+    "checked by the Rust reader and the specification-only, project-controlled "
+    "reader because the Lean model does not compute the curve."
 )
 
 

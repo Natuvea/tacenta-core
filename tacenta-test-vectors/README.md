@@ -214,7 +214,7 @@ input, and require the runner to fail each time (naming the field, for a
 field); the one input they name as unobservable is `bob_repeat_random`. The
 expected bytes were produced by the project runner, so this is a byte-level
 regression and composition check rather than an external oracle. What the
-independent reader derives from the same inputs, and what it takes from the
+specification-only, project-controlled reader derives from the same inputs, and what it takes from the
 vector as a boundary, is listed in its README.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
@@ -605,7 +605,7 @@ rule refuses (error-handling.md).
 - **`bundle-admission.json`** is computed by a stand-alone program from the
   bundle and the two identity secrets of `session-e2e.json`, with the
   program's own field and curve arithmetic and its own XEdDSA signer. The
-  program is not in this repository; the Rust runner and the independent reader
+  program is not in this repository; the Rust runner and the specification-only, project-controlled reader
   check the committed bytes with code that shares nothing with it. The inputs are `bundle`, a whole prekey bundle
   (message-format.md, Prekey bundle), and `initiator_identity_secret`. The valid
   vector's `output` is the identity key the bundle names. In the refused
@@ -723,7 +723,7 @@ its own oracle disagrees, and
 
 regenerates the files in memory and compares them with the committed ones;
 `tooling/check-vectors-current.sh` runs it beside the model's regeneration. That
-is one implementation of the page. `tacenta-core` and the independent reader
+is one implementation of the page. `tacenta-core` and the specification-only, project-controlled reader
 are checked against these bytes, and the reader is the second reading. Each
 file has a closed shape that `tooling/check-vectors.py` enforces, so a runner
 cannot silently ignore a field.

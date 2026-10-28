@@ -11,7 +11,7 @@ field and curve arithmetic and its own XEdDSA. Nothing is read at run time from
 the Rust implementation or the model. Every case is built with a stated intent
 (the refusal class it should hit), then run through the oracle, and the script
 stops if the oracle disagrees with the intent. `tacenta-core`'s tests and the
-independent reader then check the committed bytes with their own code. This is
+specification-only, project-controlled reader then check the committed bytes with their own code. This is
 one implementation of the page; the reader is the second reading.
 
 Signers are fixed so the output is byte-reproducible: the issuer secret for

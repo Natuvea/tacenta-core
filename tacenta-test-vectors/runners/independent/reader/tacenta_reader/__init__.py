@@ -1,4 +1,4 @@
-"""tacenta_reader: an independent, clean-room reading of tacenta-spec.
+"""tacenta_reader: a specification-only, project-controlled reading of tacenta-spec.
 
 Written from tacenta-spec and tacenta-test-vectors only. Python 3 standard
 library only. See ../README.md for scope, ../../GAPS.md and ../../GAPS-2.md for

@@ -177,6 +177,13 @@ released; these corrections apply to it and to the tree it names.
   evidence, not independent review. The same wording is in every assurance tag
   from `tacenta-assurance-v0.2.0`. On `main`, `GAP-REGISTER.md` row
   `READER-INDEPENDENCE` is BLOCKING until no text on `main` makes or repeats such a claim and none is relied on as evidence.
+  The same tag's `tacenta-test-vectors/traces/session-operation-trace.json` (its
+  `source` string) and `tooling/prepare-operation-reader-packet.py` (its
+  docstring) call Jie Sun the reader's independent author. On `main` those two
+  are corrected; the two `tacenta-model` files are not yet. Seven more files of
+  the same tag call the operation reader itself independent; `GAP-REGISTER.md`,
+  `READER-INDEPENDENCE`, lists them. On `main` all but
+  `tacenta-model/SESSION-OPERATION-MODEL.md` are corrected.
 - **Our own composition.** This tag's `tacenta-proofs/LIMITATIONS.md` says the
   composition was read by the maintainer for leaks, and
   `tacenta-spec/threat-model/assumptions.md` (ASM-08) says it is audited by

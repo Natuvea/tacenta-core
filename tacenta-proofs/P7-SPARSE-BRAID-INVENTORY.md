@@ -12,7 +12,7 @@ differential harness generates sparse send/receive sequences and imports, then
 compares the Rust state, canonical persisted bytes, read-back and model refusal
 at every step.
 
-| Scoped operation or invariant | Model/proof evidence | Differential and vector evidence | Independent-reader evidence | Scope still open |
+| Scoped operation or invariant | Model/proof evidence | Differential and vector evidence | Specification-only, project-controlled reader evidence | Scope still open |
 | --- | --- | --- | --- | --- |
 | Initialization and direction | `Model.SparseRatchet.init`; persisted-state semantic rules | Fresh starts in templates 0--1; canonical export/import at each step; committed sparse-state fixtures | Clean-room `tacenta_reader/spqr.py`; CR-12--CR-17 | Fixed vectors pin each direction's initial state; generated templates cover operation variations. |
 | Advance only to the next epoch, and never onto the reserved epoch | `advance`, `advance_epoch_lt` | Generated agreement outputs; templates 6--7 reach the reserved boundary and require the same refusal; `advance-onto-u64-max-refused` is a fixed vector | Clean-room SP-07 and CR-17 advance/retention exercises | `EpochOutOfOrder` is generated-only: it has no separate fixed-vector contract. |

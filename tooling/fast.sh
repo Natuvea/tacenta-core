@@ -16,7 +16,7 @@
 #   1. `bash tooling/ci.sh --fast`: the cheap section of the gate, which is every step of
 #      `tooling/ci.sh` above its "fast mode stops here" line. That is one list, in that file; this
 #      script does not repeat it. It already holds the checks that a change to the specification,
-#      the vectors, the independent reader, a workflow or a tooling script needs (the reader, the
+#      the vectors, the specification-only, project-controlled reader, a workflow or a tooling script needs (the reader, the
 #      traceability checker, the vector-schema check, the workflow checkers and their cases), so a
 #      diff in those areas adds nothing to run here. Seven slow case runners of that section (the
 #      workflow checker's, the container regeneration's, the lockfile check's, and the assurance

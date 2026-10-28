@@ -29,10 +29,10 @@ never committed would fuzz only its starting state, which is what
 
 Panic-freedom is the property the targets were written for, and a decoder
 target has no other oracle: it cannot know what the bytes meant. Since the
-import-time validation attributed to an external review (so cited in
-a commit of 2026-09-09; source not identified in this repository: `ASSURANCE.md`, "Readiness for external review"), the session and
-the
-prekey store each carry an `invariant()` -- the relations between fields no
+import-time validation attributed to an external review (so cited in a commit
+of 2026-09-09; source not identified in this repository: `ASSURANCE.md`,
+"Readiness for external review"), the session and the prekey store each carry
+an `invariant()` -- the relations between fields no
 field-by-field decode sees, such as the ratchet private key matching the
 advertised public key, or the sparse ratchet's epoch standing in the right
 relation to the Braid's -- and their decoders refuse on it last. The targets

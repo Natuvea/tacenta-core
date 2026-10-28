@@ -28,7 +28,7 @@ Assumptions it adds or relies on, and where they are recorded:
 For the affected component (levels in `ASSURANCE.md`):
 
 - [ ] Tests, and fuzzing or property tests where input is untrusted (L1)
-- [ ] The model states it, and model-generated vectors pin it, checked against the implementation and read by the independent reader (L2)
+- [ ] The model states it, and model-generated vectors pin it, checked against the implementation and read by the specification-only, project-controlled reader (L2)
 - [ ] T1: the translated code cannot fail (L3)
 - [ ] T3: the translated code refines the model (L4)
 - [ ] The component's level in `ASSURANCE.md` is unchanged, or updated here

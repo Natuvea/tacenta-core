@@ -304,7 +304,7 @@ provenance in `tacenta-spec/CONSTANTS.md` rather than chosen here.
   message from the public leaf components; both paths use the same live crates,
   so this is composition evidence rather than an independent implementation. It
   is a regression and composition oracle, not an external implementation. The
-  independent reader derives the same fields from the inputs with its own code
+  specification-only, project-controlled reader derives the same fields from the inputs with its own code
   (so a value the reader derives cannot merely be echoed; the reader's sweep of 764 corrupted bytes notices 660, and the other 104 lie in inputs it does not read or regions `GAPS-11.md` lists as not checked), except
   for ML-KEM-1024 and the Braid's key generation, which are boundaries;
   `runners/independent/reader/README.md` lists what it derives and what it does
@@ -574,7 +574,7 @@ The unit tests in `tacenta-core/src/groups/inventory.rs` hold them:
 - two different revoked bindings with one `device_id`, which check 5 (over
   `active` only) leaves accepted and the page does not state.
 
-The independent reader takes the order beyond the first entry, check 5, check 6
+The specification-only, project-controlled reader takes the order beyond the first entry, check 5, check 6
 on a revoked entry that is not the last, and the big-endian order through its
 derived cases (`cases_inventory.py`), not through the vector files. Reader edits
 that apply the terminal generation range to the first revoked entry only, or the
@@ -643,7 +643,7 @@ vector's steps are replayed up to the last, which the crate must refuse with
 `ChainExhausted`, the vector's `counter-exhaustion`.
 
 **Two readings these vectors pin.** session-persistence.md, "Erasure coder
-sub-formats", states both (the independent reader's `GAPS-2.md`, G2-04):
+sub-formats", states both (the specification-only, project-controlled reader's `GAPS-2.md`, G2-04):
 `next` is the index of the codeword the encoder issues next, and a decoder's
 codewords are written in the order each index first arrived. `Model.Erasure`
 and `tacenta-erasure` do the same, and the `partial`,
@@ -775,7 +775,7 @@ accepted vector has one of those tags, so a later change cannot quietly add
 one. The clause itself is implemented in `tacenta-braid`, which has the
 layout, and carried by that crate's own tests (`braid/src/tests.rs`, the
 key-pair hash and modulus cases). Scoping the rule is what closed the
-independent reader's `GAPS-5.md`, G5-02, where the reader had to use its own
+specification-only, project-controlled reader's `GAPS-5.md`, G5-02, where the reader had to use its own
 KEM test double's layout to implement it at all.
 
 Two points of the two ratchets' states. A buffer too short for its fixed
