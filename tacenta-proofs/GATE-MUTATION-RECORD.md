@@ -723,3 +723,49 @@ none message only, none survived.
 | CT4 | `tooling/check-constant-time-asm.sh` | in CI, a missing Linux target of the running toolchain is skipped, not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
 | CT9 | `tooling/check-constant-time-asm.sh` | several assembly files for a straight-line crate are not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
 | CT38 | `tooling/check-constant-time-asm.sh` | several assembly files for the key derivation are not a failure | `run-check-constant-time-asm-cases.sh` | seen as accepted |
+
+## Addendum, 2026-10-28: the offline lockfile check
+
+`tooling/check-lockfiles.sh` runs `cargo metadata --locked --offline` in the directory of every `Cargo.lock` git
+lists, so a manifest change whose lockfile was not updated fails in the local gate and not only in a hosted
+`--locked` build. `python3 tooling/mutate-gates.py --only LK1` to `LK19` with `FA-ci-skip-log`, `FA-ci-skip-env`
+and `FA-ci-lockfiles`, on an aarch64 Mac, against the commit that added them: both baselines passed
+(`run-lockfile-check-cases.sh`, `run-check-fast-cases.sh`), and each edit made its runner print the case named in
+its `expect`. Twenty-two edits: none seen as accepted, twenty-two as another wrong verdict, none message only, none
+survived. `python3 tooling/mutate-gates.py --guards tooling/check-lockfiles.sh --verdict` removed the gate's three
+guards one at a time: each changed a verdict, none survived. The 45 earlier edits to the files this change also
+touched (`tooling/fast.sh`, `tooling/ci.sh`, `tooling/fast-plan.py`, `tooling/tests/run-gate-controls.sh`,
+`.githooks/pre-push`) were run again at the same commit: none survived.
+
+The cases run the real cargo against throwaway workspaces with an empty cargo home and a vendored replacement for
+crates.io, so they need no cache and no network. Reproducing the failure of 2026-10-23 with the real cache, the
+gate run on the tree before the lockfiles were fixed (the parent of the commit that dropped the key derivation's
+old dependencies from them) refused `tacenta-core/fuzz` and `tacenta-test-vectors/runners/rust` by name and passed
+`tacenta-core`. Writing the cases found one limit, now recorded as a case (`path-only-stale`) and in the gate's
+header: cargo's `--locked` does not refuse a lockfile whose only stale entries are path packages, so neither does
+this gate, and neither do the hosted builds. An independent read then found that a directory whose name git quotes
+was dropped from the list without a line; the list is now read NUL-separated with quotePath off, held by the case
+`quoted-names` and the edit LK17. The `sort -zu` that removes repeated paths has no edit: a path repeats only as an
+unmerged index entry, and a repeat would print and count a directory twice without changing a verdict.
+
+| Id | File | Edit | Runner | Result |
+|---|---|---|---|---|
+| LK1 | `tooling/check-lockfiles.sh` | cargo resolves without --locked, so a stale lockfile is rewritten rather than refused | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK2 | `tooling/check-lockfiles.sh` | a new lockfile not yet added to git is not read | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK3 | `tooling/check-lockfiles.sh` | the lockfiles are a hard-coded list, so one in a new directory is not read | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK4 | `tooling/check-lockfiles.sh` | an ignored lockfile (a build directory's) is read | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK5 | `tooling/check-lockfiles.sh` | a lockfile that would have to change is a skip, not a failure | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK6 | `tooling/check-lockfiles.sh` | a manifest that does not parse is a skip, not a failure | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK7 | `tooling/check-lockfiles.sh` | an error the gate does not classify is a skip, not a failure | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK8 | `tooling/check-lockfiles.sh` | with GITHUB_ACTIONS set a skip is not a failure | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK9 | `tooling/check-lockfiles.sh` | a skip is not recorded in FAST_SKIP_LOG, so tooling/fast.sh ends with the plain ok | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK10 | `tooling/check-lockfiles.sh` | a lockfile with no manifest beside it is checked against a parent's manifest | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK11 | `tooling/check-lockfiles.sh` | a checkout with no lockfile passes | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK12 | `tooling/check-lockfiles.sh` | a run with a refused lockfile exits 0 | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK13 | `tooling/check-lockfiles.sh` | a machine with no cargo is not recognised, so every lockfile fails rather than skips | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK14 | `tooling/check-lockfiles.sh` | a lockfile the cache cannot resolve fails rather than skips | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK15 | `tooling/check-lockfiles.sh` | a skip prints no line | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK16 | `tooling/check-lockfiles.sh` | a tracked lockfile missing from the working tree is not refused as such | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK17 | `tooling/check-lockfiles.sh` | the list is git's default output, quoted and newline-separated, so a lockfile in a directory whose name git quotes is dropped without a line | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK18 | `tooling/check-lockfiles.sh` | cargo runs without RUSTUP_AUTO_INSTALL=0, so a rustup proxy may download a toolchain a directory names | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
+| LK19 | `tooling/check-lockfiles.sh` | a cargo that is on PATH but does not run is taken as runnable, so every lockfile fails rather than skips | `run-lockfile-check-cases.sh` | seen as another wrong verdict |
