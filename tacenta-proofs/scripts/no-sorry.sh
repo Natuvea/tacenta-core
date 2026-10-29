@@ -417,7 +417,7 @@ python3 scripts/check-restored-negatives.py || fail=1
 # decoder read back at two chunks, the header-wait tag, the ephemeral's length, the received decoder's chunk, the
 # decoder's size cap, the received budget, and the shape with its pins kept), each of which must be refused at its
 # named declaration or pin, with a message naming the change.
-phase_restored_responder() {
+phase_responder_restored() {
 python3 scripts/check-restored-responder-negatives.py || fail=1
 }
 
@@ -842,7 +842,6 @@ phases() {
   run_phase initiator-repeated-reply plain "initiator-repeated-reply proof-dependency control" phase_initiator_repeated_reply
   run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored
-  run_phase restored-responder plain "restored-responder proof-dependency control" phase_restored_responder
   run_phase encrypt plain "established encrypt proof-dependency control" phase_encrypt
   run_phase encrypt-preservation plain "encrypt-preservation" phase_encrypt_preservation
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
@@ -854,6 +853,7 @@ phases() {
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
+  run_phase responder-restored plain "responder-restored proof-dependency control" phase_responder_restored
   run_phase responder-second-receipt plain "responder-second-receipt proof-dependency control" phase_responder_second_receipt
   run_phase responder-second-send plain "responder-second-send proof-dependency control" phase_responder_second_send
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation

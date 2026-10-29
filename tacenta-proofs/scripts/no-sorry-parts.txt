@@ -62,7 +62,6 @@ hosted decrypt:
   decrypt-preservation
 hosted responder:
   restored
-  restored-responder
   encrypt
   import-budget
   responder
@@ -70,6 +69,7 @@ hosted responder:
   responder-frame
   responder-second-receipt
   responder-repeated-frame
+  responder-restored
 hosted reply:
   responder-successor
   initiator-repeated-reply
