@@ -184,6 +184,8 @@ released; these corrections apply to it and to the tree it names.
   the same tag call the operation reader itself independent; `GAP-REGISTER.md`,
   `READER-INDEPENDENCE`, lists them. On `main` all but
   `tacenta-model/SESSION-OPERATION-MODEL.md` are corrected.
+  Since the regeneration change of 2026-10-28, the two `tacenta-model` files are
+  corrected on `main` too, so all seven are.
 - **Our own composition.** This tag's `tacenta-proofs/LIMITATIONS.md` says the
   composition was read by the maintainer for leaks, and
   `tacenta-spec/threat-model/assumptions.md` (ASM-08) says it is audited by
