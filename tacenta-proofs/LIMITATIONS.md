@@ -150,7 +150,7 @@ with the same text, in `PrekeyStore::to_bytes` give the Session unit two axioms 
 `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1` and
 `tacenta_session_unit.lifecycle.Session.export._native.decide.ax_1`; `#print axioms` of `Session.export` itself, and of
 every pinned statement that names `export` or `import`, lists only the first (the export check reaches it through the
-auxiliary proof the two definitions share). Those statements, eleven pinned results in all, are the compiler-trusted pins
+auxiliary proof the two definitions share). Those statements, twenty-one pinned results in all, are the compiler-trusted pins
 of the lifecycle. The proposition is true and the kernel shows it: `UnitLifecycleSessionRoundTrip.export_message_fits`
 states it (the same expression as the axiom's type, which `scripts/check-discharge-native-decide-negatives.py` checks)
 and is proved with `propext` only (`String.size_toByteArray` and a `decide` on the literal's byte size; plain `decide`
@@ -4330,10 +4330,36 @@ decision closes.
   wrapper's `encapsulate2` with libcrux's output length as a reviewed law then proved, or prove the length of the
   verified ML-KEM crate's second encapsulation half with that crate adopted as the boundary.
 
+**The budget at an imported session, and the receive step composed with the decrypt refinement.**
+`UnitLifecycleImportBudget` states the budget at every session `Session::import` accepts: exactly `roomCheck` of its
+decoded counters, a check `import` does not make (`import_ok_budget`, no hypothesis). Acceptance enforces a classical
+clock of at most `MAX_EVENTS = u32::MAX - 1`, a sparse epoch below `u64::MAX` and a Braid epoch below `u64::MAX` (the
+last through the Braid decoder's `read_epoch`, `import_ok_braid_epoch`), each one step above what room for zero
+operations asks, and no ceiling on a sparse chain counter. Acceptance gives no budget: under the nine assumed laws of the round trip,
+a copy of every established initiator with its clock at `MAX_EVENTS`, or with its send chain at counter `u64::MAX`, is
+accepted with room for no operation (`acceptance_does_not_give_headroom`). Those copies are made by editing counters;
+that operations reach them is by reading (the clock's clamp, the chain counter), not a theorem. What `encrypt` and
+`decrypt` do at a session with no budget is outside every preservation and refinement result, beyond the refused calls
+keeping the invariant. `UnitLifecycleDecryptCompose` composes receive preservation with the `decrypt_ratchet`
+refinement, so the relation after the call and the model step are derived, for `decrypt_ratchet` and the public
+`decrypt` of ratchet-type frames in the in-order scope (`FrameInOrder`), and from the bytes `import` accepted in the
+restored scope with the caller's `roomCheck`. It takes the refinement's hypotheses, among them `DecryptOracleOf`,
+whose AEAD open clause is false of the shipping AEAD by reading at long lengths (row `AEAD-LENGTH-CONTRACTS`), so, as
+stated, it says nothing about the shipping code at any length until that contract is repaired; and
+`ReceiveInvariantLaws`, with its two assumed laws. No theorem shows its whole hypothesis set jointly satisfiable with a
+successful receive, and no run exhibits it.
+
 **What stays open (register row `PRESERVATION-GAPS`).** Preservation is not complete. Out-of-order receives (a stored
 key used, a message skipped on either chain, an eviction from a full store) are covered by no preservation result. The
-counter budget at a session `Session::import` returns from arbitrary accepted bytes is not stated: `Session::invariant` does not give it (only the own-export round trip of an establishment output, `restored_established_continues`, has it). The relation after each call is a hypothesis of every step theorem, derived only in the encrypt composition, which takes `AeadSealBounded` and `OracleOf` (false of the shipping AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), and on the three exhibiting runs, which take the same contracts or `AeadRoundTrip`; for the shipping code that derivation says nothing at any length until the AEAD contracts are repaired. No run reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`.
-Receive preservation is not composed with the decrypt refinement. The exhibiting runs are single runs in strict
+counter budget at a session `Session::import` returns from arbitrary accepted bytes is stated (above), and it is none
+that acceptance guarantees: a caller must check it. The relation after each call is a hypothesis of every step
+theorem; it is derived in the encrypt composition, which takes `AeadSealBounded` and `OracleOf` (false of the shipping
+AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), in the decrypt composition for ratchet-type frames in the in-order
+scope, which takes `DecryptOracleOf` (likewise), and on the three exhibiting runs, which take the same contracts or
+`AeadRoundTrip`; for the shipping code those derivations say nothing at any length until the AEAD contracts are
+repaired. No run reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`.
+Receive preservation is composed with the decrypt refinement only for ratchet-type frames; an initial-type frame
+through the public `decrypt` is not composed. The exhibiting runs are single runs in strict
 alternation: an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary accepted
 stored state.
 

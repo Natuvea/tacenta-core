@@ -112,9 +112,12 @@ satisfiability theorem and with a transition or output on no run, and every sess
 passing the invariant with budget for later steps, given the same of its inner receive; each run named a single run in
 strict alternation, an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary
 accepted stored state; these preservation results conditional and not complete (no successful receive outside the
-in-order scope, a stored key, a skip or an eviction, covered; the budget at a session imported from arbitrary bytes not
-stated; the relation after each call a hypothesis; receive preservation not composed with the decrypt refinement; the
-three new laws assumed, not accepted as trust); and the
+in-order scope, a stored key, a skip or an eviction, covered; the budget at a session imported from arbitrary bytes
+stated and none that acceptance guarantees, a check on the decoded counters `import` does not make, with copies of an
+established initiator accepted with no budget under the round trip's assumed laws; the relation after each call a
+hypothesis of the step theorems, derived on receive only in the composition with the decrypt refinement for
+ratchet-type frames in the in-order scope, under a decrypt oracle record whose AEAD open clause is false of the shipping
+AEAD by reading at long lengths; the three new laws assumed, not accepted as trust); and the
 initiator's first frame
 delivered a second time on that run, refused by the
 responder's `decrypt` at the session its first receipt returned (out of order, that session returned unchanged, one draw

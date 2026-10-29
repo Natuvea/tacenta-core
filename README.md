@@ -320,9 +320,13 @@ first send, and on the receive side are derived on one run each with no such the
 strict alternation, an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary
 accepted stored state, and no run reaches a receive with an agreement transition or output. These preservation results
 are conditional and not complete: no successful receive outside the in-order scope (a stored key, a skip, an eviction)
-is covered, the budget at a session imported from arbitrary bytes is not stated, the relation after each call is a
-hypothesis, receive preservation is not composed with the decrypt refinement, and the three new laws are assumed, not
-accepted as trust. The initiator's first frame delivered to the responder a second time, right after the first
+is covered; the budget at a session imported from arbitrary bytes is stated, and it is none that acceptance
+guarantees (a check on the decoded counters that `import` does not make; copies of an established initiator with a
+parked clock or an exhausted chain are accepted with no budget, under the round trip's assumed laws); the relation after
+each call is a hypothesis of the step theorems, derived on receive only where receive preservation is composed with the
+decrypt refinement, for ratchet-type frames in the in-order scope, under a decrypt oracle record whose AEAD open clause
+is false of the shipping AEAD by reading at long lengths, so it says nothing about the shipping code until that
+contract is repaired; and the three new laws are assumed, not accepted as trust. The initiator's first frame delivered to the responder a second time, right after the first
 receipt, is refused in the two places it can arrive at that point of the run, with no effect on the session or the store: the responder's `decrypt` at the session its
 first receipt returned recognises the repeat, refuses it as out of order, returns that session unchanged and takes one draw,
 refining the model's step; `establish_responder` at the store the first success committed refuses it as
