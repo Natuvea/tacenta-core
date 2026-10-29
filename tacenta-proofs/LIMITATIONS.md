@@ -115,8 +115,8 @@ proved by the kernel since 2026-10-01. On Lean v4.31.0 the axiom each such use a
 `<decl>._native.native_decide.ax_*` (and `…bv_decide.ax_*` for `bv_decide`), not `Lean.ofReduceBool`; either way it
 puts the compiler into the axiom base of every theorem downstream. `attest.py`'s `COMPILER_TRUSTED_PINS` lists the
 pinned results that may still carry one, exactly: it refuses a compiler-trusted pin not on it and an entry whose pin
-lists none. It holds twenty-two: `Proofs.Serialization.decode_encode_composite` (three `bv_decide`
-lemmas of the composite header) and the twenty-one statements that name `Session::export` or `Session::import` (the
+lists none. It holds twenty-three: `Proofs.Serialization.decode_encode_composite` (three `bv_decide`
+lemmas of the composite header) and the twenty-two statements that name `Session::export` or `Session::import` (the
 `toStr` axiom, next paragraph but one). The headline theorems of the classical and sparse ratchets, the
 Braid, the session, the erasure coder and the parser are pinned under
 `#guard_msgs`, and ten of the Triple Ratchet's on the unit, so a new
@@ -150,7 +150,7 @@ with the same text, in `PrekeyStore::to_bytes` give the Session unit two axioms 
 `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1` and
 `tacenta_session_unit.lifecycle.Session.export._native.decide.ax_1`; `#print axioms` of `Session.export` itself, and of
 every pinned statement that names `export` or `import`, lists only the first (the export check reaches it through the
-auxiliary proof the two definitions share). Those statements, twenty-one pinned results in all, are the compiler-trusted pins
+auxiliary proof the two definitions share). Those statements, twenty-two pinned results in all, are the compiler-trusted pins
 of the lifecycle. The proposition is true and the kernel shows it: `UnitLifecycleSessionRoundTrip.export_message_fits`
 states it (the same expression as the axiom's type, which `scripts/check-discharge-native-decide-negatives.py` checks)
 and is proved with `propext` only (`String.size_toByteArray` and a `decide` on the literal's byte size; plain `decide`
@@ -3364,7 +3364,8 @@ law would be needed and is not assumed). Among the same hypotheses are `AeadSeal
 the tree reaches that state); at the nine no-draw states as the send paragraph above says. **The budget** is spent as
 before: one unit per call, the sparse epoch stepping by one on a send with an agreement output and the new chains' counters
 bounded through the clock's room. **Not shown:** a successful receive outside the in-order scope of the paragraph above (a
-receive with an agreement transition or output is in the next paragraph; a stored key, a skip or an eviction in none); the
+receive with an agreement transition or output is in the next paragraph; a stored key, a skip or an eviction in
+`UnitLifecycleOutOfOrderReceive`); the
 step at `HeaderReceived` on a run; that the shipping KEM meets `Encaps1SizesOf` or the other KEM records and laws, or that
 `usize::div_ceil` meets `DivCeilValue`; whether the shipping `encapsulate1` can refuse an authenticated 64-byte header
 (not determined; the refusal arm is covered, not shown reachable); the budget at a session `Session::import` returns from arbitrary accepted bytes (only the own-export round trip of an establishment output, `restored_established_continues`, has it); that `Session::invariant` says a session is reachable.
@@ -4359,15 +4360,34 @@ the all-zero ratchet key, which the screen's oracle refuses (whether the witness
 witness at a successful receive would need an oracle meeting `DecryptOracleOf` whose agreement and AEAD open succeed
 on that frame, and no law states that the opaque primitives do.
 
+`UnitLifecycleOutOfOrderReceive` drops the in-order scope. Its step (`decrypt_ratchet_keeps_invariant_any`,
+`decrypt_keeps_invariant_any`) takes a model step `ReceiveStepAny` at any frame: a stored key used, a skip on either
+chain, or the retry that evicts the oldest stored keys from a full store. With the relation after the call, it keeps
+`Session::invariant` and spends one unit of the budget, under `ReceiveInvariantLaws` and no new law. The model's own
+`decryptRatchet` of every frame is such a step with no hypothesis (`decryptRatchet_receiveStepAny`), so the composition
+with the decrypt refinement (`decrypt_ratchet_refines_keeps_invariant_any`, `decrypt_refines_keeps_invariant_any`,
+`restored_decrypt_keeps_invariant_any`) takes the hypotheses of the in-order composition without `FrameInOrder`: it is
+conditional on `DecryptOracleOf` in the same way and, as stated, says nothing about the shipping code at any length
+until that contract is repaired. No clause of the invariant and no counter of the budget is broken on these paths
+within the budget premise; the `1001` the budget reserves per operation for a chain counter is what a skip of at most
+`MAX_SKIP` and a step move it. On success the session keeps no stored key for the frame's classical key and number or
+its sparse epoch and number (`decrypt_ratchet_refines_consumes_any`, for `decrypt_ratchet` only). The canonicity of the
+sending key a Diffie-Hellman step installs comes from the code through `DhPublicValid`, as in the in-order step. The
+model's retry loop is private to `Model/Lifecycle.lean`; this module names it through `open private`, as
+`UnitLifecycleRetryLoopT3` does, with no model change. The success branch has no witness here either, and no run
+reaches a stored key used, a skip or an eviction, so whether the hypotheses hold together at such a frame is not
+checked; that a delayed frame is still decrypted after an eviction or after its key aged out is not shown.
+
 **What stays open (register row `PRESERVATION-GAPS`).** Preservation is not complete. Out-of-order receives (a stored
-key used, a message skipped on either chain, an eviction from a full store) are covered by no preservation result. The
+key used, a message skipped on either chain, an eviction from a full store) are covered by the step at every frame and
+its composition above, conditional on `DecryptOracleOf` and with no witness or run reaching such a receive. The
 counter budget at a session `Session::import` returns from arbitrary accepted bytes is stated (above), and it is none
 that acceptance guarantees; the step theorems apply at an imported session only where its counters meet their premise,
 and no API checks that. Behaviour at the ceilings is not refined (row `PROOF-BOUNDARY-HEADROOM`, deferred by a recorded
 decision). The relation after each call is a hypothesis of every step
 theorem; it is derived in the encrypt composition, which takes `AeadSealBounded` and `OracleOf` (false of the shipping
-AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), in the decrypt composition for ratchet-type frames in the in-order
-scope, which takes `DecryptOracleOf` (likewise), and on the three exhibiting runs, which take the same contracts or
+AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), in the decrypt compositions for ratchet-type frames, in the in-order
+scope and at every frame, which take `DecryptOracleOf` (likewise), and on the three exhibiting runs, which take the same contracts or
 `AeadRoundTrip`; for the shipping code those derivations say nothing at any length until the AEAD contracts are
 repaired. No run reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`.
 Receive preservation is composed with the decrypt refinement only for ratchet-type frames; an initial-type frame
