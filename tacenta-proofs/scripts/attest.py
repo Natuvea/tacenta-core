@@ -2152,6 +2152,22 @@ REQUIRED_PINS = frozenset(
         "pend_model_clears",
         "generated_clears_at_pending_success",
     )]
+    # Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every invariant session outside the sampling state (`UnitLifecycleEncryptCompose`).
+    + ["Tacenta.UnitLifecycleEncryptCompose." + n for n in (
+        "braid_send_failed_rng",
+        "braidSendTraceCounted_of_scope",
+        "sparseOutput_none_of_scope",
+        "tripleStoreFacts_of_invariant",
+        "encryptProviders_of_invariant",
+        "model_not_headerReceived",
+        "pending_ciphertext_len_of_structural",
+        "encryptHeadroom_of_invariant",
+        "encrypt_refines_keeps_invariant",
+        "encrypt_ok_arm",
+        "encrypt_refines_effects",
+        "EncryptOfInvariantHypotheses.refines",
+        "encrypt_of_invariant_hypotheses_jointly_satisfiable",
+    )]
     # Session::encrypt keeps Session::invariant and spends one unit of the counter budget at every agreement state, and every refused encrypt, decrypt or decrypt_ratchet keeps both (`UnitLifecycleEncryptPreserve`).
     + ["Tacenta.UnitLifecycleEncryptPreserve." + n for n in (
         "failed_iff",
@@ -4388,6 +4404,23 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "invReal",
         "pendReal",
     )]
+    # Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every invariant session outside the sampling state (`UnitLifecycleEncryptCompose`).
+    + ["Tacenta.UnitLifecycleEncryptCompose." + n for n in (
+        "braid_send_failed_rng",
+        "braidSendTraceCounted_of_scope",
+        "sparseOutput_none_of_scope",
+        "tripleStoreFacts_of_invariant",
+        "encryptProviders_of_invariant",
+        "model_not_headerReceived",
+        "pending_ciphertext_len_of_structural",
+        "encryptHeadroom_of_invariant",
+        "encrypt_refines_keeps_invariant",
+        "encrypt_ok_arm",
+        "encrypt_refines_effects",
+        "EncryptOfInvariantHypotheses.refines",
+        "encrypt_of_invariant_hypotheses_jointly_satisfiable",
+        "EncryptOfInvariantHypotheses",
+    )]
     # Session::encrypt keeps Session::invariant and spends one unit of the counter budget at every agreement state, and every refused encrypt, decrypt or decrypt_ratchet keeps both (`UnitLifecycleEncryptPreserve`).
     + ["Tacenta.UnitLifecycleEncryptPreserve." + n for n in (
         "failed_iff",
@@ -5571,6 +5604,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "DecryptRefinesRatchetFrameStatement",
         "invReal",
         "pendReal",
+    )]
+    # Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every invariant session outside the sampling state (`UnitLifecycleEncryptCompose`).
+    + ["Tacenta.UnitLifecycleEncryptCompose." + n for n in (
+        "EncryptOfInvariantHypotheses",
     )]
     # Session::encrypt keeps Session::invariant and spends one unit of the counter budget at every agreement state, and every refused encrypt, decrypt or decrypt_ratchet keeps both (`UnitLifecycleEncryptPreserve`).
     + ["Tacenta.UnitLifecycleEncryptPreserve." + n for n in (

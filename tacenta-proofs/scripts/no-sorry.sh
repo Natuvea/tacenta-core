@@ -486,6 +486,18 @@ phase_discharge_native_decide() {
 python3 scripts/check-discharge-native-decide-negatives.py || fail=1
 }
 
+# Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every
+# invariant session outside the sampling state (`UnitLifecycleEncryptCompose.lean`). The control accepts the two
+# unmodified copies, then plants seventeen changes (the composed budget, the sampling state and the unit of budget
+# of the composition, the sending counter, the agreement's epoch and the draws of the effects, the joint witness's
+# budget, the record's live-encoder field, the failed send's source, the draw record's encoder and sampling
+# premises, the sparse output's scope, a chain's epoch window, the pending ciphertext's length, the headroom's
+# plaintext bound, the model's success arm, and the record with its pins kept), each of which must be refused at
+# its named declaration or pin, with a message naming the change.
+phase_encrypt_compose() {
+python3 scripts/check-encrypt-compose-negatives.py || fail=1
+}
+
 # `Session::invariant` and the four ceilings at the session `establish_responder` returns on the initiator's first
 # frame (`UnitLifecycleResponderSuccessor.lean`): a copy with the received Triple's counters, the clock, the sending
 # key's canonicity, the ratchet key's bytes or the agreement's epoch changed, the decoder lemma widened to two chunks
@@ -825,6 +837,7 @@ phases() {
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt
   run_phase responder-repeated-frame plain "responder-repeated-frame proof-dependency control" phase_responder_repeated_frame
   run_phase discharge-native-decide plain "refinement constants proof-dependency control" phase_discharge_native_decide
+  run_phase encrypt-compose plain "encrypt-compose proof-dependency control" phase_encrypt_compose
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt

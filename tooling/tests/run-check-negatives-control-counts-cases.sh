@@ -37,6 +37,7 @@ named=(
   check-responder-successor-negatives.py
   check-decrypt-compose-negatives.py
   check-decrypt-preservation-negatives.py
+  check-encrypt-compose-negatives.py
   check-encrypt-preservation-negatives.py
   check-import-budget-negatives.py
   check-initiator-repeated-reply-negatives.py

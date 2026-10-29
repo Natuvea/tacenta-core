@@ -4,6 +4,7 @@
     "check-initiator-second-message-negatives.py": {"inside": 7, "projection": 3, "statement_shape": 0, "pin": 1, "leaf": 0, "baselines": 2},
     "check-decrypt-compose-negatives.py": {"inside": 9, "projection": 0, "statement_shape": 0, "pin": 1, "leaf": 0, "baselines": 2},
     "check-decrypt-preservation-negatives.py": {"inside": 10, "projection": 0, "statement_shape": 1, "pin": 1, "leaf": 12, "baselines": 2},
+    "check-encrypt-compose-negatives.py": {"inside": 7, "projection": 1, "statement_shape": 0, "pin": 1, "leaf": 8, "baselines": 2},
     "check-encrypt-preservation-negatives.py": {"inside": 9, "projection": 0, "statement_shape": 1, "pin": 1, "leaf": 9, "baselines": 2},
     "check-import-budget-negatives.py": {"inside": 7, "projection": 0, "statement_shape": 0, "pin": 1, "leaf": 7, "baselines": 2},
     "check-initiator-repeated-reply-negatives.py": {"inside": 10, "projection": 3, "statement_shape": 2, "pin": 1, "leaf": 5, "baselines": 2},

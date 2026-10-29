@@ -110,6 +110,7 @@ py_controls=(
   check-responder-second-send-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
+  check-encrypt-compose-negatives.py
   check-initiator-second-send-negatives.py
   check-kdf-realisation-negatives.py
   check-out-of-order-receive-negatives.py
@@ -229,6 +230,7 @@ for called in \
   check-out-of-order-receive-negatives.py \
   check-receive-preservation-negatives.py \
   check-discharge-native-decide-negatives.py \
+  check-encrypt-compose-negatives.py \
   'lake build translation' \
   'lake build tacenta-proofs' \
   'lake build tacenta-model' \

@@ -143,6 +143,7 @@ py_stubs=(
   check-responder-second-send-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
+  check-encrypt-compose-negatives.py
   check-initiator-second-send-negatives.py
   check-kdf-realisation-negatives.py
   check-out-of-order-receive-negatives.py

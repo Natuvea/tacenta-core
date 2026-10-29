@@ -1062,6 +1062,7 @@ recorded decision or a target-closing slice:
   `check-responder-second-send-negatives.py`,
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
+  `check-encrypt-compose-negatives.py`,
   `check-initiator-second-send-negatives.py`,
   `check-kdf-realisation-negatives.py`,
   `check-out-of-order-receive-negatives.py`,
@@ -1166,6 +1167,7 @@ recorded decision or a target-closing slice:
   scope and check, the decoded header of the store effect and its number, the classical clock, the sparse counter's
   `maxSkip + 1`, the classical skip's upper end, the used key's number, both evictions, the eviction in the model's
   step, the sparse skip's lower end, the step's budget, and `ReceiveStepAny`'s definition);
+  `check-encrypt-compose-negatives.py`: Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every invariant session outside the sampling state (the composed budget, the sampling-state and budget premises, the effects, the joint witness's budget, the record, and the route's derived records and headroom);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1367,6 +1369,19 @@ recorded decision or a target-closing slice:
   the joint model at an interpretation whose public-key reader drops the key,
   that bound's law weakened with its pins kept,
   and the joint model of the composed premise list at two interpretations with its pins kept),
+  `check-encrypt-compose-negatives.py` (two unmodified copies accepted and seventeen changes refused,
+  each at a named declaration or pin with a message naming the change:
+  seven inside the composing proofs, accepted there with that proof emptied
+  (the composed budget claimed unspent, the composition at the sampling state and without a unit of budget,
+  the sending counter claimed unmoved, the agreement's epoch claimed to move, the draws claimed kept at key generation,
+  the record without its live-encoder field),
+  one projection (the joint witness claimed with a budget past the clock),
+  eight on the lemmas the composition calls (the failed agreement's send claimed to move the source,
+  the draw record without a live encoder and at the sampling state, the sparse output claimed at the sampling state,
+  a chain's epoch claimed a step past the window, a pending ciphertext claimed shorter than `kem::ciphertext_len`,
+  the headroom claimed for every plaintext, the model's success arm claimed at a failed agreement),
+  and the record with its plaintext bound moved and its pins kept;
+  seven of them weaken a premise and are refused where it is handed on, a dependency check),
   `check-encrypt-negatives.py` (two unmodified copies accepted and sixteen changes refused,
   each change refused at a named declaration or pin,
   eleven with a message that names the fact removed (an omega counterexample,

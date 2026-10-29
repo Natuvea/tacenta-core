@@ -70,6 +70,7 @@ import Translation.SessionUnitDecodeEc
 import Translation.UnitLifecycleDecryptStates
 import Translation.UnitLifecycleInitialAgreementT3
 import Translation.UnitLifecycleDecryptT3
+import Translation.UnitLifecycleEncryptCompose
 import Translation.UnitLifecycleEncryptPreserve
 import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
@@ -300,6 +301,13 @@ is one, so the composition with the decrypt refinement takes the in-order compos
 `FrameInOrder`; on success no stored key for the frame's numbers is kept.  Conditional on `DecryptOracleOf` likewise.
 Not shown: a witness or run reaching an out-of-order receive, initial-type frames, that a delayed frame is still
 decrypted after an eviction.
+`UnitLifecycleEncryptCompose.lean` derives the encrypt route's per-call records (the counted draw record, the Triple
+providers) and its headroom at every session that passes `Session::invariant`, has room for one operation and refines a
+model session whose encoder has codewords left, at every agreement state but `HeaderReceived`, and composes the route
+with the preservation step: `encrypt` refines the model's step and keeps the invariant with one unit of budget spent,
+with its effects on success.  No new law; conditional on `AeadSealBounded` and `OracleOf`, false of the shipping AEAD
+by reading at long lengths.  Not shown: `encrypt` at `HeaderReceived`, a session whose encoder is exhausted, a second
+party.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.
