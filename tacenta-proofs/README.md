@@ -38,7 +38,11 @@ ceilings follow from the establishment, the relation to the model session read o
 boundary records, chunk relation and draw, is proved under nine assumed laws (six of its own, the establishment's two and the `Option::eq` law)
 and trusts the compiler for one fact, a panic message's length in the generated `export`, which the kernel also proves
 (`export_message_fits`), and
-every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it; at that established session
+every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it; on the responder's side
+the session `establish_responder` returns on the initiator's first frame is likewise returned unchanged by `import`,
+and its restored copy's `encrypt` refines the model's step and keeps the invariant, under the encrypt boundary records
+whose AEAD contracts are false of the shipping AEAD by reading (later responder states and `Session::clone` not
+covered); at that established session
 the first `encrypt` is related to the model's step (its refusal arm only at a model KEM that refuses, since the shipping key
 generation does not refuse, by reading), and the session a successful send leaves passes the invariant and meets the
 ceilings, under the encrypt boundary records, the oracle record, three assumed laws (a new key-generation law, the
@@ -171,7 +175,7 @@ Read [CLAIMS.md](CLAIMS.md) for what is established and
 runs on every push and checks that every theorem CLAIMS.md names exists in the
 file it names, that every axiom-pinned theorem is claimed, that the pins named in
 `REQUIRED_PINS` exist as live code and that a pin is labelled compiler-trusted exactly when
-`COMPILER_TRUSTED_PINS` names it (twenty-three, `counts.compiler_trusted` in the verification manifest), and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
+`COMPILER_TRUSTED_PINS` names it (thirty, `counts.compiler_trusted` in the verification manifest), and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
 not compare theorem *statements* to the prose, which is a reviewer's job
 (REPRODUCING.md says what a green `attest` does and does not establish).
 [REPRODUCING.md](REPRODUCING.md) is the toolchain and the steps.

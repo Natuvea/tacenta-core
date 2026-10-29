@@ -115,8 +115,8 @@ proved by the kernel since 2026-10-01. On Lean v4.31.0 the axiom each such use a
 `<decl>._native.native_decide.ax_*` (and `…bv_decide.ax_*` for `bv_decide`), not `Lean.ofReduceBool`; either way it
 puts the compiler into the axiom base of every theorem downstream. `attest.py`'s `COMPILER_TRUSTED_PINS` lists the
 pinned results that may still carry one, exactly: it refuses a compiler-trusted pin not on it and an entry whose pin
-lists none. It holds twenty-three: `Proofs.Serialization.decode_encode_composite` (three `bv_decide`
-lemmas of the composite header) and the twenty-two statements that name `Session::export` or `Session::import` (the
+lists none. It holds thirty: `Proofs.Serialization.decode_encode_composite` (three `bv_decide`
+lemmas of the composite header) and the twenty-nine statements that name `Session::export` or `Session::import` (the
 `toStr` axiom, next paragraph but one). The headline theorems of the classical and sparse ratchets, the
 Braid, the session, the erasure coder and the parser are pinned under
 `#guard_msgs`, and ten of the Triple Ratchet's on the unit, so a new
@@ -150,7 +150,7 @@ with the same text, in `PrekeyStore::to_bytes` give the Session unit two axioms 
 `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1` and
 `tacenta_session_unit.lifecycle.Session.export._native.decide.ax_1`; `#print axioms` of `Session.export` itself, and of
 every pinned statement that names `export` or `import`, lists only the first (the export check reaches it through the
-auxiliary proof the two definitions share). Those statements, twenty-two pinned results in all, are the compiler-trusted pins
+auxiliary proof the two definitions share). Those statements, twenty-nine pinned results in all, are the compiler-trusted pins
 of the lifecycle. The proposition is true and the kernel shows it: `UnitLifecycleSessionRoundTrip.export_message_fits`
 states it (the same expression as the axiom's type, which `scripts/check-discharge-native-decide-negatives.py` checks)
 and is proved with `propext` only (`String.size_toByteArray` and a `decide` on the literal's byte size; plain `decide`
@@ -2869,7 +2869,8 @@ documentation says, "a property whose check belongs at the use site"), and the s
 `KeysUnsampled` or `Failed`). Outside the scope no relation to a model session is claimed: a restored key pair or
 encapsulation state has no model value at the wrapper's KEM model, and a restored encoder or decoder has no history for
 `EncoderRefines`/`DecoderRefines`; so a restored Braid in any of the other ten states is not covered by the restored
-results. The scope is narrow in practice: the first `encrypt` from `KeysUnsampled` moves the Braid to `KeysSampled`
+results, except where `import` of a session's own export returns that session itself (the responder's session after
+its first receipt, the paragraph on a restored responder session below), so that session's own relation holds. The scope is narrow in practice: the first `encrypt` from `KeysUnsampled` moves the Braid to `KeysSampled`
 (`tacenta-core/braid/src/lib.rs:706-724`), a responder starts in `NoHeaderReceived` (`lib.rs:420-428`), and a Braid returns to
 `KeysUnsampled` only on the side that sent the last ciphertext, when the next epoch begins (`lib.rs:1355-1368`). So the
 restored results cover a snapshot taken on the side holding `KeysUnsampled` before its first send in that epoch (at epoch
@@ -2901,6 +2902,22 @@ stored keys, a responder, and a Braid in any other state. `Session::invariant` a
 `session-persistence.md` states; the operations never reach that epoch, and the established session is at epoch 1. Every
 statement that names `export` or `import` lists one compiler-trust axiom from the `toStr` of a panic message in the
 generated `export` (`by decide +native`), not from the argument (`CLAIMS.md`).
+
+*A restored responder session.* `UnitLifecycleRestoredResponder.lean` proves the export/import round trip at the
+session `establish_responder` returns on the initiator's first frame, whose agreement waits for the header with an
+erasure decoder holding at most one chunk, with no pending initial message and an established ephemeral (`CodecShapeR`,
+`export_import_of_shape_R`); `import` of the exported bytes returns that session itself (`responder_first_frame_restored`,
+`initiator_first_send_responder_restored`), so the restored scope above is not needed there, and the restored copy's
+`encrypt` refines the model's step and keeps the invariant with one unit of budget spent
+(`responder_first_frame_restored_encrypt`). No new law: the five laws of the round trip above (four of them added at
+the receipt's root, which already takes `DhPublicBytesRoundTrip`), `DivCeilValue` and `DhCodecTotal`, ASSUMED as there.
+The receipt's hypotheses include `DecryptOracleOf` and `AeadRoundTrip`, and the continuation adds `AeadSealBounded` and
+`OracleOf`, whose AEAD clauses are false of the shipping AEAD by reading at long lengths (row `AEAD-LENGTH-CONTRACTS`),
+so, as stated, the composed results say nothing about the shipping code at any length until those contracts are
+repaired. The round trip is exhibited on a run (`first_send_restored_reachable`), under laws that hold together in
+`Interp.modelFirstReceipt`; the continuation with `encrypt` is not. Not covered: a responder session at any later
+state, a decoder holding more than one chunk, stored skipped keys, `Session::clone`, and a copy restored from bytes the
+session did not write.
 
 *The first `encrypt` at a session `establish_initiator_for` returned.* `UnitLifecycleEstablishedEncrypt.lean` composes the
 public `encrypt` with every establishment output, through the dispatch layer's encrypt route, and derives that route's state
