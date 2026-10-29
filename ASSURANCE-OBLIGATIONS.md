@@ -1064,6 +1064,7 @@ recorded decision or a target-closing slice:
   `check-discharge-native-decide-negatives.py`,
   `check-initiator-second-send-negatives.py`,
   `check-kdf-realisation-negatives.py`,
+  `check-out-of-order-receive-negatives.py`,
   `check-receive-preservation-negatives.py`,
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
@@ -1160,6 +1161,11 @@ recorded decision or a target-closing slice:
   `check-decrypt-compose-negatives.py`: the composition of the decrypt refinement with receive preservation (the
   in-order scope, the unit of budget, the receive laws, the frame type, the restored scope, check and field decoder,
   and `FrameInOrder`'s definition);
+  `check-out-of-order-receive-negatives.py`: receive preservation at every frame and its composition with the decrypt
+  refinement (the unit of budget of the step and the ratchet composition, the receive laws, the frame type, the restored
+  scope and check, the decoded header of the store effect and its number, the classical clock, the sparse counter's
+  `maxSkip + 1`, the classical skip's upper end, the used key's number, both evictions, the eviction in the model's
+  step, the sparse skip's lower end, the step's budget, and `ReceiveStepAny`'s definition);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1240,6 +1246,16 @@ recorded decision or a target-closing slice:
   each control the script labels inside one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
+  `check-out-of-order-receive-negatives.py` (two unmodified copies accepted and 18 changes refused, each at a named
+  declaration or pin: seven inside the composing proofs (the unit of budget of the step and of the ratchet composition,
+  the receive laws, the initial-type frame, the restored scope and check, the store effect's decoded header), one
+  projection (the store effect at the number below), nine on the model lemmas refused by their own content (the
+  classical clock, the sparse counter's bound, the classical skip's upper end, the used key's number, both evictions,
+  the eviction in the model's step, the sparse skip's lower end, the step's budget), and `ReceiveStepAny` held by its
+  pin; each control the script labels inside one of the six composing proofs also run with that proof replaced by
+  `sorry` and required to be accepted there, which verifies attribution only; the controls it labels projections are
+  not probed; the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and
+  guidance, not a claim),
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused, each at its named place;
   each control the script labels inside one of the four composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;

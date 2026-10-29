@@ -604,6 +604,17 @@ phase_kdf_realisation() {
 python3 scripts/check-kdf-realisation-negatives.py || fail=1
 }
 
+# Receive preservation at every frame (a stored key, a skip, an eviction) composed with the decrypt refinement
+# (`UnitLifecycleOutOfOrderReceive.lean`). The control accepts the two unmodified copies, then plants eighteen
+# changes (the unit of budget of the step and of the ratchet composition, the receive laws, an initial-type frame,
+# the restored scope and check, the store effect's decoded header and number, the classical clock, the sparse
+# counter's bound, the classical skip's upper end, the used key's number, both evictions, the eviction in the model's
+# step, the sparse skip's lower end, the step's budget, and the step's definition with its pins kept), each of which
+# must be refused at its named declaration or pin, with a message naming the change.
+phase_out_of_order_receive() {
+python3 scripts/check-out-of-order-receive-negatives.py || fail=1
+}
+
 # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two
 # receipts on their runs (`UnitLifecycleReceivePreserve.lean`): 23 changes, to statements and a definition (the decoder
 # scope, the clone record, the budget, the relation after the call, the canonical-key law and the public-key clause in
@@ -822,6 +833,7 @@ phases() {
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
   run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
   run_phase kdf-realisation plain "kdf-realisation proof-dependency control" phase_kdf_realisation
+  run_phase out-of-order-receive plain "out-of-order-receive proof-dependency control" phase_out_of_order_receive
   run_phase receive-preservation plain "receive-preservation proof-dependency control" phase_receive_preservation
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs

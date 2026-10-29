@@ -48,6 +48,7 @@ import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleResponderEstablishReplay
 import Translation.UnitLifecycleIntegrationScreen
 import Translation.UnitLifecycleKdf
+import Translation.UnitLifecycleOutOfOrderReceive
 import Translation.UnitOracleShape
 import Translation.UnitOracleModel
 import Translation.UnitOracleDh
@@ -292,6 +293,13 @@ budget spent, the relation after the call and the model step derived; and the sa
 the restored scope, with the budget check.  Conditional on `DecryptOracleOf`, whose AEAD open clause is false of the
 shipping AEAD by reading at long lengths.  Not shown: the out-of-order family, initial-type frames, a run exhibiting the
 hypotheses with a successful receive.
+`UnitLifecycleOutOfOrderReceive.lean` drops the in-order scope: every successful `decrypt_ratchet` and `decrypt` at
+every frame (a stored key used, a skip on either chain, an eviction from a full store) keeps the invariant with one unit
+of budget spent, given the relation after the call and a model step at any frame, and the model's step of every frame
+is one, so the composition with the decrypt refinement takes the in-order composition's hypotheses without
+`FrameInOrder`; on success no stored key for the frame's numbers is kept.  Conditional on `DecryptOracleOf` likewise.
+Not shown: a witness or run reaching an out-of-order receive, initial-type frames, that a delayed frame is still
+decrypted after an eviction.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

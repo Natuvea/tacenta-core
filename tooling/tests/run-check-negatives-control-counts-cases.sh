@@ -47,6 +47,7 @@ named=(
   check-size-witness-negatives.py
   check-initiator-second-send-negatives.py
   check-kdf-realisation-negatives.py
+  check-out-of-order-receive-negatives.py
   check-receive-preservation-negatives.py
   check-initiator-second-message-negatives.py
   check-responder-second-receipt-negatives.py

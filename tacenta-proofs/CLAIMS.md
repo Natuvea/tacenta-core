@@ -239,7 +239,10 @@ this section says in one place what is not proved.
   `Session::invariant` and spend at most one unit of the counter budget at every agreement state ...)"). Each run named
   is a single run in strict alternation: an intermediate scope, not evidence for arbitrary delivery, mixed
   implementations or arbitrary accepted stored state. Preservation is not complete: out-of-order receives (a stored key,
-  a skip, an eviction) are covered by no preservation result; the counter budget at a session `Session::import` returns
+  a skip, an eviction) are covered by a step at every frame and its composition with the decrypt refinement, under the
+  same hypotheses as the in-order composition and with no witness or run reaching such a receive ("Proved (tier T3,
+  session lifecycle: `Session::decrypt_ratchet` and the public `decrypt` of a ratchet-type frame keep
+  `Session::invariant` and the counter budget at every frame ...)"); the counter budget at a session `Session::import` returns
   from arbitrary accepted bytes is stated, and it is none that acceptance guarantees: acceptance enforces three counter
   ceilings, each one step above the budget, and copies of an established initiator with a parked clock or an exhausted
   chain are accepted with no budget, under the round trip's nine assumed laws ("Proved (tier T3, session lifecycle:
@@ -512,20 +515,21 @@ this section says in one place what is not proved.
   take a third precondition, `State.decoders_bounded`, and their `DecoderMessageTotal` is stated for
   decoders that need at most `MAX_CODEWORDS` chunks (the session lifecycle T1 section).
 
-- **Kernel-checked is not kernel-only, and twenty-two pinned results still trust the compiler.** Since 2026-10-21 no
+- **Kernel-checked is not kernel-only, and twenty-three pinned results still trust the compiler.** Since 2026-10-21 no
   lifecycle result rests on a `native_decide` constant: the nine constants the sparse ratchet's and the Triple's
   refinements on the session unit carried (four labels, the two skip bounds and `MAX_SKIP`'s value, one step of
   `receive_refines_continuation`, the combine label) are proved by `simp`, `decide` and `rfl`, and their pins list the
   kernel's three axioms (the section "Proved (the Session unit's refinement constants, by the kernel)"). The results that
   inherited them are now kernel-checked over the unit's opaque constants, which is not the same as kernel-only: those
   constants are the declarations of what the translation could not see, and a theorem about them says nothing about the
-  real primitives beyond its hypotheses. Twenty-one statements that name `Session::export` or `Session::import` (eleven
-  since 2026-10-21, and ten more since the budget at an imported session and the decrypt composition) still list one
+  real primitives beyond its hypotheses. Twenty-two statements that name `Session::export` or `Session::import` (eleven
+  since 2026-10-21, ten more since the budget at an imported session and the decrypt composition, and one since the
+  composition at every frame) still list one
   compiler-trust axiom, the length bound of `toStr` on a panic message of the generated `export`, which Aeneas discharges
   `by decide +native`; `export_message_fits` proves that same proposition with the kernel alone, so the trusted fact is
   true, but the generated definition refers to the axiom, and removing it needs a change to the Rust message or to Aeneas
   at a re-translation. `Proofs.Serialization.decode_encode_composite` rests on three `bv_decide` lemmas. `attest.py`'s
-  `COMPILER_TRUSTED_PINS` lists exactly these twenty-two and refuses an entry whose pin lists no compiler-trust axiom.
+  `COMPILER_TRUSTED_PINS` lists exactly these twenty-three and refuses an entry whose pin lists no compiler-trust axiom.
 
 - **Identity records are tested and pinned, and the public initiator entry is
   outside every proof.** The identity pair digest, the verification number, the
@@ -4301,7 +4305,7 @@ and the `(1 : u64)` step of `receive_refines_continuation` claimed as two, is re
 
 What this does not change: these are facts about the translated constants and the model's constants only. The results that
 used them still rest on the unit's opaque constants and on every hypothesis their statements name; kernel-checked over
-opaque constants is not kernel-only. Twelve pinned results still trusted the compiler then, and twenty-two do now (the
+opaque constants is not kernel-only. Twelve pinned results still trusted the compiler then, and twenty-three do now (the
 section "Read this first").
 
 ## Proved (tier T3, session lifecycle retry prerequisites, on the eight-leaf unit)
@@ -7383,7 +7387,7 @@ keeps `Session::invariant` and spends at most one unit of the budget, given the 
 encrypt refinement's hypotheses, which supply it) and the records and laws above; every refused `encrypt`, `decrypt`
 and `decrypt_ratchet` keeps the invariant and the whole budget with no law. **Not shown:** a successful `decrypt` or
 `decrypt_ratchet` outside the in-order scope of the receive-preservation section (an agreement transition or output on a
-receive is in the next section; a stored key, a skip or an eviction is in no preservation result); the step at `HeaderReceived` on a run, or with its relation after the call
+receive is in the next section; a stored key, a skip or an eviction is in the section on every frame); the step at `HeaderReceived` on a run, or with its relation after the call
 derived there (no theorem supplies the per-call record `braidTrace` at that state; a seeded encapsulation law would be
 needed, and none is assumed here); that the shipping KEM meets `Encaps1SizesOf` or the other KEM records and laws (by
 reading, the wrapper returns libcrux's fixed-size 1408-byte first ciphertext half, and the crate test
@@ -7757,6 +7761,140 @@ initial-type frame and without the in-order scope (`decrypt_refines_keeps_invari
 leaving no unit to spend, outside the restored scope and read off the field decoder `import_unchecked`
 (`restored_decrypt_keeps_invariant`). The last is `FrameInOrder` with its bound ciphertext renamed and its pins kept
 (refused at its pin). No leaf, projection or statement-shape control is labelled.
+
+## Proved (tier T3, session lifecycle: `Session::decrypt_ratchet` and the public `decrypt` of a ratchet-type frame keep `Session::invariant` and the counter budget at every frame, a stored key used, a skip on either chain and an eviction from a full store included, and refine the model's step, conditional on `DecryptOracleOf` and the assumed laws of `ReceiveInvariantLaws`, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleOutOfOrderReceive.lean`.
+
+The receive-preservation step of `UnitLifecycleDecryptPreserve` takes a model step in the in-order scope
+(`ReceiveStep`), and the decrypt composition takes the frame in that scope (`FrameInOrder`). This section drops the
+scope. The model step is now `ReceiveStepAny`: the session as it was, or the agreement's next state with the Triple
+the model's receive with eviction (`Model.Lifecycle.receiveWithEviction`) of any header whose key is canonical, so a
+stored key used, a skip on either chain (on the classical side on the peer's chain, or on the chain being left and the
+new one) and the retry that evicts the oldest stored keys from a full store are all included. The model's own
+`decryptRatchet` of every frame is such a step, with no hypothesis, so composed with the decrypt refinement neither the
+relation after the call nor the model step nor a scope is a hypothesis.
+
+**Laws and premises.** No new law. The step theorems take `ReceiveInvariantLaws` (eleven fields, among them the
+assumed laws `KeyPairEkVectorLen` and `Encapsulate2Len`), the oracle's `dhPublic` clause and the codec relation, as
+`decrypt_ratchet_keeps_invariant` does, and the relation after the call and a `ReceiveStepAny` as hypotheses. The
+composed results take the hypotheses of `decrypt_ratchet_refines_of_invariant` (`DecryptOracleOf`, `DhCodecOf`,
+`DecryptRatchetContracts`, `DerivedKeysModel`, `DecryptRatchetAgreements`, the trace equation and
+`DecryptRatchetRunInputs`) and `ReceiveInvariantLaws`, the same set as the in-order composition without
+`FrameInOrder`. `DecryptOracleOf`'s AEAD open clause is, by reading, false of the shipping AEAD at long lengths (in a
+64-bit build with overflow checks, and there only formally; row `AEAD-LENGTH-CONTRACTS`), so each composed result here
+is conditional on a proposition that does not hold and, as stated, says nothing about the shipping code at any length
+until that contract is repaired. The model lemmas take no law. The canonicity of the sending key after the step, which
+the classical invariant asks of a Diffie-Hellman step's candidate, comes from the code (clause (a) of the session's
+structural invariant and `DhPublicValid`), as in the in-order step. The results are conditional intermediate results.
+
+- `ratchet_receive_cases`, `ratchet_trySkipped_shape`, `skip_frame`, `ratchet_receive_any_frame`: every successful
+  classical receive either takes a stored key (the store filtered, every other field kept, then aged) or, with no
+  stored key, chooses the chain (`SteppedTo`: the peer's chain, or the skip on the chain being left and the
+  Diffie-Hellman step), skips to the header's number and steps the chain; the sending key is the candidate on a
+  Diffie-Hellman step and kept otherwise; the clock rises by at most one; both chains are kept or a receiving chain is
+  held.
+- `modelRatchetInv_shrink`, `modelRatchetInv_ageStore`, `deriveChain_length`, `deriveChain_num_ge`,
+  `deriveChain_num_lt`, `deriveChain_nodup`, `modelRatchetInv_skip`, `modelRatchetInv_dhRatchet`,
+  `modelRatchetInv_classicalTail`, `modelRatchetInv_receive_any`: every successful classical receive keeps
+  `ModelRatchetInv` (the stored-key bound by the skip's own check, the clock below `u32::MAX`, every stored key no newer
+  than the clock, the store a map, the chains clause and the three canonicity clauses), given a canonical header key and,
+  on a Diffie-Hellman step, a canonical candidate.
+- `modelSpqrInv_setChains`, `deriveInto_length`, `deriveInto_num_gt`, `deriveInto_num_le`, `deriveInto_nodup`,
+  `modelSpqrInv_skip`, `modelSpqrInv_sparseTail`, `spqr_receive_cases`, `spqr_trySkipped_shape`, `modelSpqrInv_shrink`,
+  `modelSpqrInv_receive_any`: every successful sparse receive without the agreement's output keeps `ModelSpqrInv`, the
+  epoch and the direction, and every chain counter after it is at most `maxSkip + 1` more than a counter before.
+- `storeShrunk_refl`, `storeShrunk_trans`, `eraseFirstSkipped_sublist`, `ratchet_evictOldest_shape`,
+  `evictOldestClassical_shrunk`, `evictOldestPostQuantum_shrunk`, `loop_ok_shrunk`, `receiveWithEviction_ok_shrunk`:
+  every successful receive with eviction is one Triple receive at a state whose two stores are sublists of the
+  session's and whose other fields are the session's (`StoreShrunk`), for every fuel of the model's retry loop (named
+  through `open private`; no model definition changes).
+- `triple_receive_split`, `advanced_chains`, `triple_receive_any_frame`, `triple_receive_any`, `modelTripleInv_shrunk`:
+  every successful Triple receive, at every header, with or without the agreement's output, keeps `ModelTripleInv`
+  given a canonical header key and a canonical sending key after it, and keeps the direction, moves the sparse epoch only
+  with an output, moves the clock by at most one and every chain counter by at most `maxSkip + 1`.
+- `decryptRatchet_receiveStepAny`, `decrypt_receiveStepAny`, `receiveStepAny_parts`, `modelTripleInv_stepAny`,
+  `modelCounterRoom_stepAny`, `step_frame_stepAny`: the model's `decryptRatchet` of every frame, and its public
+  `decrypt` of every message its dispatch passes on, is a `ReceiveStepAny` (no hypothesis); such a step keeps
+  `ModelTripleInv`, spends at most one unit of the budget `ModelCounterRoom` (the `1001` per operation the budget
+  reserves for a chain counter is exactly the `maxSkip + 1` a skip and a step move it), keeps the direction, makes a
+  changed sending key the oracle's public key of the new ratchet key, and keeps clause (b) and the role.
+- `skip_stored`, `ratchet_receive_consumes`, `spqr_skip_stored`, `spqr_receive_consumes`, `triple_receive_consumes`,
+  `decryptRatchet_consumes`: on every frame the model's `decryptRatchet` accepts, the session after it holds no stored
+  classical key for the frame's ratchet key and number and no stored sparse key for its epoch and number: a stored key
+  used is removed, a skip stores only numbers below the frame's on the frame's chain or keys of another chain, and an
+  eviction only removes.
+- `decrypt_ratchet_keeps_invariant_any`, `decrypt_keeps_invariant_any`: for every session `s` that passes
+  `Session::invariant`, has room for `k + 1` operations and refines a model session `m`, every successful
+  `decrypt_ratchet` (and public `decrypt`) there whose session refines a model session that is a `ReceiveStepAny` from
+  `m` leaves a session that passes `Session::invariant` and has room for `k`; the relation after the call and the step
+  are hypotheses.
+- `decrypt_ratchet_refines_keeps_invariant_any`: for every session `s` that passes `Session::invariant`, has room for
+  `k + 1` operations and refines a model session `m`, and every frame, under the hypotheses above, `decrypt_ratchet`
+  returns an output whose result, session and draws refine the model's `decryptRatchet`, and whose session passes
+  `Session::invariant` and has room for `k`; on success through `decrypt_ratchet_keeps_invariant_any` with the relation
+  from the refinement and the step from `decryptRatchet_receiveStepAny`, on refusal through
+  `decrypt_ratchet_err_keeps_invariant`.
+- `decrypt_ratchet_refines_consumes_any`: the same, and when the call succeeds on a frame whose header decodes to `c`,
+  the session it returns, read through the abstractions the relation uses, holds no stored classical key for `c`'s
+  ratchet key and number and no stored sparse key for `c`'s epoch and number (`decryptRatchet_consumes`, carried by the
+  relation after the call).
+- `decrypt_refines_keeps_invariant_any`: the same as `decrypt_ratchet_refines_keeps_invariant_any` for the public
+  `decrypt` of a frame whose type byte is the ratchet type, refining the model's `decrypt`.
+- `restored_decrypt_keeps_invariant_any`: for every byte string `Session::import` accepts with a session `s` in the
+  restored scope (`RestoredScope`) whose counters pass `roomCheck s (k + 1)`, and every ratchet-type frame, the public
+  `decrypt` returns, refines the model's `decrypt` at `restoredModelOf dh s`, and leaves a session that passes
+  `Session::invariant` and has room for `k`, under the same hypotheses but the relation and `HonestChunk` (acceptance
+  gives no budget, `acceptance_does_not_give_headroom`).
+
+**What this establishes, and what it does not.** Item (1) of `PRESERVATION-GAPS` (out-of-order receives: a stored key,
+a skip, an eviction) is stated: the step for every frame, and its composition with the decrypt refinement for
+`decrypt_ratchet` and the public `decrypt` of ratchet-type frames, conditional on the hypotheses above, among them
+`DecryptOracleOf`. No clause of `Session::invariant` and no counter of the budget is broken on these paths, within the
+budget premise. **Not shown:** a witness or run that exhibits the composed hypotheses with a successful receive at any
+frame, in or out of order (the success branch has no witness, and no run reaches a stored key used, a skip or an
+eviction); that the shipping AEAD meets `DecryptOracleOf` (false by reading at long lengths), or that the shipping KEM
+and the other functions meet `ReceiveInvariantLaws`, the agreements and the contracts; an initial-type frame through
+the public `decrypt` (only ratchet-type frames are composed); a restored session outside the restored scope, or the
+budget of a restored session without the caller's check; that the ceilings are kept (false of the code, so the
+statements spend a budget), or what a receive does at a session without the budget premise; the store effect for the
+public `decrypt` (stated for `decrypt_ratchet` only), or which keys a skip stores beyond their numbers; that a delayed
+frame is still decrypted after an eviction or after its key aged out; that `Session::invariant` says a session is
+reachable.
+
+**Non-vacuity.** The hypotheses of `decrypt_ratchet_refines_of_invariant` hold together at one witness session under
+named laws (`decrypt_of_invariant_hypotheses_jointly_satisfiable`); the two new laws of `ReceiveInvariantLaws` hold in
+`Interp.modelT3`. No theorem shows the whole hypothesis set of the composed results jointly satisfiable with a
+successful receive, and no run here exhibits it: the one joint witness of the refinement's hypotheses is at a frame
+whose composite carries the all-zero ratchet key, which the screen's oracle refuses (`sample_model_refuses`; whether
+the witness's own oracle refuses it is not checked), so the success branch, where the step's out-of-order cases live,
+is exhibited by none. The model lemmas need no witness: `decryptRatchet_receiveStepAny` and `decryptRatchet_consumes`
+hold of every frame.
+
+**Compiler trust and pins.** `restored_decrypt_keeps_invariant_any` names `Session::import` and lists the
+compiler-trust axiom `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1`, with 62 opaque
+constants of the unit. Of the other 55 results, 50 rest on `propext`, `Classical.choice` and `Quot.sound` alone, or a
+subset of them (every model lemma), and 5 on those and 55 opaque constants of the unit (the step and composed results).
+Each of the 56 results carries an axiom pin and a statement pin, and each of the 3 definitions (`SteppedTo`,
+`StoreShrunk`, `ReceiveStepAny`) a `#print` pin; that the pinned statement is the right one is decided by reading.
+Six helper lemmas (`modelRatchetInv_shrink`, `modelSpqrInv_shrink`, `storeShrunk_refl`, `storeShrunk_trans`,
+`eraseFirstSkipped_sublist`, `ratchet_evictOldest_shape`) are proved with a `simp` step, which uses `propext`, where a
+proof with no axiom exists, because `attest.py`'s pin reader reads only the form "depends on axioms: [...]"; that is a
+limit of the tool, not a change to what the results trust.
+`check-out-of-order-receive-negatives.py` plants 18 faults in copies of the module, every one a change to a statement
+or a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change
+(a proof-breakage check at that place, not a proof that the changed statement is false), and each control it labels
+inside a composing proof to be accepted there when that proof is replaced by `sorry` (attribution only). Inside
+(seven): the step and the ratchet composition without a unit of budget to spend, the ratchet composition without the
+receive laws, the public composition at an initial-type frame, the restored route outside the restored scope and with a
+check leaving no unit, and the store effect without the decoded header. One projection: the store effect claimed for
+the number below the frame's, refused where `decrypt_ratchet_refines_consumes_any` forwards `decryptRatchet_consumes`.
+On the model lemmas (nine), each refused by its own content: the classical receive claimed not to move the clock, a
+sparse counter claimed to move by at most `maxSkip`, a classical skip claimed to stop one number short, the used key
+claimed absent for the number below, either store's eviction claimed to remove nothing, the model's step claimed
+without eviction, a sparse skip claimed to store from number two, and the step's budget claimed with no unit to spend.
+The last is `ReceiveStepAny` with its candidate renamed and its pins kept (refused at its pin). No statement-shape check
+is labelled.
 
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt` at the session its receipt of the reply returns, with `Session::invariant` and the four ceilings derived there and kept through the send, on the eight-leaf unit)
 

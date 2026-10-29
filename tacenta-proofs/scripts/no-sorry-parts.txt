@@ -54,6 +54,7 @@ hosted decrypt:
   tampered-reply
   discharge-native-decide
   kdf-realisation
+  out-of-order-receive
   receive-preservation
   audit-negatives
   decrypt-compose
