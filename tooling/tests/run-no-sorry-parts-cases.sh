@@ -130,6 +130,7 @@ py_stubs=(
   check-initiator-repeated-reply-negatives.py
   check-initiator-second-message-negatives.py
   check-restored-negatives.py
+  check-restored-responder-negatives.py
   check-encrypt-negatives.py
   check-encrypt-preservation-negatives.py
   check-responder-negatives.py

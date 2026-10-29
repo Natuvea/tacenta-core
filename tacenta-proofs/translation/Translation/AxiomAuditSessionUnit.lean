@@ -87,6 +87,7 @@ import Translation.UnitLifecycleResponderFirstFrame
 import Translation.UnitLifecycleResponderFirstReceipt
 import Translation.UnitLifecycleResponderRepeatedFrame
 import Translation.UnitLifecycleResponderSuccessor
+import Translation.UnitLifecycleRestoredResponder
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
 import Translation.UnitLifecycleResponderSecondReceipt
@@ -308,6 +309,12 @@ with the preservation step: `encrypt` refines the model's step and keeps the inv
 with its effects on success.  No new law; conditional on `AeadSealBounded` and `OracleOf`, false of the shipping AEAD
 by reading at long lengths.  Not shown: `encrypt` at `HeaderReceived`, a session whose encoder is exhausted, a second
 party.
+`UnitLifecycleRestoredResponder.lean` proves the export/import round trip at the responder's session after its first
+receipt (agreement waiting for the header with a decoder holding at most one chunk, an established ephemeral, no
+pending initial message): `import` of the exported bytes returns that session itself, at the inner receive, at
+`establish_responder` and on the bytes the initiator's first `encrypt` emitted, and the restored copy's `encrypt`
+refines the model's step and keeps the invariant with one unit of budget spent.  No new law; conditional on the AEAD
+contracts, false of the shipping AEAD by reading at long lengths.  Not shown: later responder states, `Session::clone`.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

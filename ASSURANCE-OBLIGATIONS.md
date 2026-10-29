@@ -1049,6 +1049,7 @@ recorded decision or a target-closing slice:
   `check-established-negatives.py`,
   `check-import-budget-negatives.py`,
   `check-restored-negatives.py`,
+  `check-restored-responder-negatives.py`,
   `check-encrypt-negatives.py`,
   `check-encrypt-preservation-negatives.py`,
   `check-responder-negatives.py`,
@@ -1168,6 +1169,7 @@ recorded decision or a target-closing slice:
   `maxSkip + 1`, the classical skip's upper end, the used key's number, both evictions, the eviction in the model's
   step, the sparse skip's lower end, the step's budget, and `ReceiveStepAny`'s definition);
   `check-encrypt-compose-negatives.py`: Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every invariant session outside the sampling state (the composed budget, the sampling-state and budget premises, the effects, the joint witness's budget, the record, and the route's derived records and headroom);
+  `check-restored-responder-negatives.py`: the responder's session after its first receipt survives the export/import round trip as itself and its restored copy continues with `encrypt` (the restored encrypt's budget and KEM, the round trip's laws and invariant, the decoder's and the agreement's codec, the ephemeral's length, the received decoder, the budget, and `CodecShapeR`);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1625,6 +1627,16 @@ recorded decision or a target-closing slice:
   none shows that `decrypt` refuses other inputs,
   a tampered reply frame included,
   or that a second message is received),
+  `check-restored-responder-negatives.py` (two unmodified copies accepted and fourteen changes refused,
+  each at a named declaration or pin with a message naming the change:
+  five inside the composing proofs, accepted there with that proof emptied
+  (the restored encrypt's budget claimed unspent and its oracle's KEM left unrelated, the round trip without
+  `DhCodecTotal`, the shape round trip without the invariant, the reach without `ZeroizingVecRoundTrip`),
+  eight on the lemmas (the decoder's encoding a byte shorter per chunk, the size cast through `u16`, the decoder read
+  back at two chunks, the header-wait tag 6, the ephemeral 32 bytes, the received decoder empty, the decoder's size one
+  below the cap, the received budget past the clock),
+  and `CodecShapeR` with its ephemeral bound moved and its pins kept;
+  five of them weaken a premise and are refused where it is handed on, a dependency check),
   `check-send-preservation-negatives.py` (three unmodified copies accepted,
   the bridge without and with its pins and the preservation module without them,
   and eighteen changes refused,

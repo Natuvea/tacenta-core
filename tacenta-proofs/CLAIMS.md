@@ -102,9 +102,12 @@ this section says in one place what is not proved.
   returns that session itself, so that the same refinements apply to the restored copy (given the caller's boundary
   records, chunk relation and draw, as for the session never copied), is proved under nine assumed laws (six of its own, the
   establishment's two and the `Option::eq` law), which hold with the decrypt laws in one interpretation; every session `import` accepts passes `Session::invariant` (no hypothesis), but acceptance does not give
-  the counter ceilings, which stay a check on the accepted session, and the relation to a model session is claimed only
-  when the restored Braid holds no KEM value, encoder or decoder ("Proved (tier T3, session lifecycle: what an accepted
-  `Session::import` gives ...)"). At that session the first `encrypt` is covered: under the encrypt boundary records, the
+  the counter ceilings, which stay a check on the accepted session, and the relation to a model session is claimed for
+  arbitrary accepted bytes only when the restored Braid holds no KEM value, encoder or decoder ("Proved (tier T3, session
+  lifecycle: what an accepted `Session::import` gives ...)"); for the responder's session after its first receipt,
+  whose Braid holds a decoder, `import` of the bytes `export` writes returns that session itself, so its own relation
+  holds of the copy, under the same laws of the round trip ("Proved (tier T3, session lifecycle: the responder's session
+  after its first receipt survives ...)"). At that session the first `encrypt` is covered: under the encrypt boundary records, the
   oracle record and three assumed laws (a new one, that key generation reads the two draws the model counts, and the
   establishment's ciphertext-length law and the ciphertext bound), its result, post-state and draws left refine the model's
   step, the two outcomes are named with their effects (key generation refusing, with the agreement failed and nothing else
@@ -520,21 +523,21 @@ this section says in one place what is not proved.
   take a third precondition, `State.decoders_bounded`, and their `DecoderMessageTotal` is stated for
   decoders that need at most `MAX_CODEWORDS` chunks (the session lifecycle T1 section).
 
-- **Kernel-checked is not kernel-only, and twenty-three pinned results still trust the compiler.** Since 2026-10-21 no
+- **Kernel-checked is not kernel-only, and thirty pinned results still trust the compiler.** Since 2026-10-21 no
   lifecycle result rests on a `native_decide` constant: the nine constants the sparse ratchet's and the Triple's
   refinements on the session unit carried (four labels, the two skip bounds and `MAX_SKIP`'s value, one step of
   `receive_refines_continuation`, the combine label) are proved by `simp`, `decide` and `rfl`, and their pins list the
   kernel's three axioms (the section "Proved (the Session unit's refinement constants, by the kernel)"). The results that
   inherited them are now kernel-checked over the unit's opaque constants, which is not the same as kernel-only: those
   constants are the declarations of what the translation could not see, and a theorem about them says nothing about the
-  real primitives beyond its hypotheses. Twenty-two statements that name `Session::export` or `Session::import` (eleven
-  since 2026-10-21, ten more since the budget at an imported session and the decrypt composition, and one since the
-  composition at every frame) still list one
+  real primitives beyond its hypotheses. Twenty-nine statements that name `Session::export` or `Session::import` (eleven
+  since 2026-10-21, ten more since the budget at an imported session and the decrypt composition, one since the
+  composition at every frame, and seven since the responder's round trip) still list one
   compiler-trust axiom, the length bound of `toStr` on a panic message of the generated `export`, which Aeneas discharges
   `by decide +native`; `export_message_fits` proves that same proposition with the kernel alone, so the trusted fact is
   true, but the generated definition refers to the axiom, and removing it needs a change to the Rust message or to Aeneas
   at a re-translation. `Proofs.Serialization.decode_encode_composite` rests on three `bv_decide` lemmas. `attest.py`'s
-  `COMPILER_TRUSTED_PINS` lists exactly these twenty-three and refuses an entry whose pin lists no compiler-trust axiom.
+  `COMPILER_TRUSTED_PINS` lists exactly these thirty and refuses an entry whose pin lists no compiler-trust axiom.
 
 - **Identity records are tested and pinned, and the public initiator entry is
   outside every proof.** The identity pair digest, the verification number, the
@@ -4310,7 +4313,7 @@ and the `(1 : u64)` step of `receive_refines_continuation` claimed as two, is re
 
 What this does not change: these are facts about the translated constants and the model's constants only. The results that
 used them still rest on the unit's opaque constants and on every hypothesis their statements name; kernel-checked over
-opaque constants is not kernel-only. Twelve pinned results still trusted the compiler then, and twenty-three do now (the
+opaque constants is not kernel-only. Twelve pinned results still trusted the compiler then, and thirty do now (the
 section "Read this first").
 
 ## Proved (tier T3, session lifecycle retry prerequisites, on the eight-leaf unit)
@@ -8010,6 +8013,105 @@ the draws at key generation, the record without the live encoder, the draw recor
 premise and are refused where the proof hands it to the lemma that needs it: they show the dependency, not that the
 changed statement is false. The last control is the record with its plaintext bound moved and its pins kept (refused at
 its pin). No statement-shape check is labelled.
+
+## Proved (tier T3, session lifecycle: the responder's session after its first receipt survives `Session::export` then `Session::import` as itself, and the restored copy continues with `encrypt`, conditional on the AEAD contracts, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleRestoredResponder.lean`.
+
+The round trip of the restored-session section covers the shape an established initiator has (agreement at
+`KeysUnsampled`, a pending initial message, no established ephemeral), so a restore then continue was shown for the
+initiator only. This section proves it for the session `establish_responder` returns on the initiator's first frame,
+whose agreement waits for the header with an erasure decoder holding at most one chunk, with no pending initial message
+and an established ephemeral. `import` returns that session itself, every field equal, so every result about it holds
+of the restored copy; no relation for a restored decoder is needed, and the restored scope of that section is not used.
+
+**Laws and premises.** No new law. The round trip takes the five laws of the initiator's round trip
+(`ZeroizingVecRoundTrip`, `OptionBranchSome`, `VecAsSlice`, `DhPrivateBytesRoundTrip`, `DhPublicBytesRoundTrip`),
+`DivCeilValue` and `DhCodecTotal`; at the public roots these are the responder's contract fields and four further laws
+(the fifth is already a hypothesis of the receipt). The receipt's hypotheses are those of
+`responder_first_frame_successor` (resp. `initiator_first_send_responder_successor_hypotheses`), among them
+`DecryptOracleOf`, whose AEAD open clause is false of the shipping AEAD by reading at long lengths (row
+`AEAD-LENGTH-CONTRACTS`), and `AeadRoundTrip`; the continuation with `encrypt` adds the encrypt boundary records,
+among them `AeadSealBounded` and `OracleOf`, likewise false by reading. So, as stated, the composed results say nothing
+about the shipping code at any length until those contracts are repaired. The continuation takes an encrypt oracle
+whose Braid KEM is the receipt's (`hK`). The results are conditional intermediate results.
+
+- `be16_length`, `chunkEnc_length`, `decEnc_length`, `dec_encoded_len_spec`, `dec_to_bytes_loop_empty`,
+  `dec_to_bytes_loop_one`, `dec_to_bytes_spec`: `Decoder::to_bytes` of a decoder holding at most one chunk writes
+  `decEnc`: its size and `needed` as big-endian `u64`, its chunk count as `u32`, then each chunk's index and 32 bytes.
+- `from_be16`, `dec_from_bytes_loop_empty`, `dec_from_bytes_loop_one`, `cast_u64_usize_val`, `cast_usize_cast_u64`,
+  `dec_from_bytes_of`: `Decoder::from_bytes` of those bytes returns the decoder, when it holds at most one chunk, passes
+  `Decoder::invariant`, needs at most `MAX_CODEWORDS` chunks and is for at most `32 · MAX_CODEWORDS` bytes.
+- `braid_push_len_prefixed_spec`, `braid_take_len_prefixed_of`, `braid_to_bytes_nh_spec`, `decode_state_nh_of`,
+  `braid_from_bytes_nh_of`: the agreement's codec while it waits for the header (`braidEncNH`: version, tag 5, epoch,
+  authenticator, the length-prefixed decoder): `Braid::to_bytes` writes it, and `Braid::from_bytes` of it returns the
+  agreement when its epoch is not `u64::MAX`, the decoder meets the conditions above and the agreement passes
+  `Braid::invariant`.
+- `export_spec_R`, `import_unchecked_spec_R`, `export_import_of_shape_R`: for every session of the responder's shape
+  (`CodecShapeR`) that passes `Session::invariant`, `export` writes `sessionEncR` and `import` of those bytes accepts and
+  returns the session itself, every field equal.
+- `decode_ec_none_of_len`, `established_len_of_structural`: `Session::structural_invariant` fixes an established
+  ephemeral's encoding to 33 bytes (a `decode_ec` of any other length is `none`). No hypothesis about any opaque
+  operation.
+- `received_decoder_small`, `first_receipt_successor_shape_small`, `invariant_size_le`, `received_codecShapeR`,
+  `received_counterRoom`: the session a successful inner receive returns at the responder's prepared session, when it
+  refines `firstReceiptSession`, is `receivedSession` of the parts with a decoder holding at most one chunk (the
+  existing walk with that fact kept); a decoder that passes `Decoder::invariant` is for at most `32 · MAX_CODEWORDS`
+  bytes under `DivCeilValue`; such a session that passes `Session::invariant` has `CodecShapeR` (associated data of 66
+  bytes under `DhCodecTotal`, an established ephemeral of 33) and room for every `k` operations with
+  `k + 3 < u32::MAX`.
+- `first_receipt_successor_round_trip`, `responder_first_frame_restored`, `initiator_first_send_responder_restored`:
+  at every successful return of `establish_responder` on the initiator's first frame (at the inner receive, at the
+  call, and on the bytes the initiator's first `encrypt` emitted), the session returned refines `firstReceiptSession`,
+  passes `Session::invariant`, meets the ceilings, has room for every `k` with `k + 3 < u32::MAX`, and the bytes
+  `export` writes for it are accepted by `import`, which returns that session itself.
+- `responder_first_frame_restored_encrypt`: restore then continue on the responder's side: under the hypotheses of
+  `responder_first_frame_restored`, the encrypt boundary records at the responder's source and a plaintext bound, every
+  session `import` accepts the exported bytes with is the session `establish_responder` returned, and the public
+  `encrypt` at that restored session refines the model's step at `firstReceiptSession` (`StepRefines`) and leaves a
+  session that passes `Session::invariant` with room for `k` operations, for every `k` with `k + 4 < u32::MAX`
+  (`encrypt_refines_keeps_invariant`, at `NoHeaderReceived`).
+- `first_send_restored_reachable`: at the real constants, under the laws of `first_send_receive_successor_reachable`
+  and the four laws of the round trip, there is a run from `publish` through the establishment and a first send of the
+  empty plaintext to a successful `establish_responder` whose session passes `Session::invariant`, meets the ceilings
+  and survives the round trip as itself. Last-resort path only.
+
+**What this establishes, and what it does not.** Restore then continue holds on the responder's side at the session
+its first receipt returns: the exported bytes import as that session, and the restored copy's `encrypt` refines the
+model's step and keeps the invariant and the budget, conditional on the AEAD contracts. **Not shown:** a responder
+session at a later state (after its reply, after a second receipt, or at any state holding a key pair, an
+encapsulation state or an encoder), a decoder holding more than one chunk, or stored skipped keys; `Session::clone`;
+a copy restored from bytes the session did not write; the continuation with `decrypt` as a theorem (its session-side
+premises hold at the restored copy because it is the same session; the frame's chunk relation and draw are the
+caller's); the continuation with `encrypt` on a run; that the real primitives meet the boundary records or the laws;
+that `Session::invariant` says a session is reachable.
+
+**Non-vacuity.** `first_send_restored_reachable` exhibits the round trip on a run at the real constants under laws
+that hold together in `Interp.modelFirstReceipt` (`first_receipt_laws_model`, which includes the five laws of the
+round trip): consistency in a model, not exhibition of the shipping code. The continuation with `encrypt` is not
+exhibited on that run.
+
+**Compiler trust and pins.** Seven results here (`export_spec_R`, `export_import_of_shape_R`,
+`first_receipt_successor_round_trip`, `responder_first_frame_restored`, `responder_first_frame_restored_encrypt`,
+`initiator_first_send_responder_restored`, `first_send_restored_reachable`) name `Session::export` and list the
+compiler-trust axiom `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1`, with between 15 and 65
+opaque constants of the unit. Of the other 26 results, 14 rest on `propext`, `Classical.choice` and `Quot.sound` alone,
+or a subset of them, and 12 on those and between 1 and 46 opaque constants of the unit. Each of the 33 results carries
+an axiom pin and a statement pin, and each of the 6 definitions (`be16`, `chunkEnc`, `decEnc`, `braidEncNH`,
+`CodecShapeR`, `sessionEncR`) a `#print` pin; that the pinned statement is the right one is decided by reading.
+`check-restored-responder-negatives.py` plants 14 faults in copies of the module, every one a change to a statement or
+a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
+proof-breakage check at that place, not a proof that the changed statement is false), and each control it labels
+inside a composing proof to be accepted there when that proof is replaced by `sorry` (attribution only). Inside (five):
+the restored `encrypt`'s budget claimed unspent and its oracle's KEM left unrelated, the round trip without
+`DhCodecTotal`, the shape round trip without the invariant, the reach without `ZeroizingVecRoundTrip`; the last four
+weaken a premise and are refused where it is handed on (a dependency check). On the lemmas (eight): the decoder's
+encoding claimed a byte shorter per chunk, the header-wait tag claimed 6, the established ephemeral claimed 32 bytes,
+the decoder's size claimed one below the cap and the received budget claimed past the clock, each refused by its own
+content; the received decoder claimed empty, refused where the proof places the bound of one chunk that `add_chunk`
+leaves; the size cast claimed through `u16`, refused where the proof's rewrite no longer applies; and the decoder read
+back at two chunks, refused where the proof hands its bound to the length lemma (a dependency check). The last is `CodecShapeR` with its ephemeral bound moved and its pins kept (refused at its pin). No projection
+or statement-shape check is labelled.
 
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt` at the session its receipt of the reply returns, with `Session::invariant` and the four ceilings derived there and kept through the send, on the eight-leaf unit)
 

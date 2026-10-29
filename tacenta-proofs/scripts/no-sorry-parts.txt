@@ -62,6 +62,7 @@ hosted decrypt:
   decrypt-preservation
 hosted responder:
   restored
+  restored-responder
   encrypt
   import-budget
   responder

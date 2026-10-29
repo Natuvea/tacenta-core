@@ -409,6 +409,18 @@ phase_restored() {
 python3 scripts/check-restored-negatives.py || fail=1
 }
 
+# the responder's session after its first receipt survives Session::export then Session::import as itself, and
+# The responder's session after its first receipt survives Session::export then Session::import as itself, and the
+# restored copy continues with encrypt (`UnitLifecycleRestoredResponder.lean`). The control accepts the two unmodified
+# copies, then plants fourteen changes (the restored encrypt's budget and its oracle's KEM, the round trip's codec law,
+# the shape round trip's invariant, the reach's zeroizing law, the decoder's encoding length, the size cast, the
+# decoder read back at two chunks, the header-wait tag, the ephemeral's length, the received decoder's chunk, the
+# decoder's size cap, the received budget, and the shape with its pins kept), each of which must be refused at its
+# named declaration or pin, with a message naming the change.
+phase_restored_responder() {
+python3 scripts/check-restored-responder-negatives.py || fail=1
+}
+
 # The public `encrypt` at every successful `establish_initiator_for` output, its two outcomes and the
 # session a successful send leaves (`UnitLifecycleEstablishedEncrypt.lean`): a copy with a law, a bound or a
 # premise removed, the draw record or the key-generation law weakened, the model step or the successor
@@ -830,6 +842,7 @@ phases() {
   run_phase initiator-repeated-reply plain "initiator-repeated-reply proof-dependency control" phase_initiator_repeated_reply
   run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored
+  run_phase restored-responder plain "restored-responder proof-dependency control" phase_restored_responder
   run_phase encrypt plain "established encrypt proof-dependency control" phase_encrypt
   run_phase encrypt-preservation plain "encrypt-preservation" phase_encrypt_preservation
   run_phase responder plain "establish_responder proof-dependency control" phase_responder

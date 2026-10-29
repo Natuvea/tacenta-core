@@ -97,6 +97,7 @@ py_controls=(
   check-established-negatives.py
   check-import-budget-negatives.py
   check-restored-negatives.py
+  check-restored-responder-negatives.py
   check-encrypt-negatives.py
   check-encrypt-preservation-negatives.py
   check-responder-negatives.py
@@ -213,6 +214,7 @@ for called in \
   check-established-negatives.py \
   check-import-budget-negatives.py \
   check-restored-negatives.py \
+  check-restored-responder-negatives.py \
   check-encrypt-negatives.py \
   check-encrypt-preservation-negatives.py \
   check-responder-negatives.py \

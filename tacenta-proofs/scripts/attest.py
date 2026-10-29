@@ -2705,6 +2705,42 @@ REQUIRED_PINS = frozenset(
         "initiator_first_send_responder_successor_counterHeadroom",
         "first_send_receive_successor_reachable",
     )]
+    # the responder's session after its first receipt survives Session::export then Session::import as itself, and the restored copy continues with encrypt (`UnitLifecycleRestoredResponder`).
+    + ["Tacenta.UnitLifecycleRestoredResponder." + n for n in (
+        "be16_length",
+        "chunkEnc_length",
+        "dec_to_bytes_loop_empty",
+        "dec_to_bytes_loop_one",
+        "dec_encoded_len_spec",
+        "dec_to_bytes_spec",
+        "from_be16",
+        "dec_from_bytes_loop_empty",
+        "dec_from_bytes_loop_one",
+        "decEnc_length",
+        "cast_u64_usize_val",
+        "cast_usize_cast_u64",
+        "dec_from_bytes_of",
+        "braid_push_len_prefixed_spec",
+        "braid_take_len_prefixed_of",
+        "braid_to_bytes_nh_spec",
+        "decode_state_nh_of",
+        "braid_from_bytes_nh_of",
+        "export_spec_R",
+        "import_unchecked_spec_R",
+        "export_import_of_shape_R",
+        "decode_ec_none_of_len",
+        "established_len_of_structural",
+        "received_decoder_small",
+        "first_receipt_successor_shape_small",
+        "invariant_size_le",
+        "received_codecShapeR",
+        "received_counterRoom",
+        "first_receipt_successor_round_trip",
+        "responder_first_frame_restored",
+        "responder_first_frame_restored_encrypt",
+        "initiator_first_send_responder_restored",
+        "first_send_restored_reachable",
+    )]
     # The responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame: the
     # agreement's send while it waits for the header, the model's reply, the route's providers and headroom, the
     # refinement there, the derivations that keep the receipt's key equations, the composition on the run and the
@@ -2897,6 +2933,14 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleImportBudget.acceptance_does_not_give_headroom",
         # `UnitLifecycleOutOfOrderReceive`: the results whose pins list a compiler-trust axiom.
         "Tacenta.UnitLifecycleOutOfOrderReceive.restored_decrypt_keeps_invariant_any",
+        # `UnitLifecycleRestoredResponder`: the results whose pins list a compiler-trust axiom.
+        "Tacenta.UnitLifecycleRestoredResponder.export_spec_R",
+        "Tacenta.UnitLifecycleRestoredResponder.export_import_of_shape_R",
+        "Tacenta.UnitLifecycleRestoredResponder.first_receipt_successor_round_trip",
+        "Tacenta.UnitLifecycleRestoredResponder.responder_first_frame_restored",
+        "Tacenta.UnitLifecycleRestoredResponder.responder_first_frame_restored_encrypt",
+        "Tacenta.UnitLifecycleRestoredResponder.initiator_first_send_responder_restored",
+        "Tacenta.UnitLifecycleRestoredResponder.first_send_restored_reachable",
         # `UnitLifecycleDecryptCompose`: the results whose pins list a compiler-trust axiom.
         "Tacenta.UnitLifecycleDecryptCompose.restored_decrypt_keeps_invariant",
         # Until 2026-10-21 this list also held the 78 results that inherited the nine `native_decide`
@@ -5097,6 +5141,48 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "receivedTriple",
         "receivedSession",
     )]
+    # the responder's session after its first receipt survives Session::export then Session::import as itself, and the restored copy continues with encrypt (`UnitLifecycleRestoredResponder`).
+    + ["Tacenta.UnitLifecycleRestoredResponder." + n for n in (
+        "be16_length",
+        "chunkEnc_length",
+        "dec_to_bytes_loop_empty",
+        "dec_to_bytes_loop_one",
+        "dec_encoded_len_spec",
+        "dec_to_bytes_spec",
+        "from_be16",
+        "dec_from_bytes_loop_empty",
+        "dec_from_bytes_loop_one",
+        "decEnc_length",
+        "cast_u64_usize_val",
+        "cast_usize_cast_u64",
+        "dec_from_bytes_of",
+        "braid_push_len_prefixed_spec",
+        "braid_take_len_prefixed_of",
+        "braid_to_bytes_nh_spec",
+        "decode_state_nh_of",
+        "braid_from_bytes_nh_of",
+        "export_spec_R",
+        "import_unchecked_spec_R",
+        "export_import_of_shape_R",
+        "decode_ec_none_of_len",
+        "established_len_of_structural",
+        "received_decoder_small",
+        "first_receipt_successor_shape_small",
+        "invariant_size_le",
+        "received_codecShapeR",
+        "received_counterRoom",
+        "first_receipt_successor_round_trip",
+        "responder_first_frame_restored",
+        "responder_first_frame_restored_encrypt",
+        "initiator_first_send_responder_restored",
+        "first_send_restored_reachable",
+        "be16",
+        "chunkEnc",
+        "decEnc",
+        "braidEncNH",
+        "CodecShapeR",
+        "sessionEncR",
+    )]
     # The responder's reply after the first receipt (`UnitLifecycleResponderReply`).
     + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
         "array_clone_u8",
@@ -5794,6 +5880,15 @@ REQUIRED_PRINT_FORM = frozenset(
         "receivedChains",
         "receivedTriple",
         "receivedSession",
+    )]
+    # the responder's session after its first receipt survives Session::export then Session::import as itself, and the restored copy continues with encrypt (`UnitLifecycleRestoredResponder`).
+    + ["Tacenta.UnitLifecycleRestoredResponder." + n for n in (
+        "be16",
+        "chunkEnc",
+        "decEnc",
+        "braidEncNH",
+        "CodecShapeR",
+        "sessionEncR",
     )]
     # The four definitions of the responder's reply (`UnitLifecycleResponderReply`).
     + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
