@@ -279,9 +279,9 @@ translated `Braid::receive` keeps `Braid::invariant` at every state; every sessi
 its inner receive's and keeps the invariant given the same of that receive.  Not shown: a receive outside the in-order scope,
 a receive with a transition or an output on a run, the budget at an imported session, the composition with the decrypt
 refinement, or that the shipping KEM meets the laws, which are assumed and not accepted as trust.
-`UnitLifecycleImportBudget.lean` states the counter budget at a session `Session::import` accepts: exactly the check
-`roomCheck` on its counters, with the classical clock below `u32::MAX` and the sparse and Braid epochs below
-`u64::MAX` and no other ceiling enforced, with no hypothesis; and, under the nine laws of the round trip, a copy of every established
+`UnitLifecycleImportBudget.lean` states what `Session::import` adds about the counters: the classical clock below
+`u32::MAX` and the sparse and Braid epochs below `u64::MAX`, each one step above the budget, and no other ceiling, with
+no hypothesis (`roomCheck` is `CounterRoom` as a decidable check, true of every session); and, under the nine laws of the round trip, a copy of every established
 initiator with its clock at `MAX_EVENTS` or its send chain at `u64::MAX` is accepted with no budget, so acceptance does
 not give the ceilings.  Not shown: that operations reach those copies, or what the operations do at a session with no
 budget.

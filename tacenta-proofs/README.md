@@ -113,8 +113,8 @@ passing the invariant with budget for later steps, given the same of its inner r
 strict alternation, an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary
 accepted stored state; these preservation results conditional and not complete (no successful receive outside the
 in-order scope, a stored key, a skip or an eviction, covered; the budget at a session imported from arbitrary bytes
-stated and none that acceptance guarantees, a check on the decoded counters `import` does not make, with copies of an
-established initiator accepted with no budget under the round trip's assumed laws; the relation after each call a
+stated and none that acceptance guarantees, acceptance adding three counter ceilings each one step above the budget,
+with copies of an established initiator accepted with no budget under the round trip's assumed laws; the relation after each call a
 hypothesis of the step theorems, derived on receive only in the composition with the decrypt refinement for
 ratchet-type frames in the in-order scope, under a decrypt oracle record whose AEAD open clause is false of the shipping
 AEAD by reading at long lengths; the three new laws assumed, not accepted as trust); and the
@@ -167,7 +167,7 @@ Read [CLAIMS.md](CLAIMS.md) for what is established and
 runs on every push and checks that every theorem CLAIMS.md names exists in the
 file it names, that every axiom-pinned theorem is claimed, that the pins named in
 `REQUIRED_PINS` exist as live code and that a pin is labelled compiler-trusted exactly when
-`COMPILER_TRUSTED_PINS` names it (twelve since 2026-10-21), and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
+`COMPILER_TRUSTED_PINS` names it (twenty-two, `counts.compiler_trusted` in the verification manifest), and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
 not compare theorem *statements* to the prose, which is a reviewer's job
 (REPRODUCING.md says what a green `attest` does and does not establish).
 [REPRODUCING.md](REPRODUCING.md) is the toolchain and the steps.

@@ -115,8 +115,8 @@ proved by the kernel since 2026-10-01. On Lean v4.31.0 the axiom each such use a
 `<decl>._native.native_decide.ax_*` (and `…bv_decide.ax_*` for `bv_decide`), not `Lean.ofReduceBool`; either way it
 puts the compiler into the axiom base of every theorem downstream. `attest.py`'s `COMPILER_TRUSTED_PINS` lists the
 pinned results that may still carry one, exactly: it refuses a compiler-trusted pin not on it and an entry whose pin
-lists none. Since 2026-10-21 it holds twelve: `Proofs.Serialization.decode_encode_composite` (three `bv_decide`
-lemmas of the composite header) and the eleven statements that name `Session::export` or `Session::import` (the
+lists none. It holds twenty-two: `Proofs.Serialization.decode_encode_composite` (three `bv_decide`
+lemmas of the composite header) and the twenty-one statements that name `Session::export` or `Session::import` (the
 `toStr` axiom, next paragraph but one). The headline theorems of the classical and sparse ratchets, the
 Braid, the session, the erasure coder and the parser are pinned under
 `#guard_msgs`, and ten of the Triple Ratchet's on the unit, so a new
@@ -4331,28 +4331,40 @@ decision closes.
   verified ML-KEM crate's second encapsulation half with that crate adopted as the boundary.
 
 **The budget at an imported session, and the receive step composed with the decrypt refinement.**
-`UnitLifecycleImportBudget` states the budget at every session `Session::import` accepts: exactly `roomCheck` of its
-decoded counters, a check `import` does not make (`import_ok_budget`, no hypothesis). Acceptance enforces a classical
-clock of at most `MAX_EVENTS = u32::MAX - 1`, a sparse epoch below `u64::MAX` and a Braid epoch below `u64::MAX` (the
-last through the Braid decoder's `read_epoch`, `import_ok_braid_epoch`), each one step above what room for zero
-operations asks, and no ceiling on a sparse chain counter. Acceptance gives no budget: under the nine assumed laws of the round trip,
+`UnitLifecycleImportBudget` states what `Session::import` adds about the counters, for every byte string, with no
+hypothesis (`import_ok_ceilings`): a classical clock of at most `MAX_EVENTS = u32::MAX - 1`, a sparse epoch below
+`u64::MAX` and a Braid epoch below `u64::MAX` (the last through the Braid decoder's `read_epoch`,
+`import_ok_braid_epoch`), each one step above what room for zero operations asks, and no ceiling on a sparse chain
+counter. `roomCheck` is `CounterRoom` written as a decidable check; that equivalence holds of every session and says
+nothing about `import`, which makes no such check. Acceptance gives no budget: under the nine assumed laws of the round trip,
 a copy of every established initiator with its clock at `MAX_EVENTS`, or with its send chain at counter `u64::MAX`, is
 accepted with room for no operation (`acceptance_does_not_give_headroom`). Those copies are made by editing counters;
-that operations reach them is by reading (the clock's clamp, the chain counter), not a theorem. What `encrypt` and
-`decrypt` do at a session with no budget is outside every preservation and refinement result, beyond the refused calls
-keeping the invariant. `UnitLifecycleDecryptCompose` composes receive preservation with the `decrypt_ratchet`
+that operations reach them is by reading (the clock's clamp, the chain counter), not a theorem: an honest session
+parks its clock after 2^32 accepted receives, and there the ratchet stops expiring by age the skipped keys stored
+within `MAX_SKIPPED_AGE` of the stop (`age_store`), behaviour no theorem covers. What `encrypt` and `decrypt` do at a
+session with no budget is outside every preservation and refinement result, beyond the refused calls keeping the
+invariant. "No budget" is in the sense of `CounterRoom`, the uniform premise every step theorem takes, which asks all
+four counters, including counters the operation does not move: a session with no budget is one no step theorem
+applies to, not one shown unusable, and whether a premise per operation would cover a send at a parked clock or a
+receive at an exhausted send chain is not checked. `UnitLifecycleDecryptCompose` composes receive preservation with the `decrypt_ratchet`
 refinement, so the relation after the call and the model step are derived, for `decrypt_ratchet` and the public
 `decrypt` of ratchet-type frames in the in-order scope (`FrameInOrder`), and from the bytes `import` accepted in the
 restored scope with the caller's `roomCheck`. It takes the refinement's hypotheses, among them `DecryptOracleOf`,
 whose AEAD open clause is false of the shipping AEAD by reading at long lengths (row `AEAD-LENGTH-CONTRACTS`), so, as
 stated, it says nothing about the shipping code at any length until that contract is repaired; and
 `ReceiveInvariantLaws`, with its two assumed laws. No theorem shows its whole hypothesis set jointly satisfiable with a
-successful receive, and no run exhibits it.
+successful receive, and no run exhibits it: the success branch, where the relation after the call and the model step
+are derived, has no witness. The one joint witness of the refinement's hypotheses is at a frame whose composite carries
+the all-zero ratchet key, which the screen's oracle refuses (whether the witness's own oracle does is not checked); a
+witness at a successful receive would need an oracle meeting `DecryptOracleOf` whose agreement and AEAD open succeed
+on that frame, and no law states that the opaque primitives do.
 
 **What stays open (register row `PRESERVATION-GAPS`).** Preservation is not complete. Out-of-order receives (a stored
 key used, a message skipped on either chain, an eviction from a full store) are covered by no preservation result. The
 counter budget at a session `Session::import` returns from arbitrary accepted bytes is stated (above), and it is none
-that acceptance guarantees: a caller must check it. The relation after each call is a hypothesis of every step
+that acceptance guarantees; the step theorems apply at an imported session only where its counters meet their premise,
+and no API checks that. Behaviour at the ceilings is not refined (row `PROOF-BOUNDARY-HEADROOM`, deferred by a recorded
+decision). The relation after each call is a hypothesis of every step
 theorem; it is derived in the encrypt composition, which takes `AeadSealBounded` and `OracleOf` (false of the shipping
 AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), in the decrypt composition for ratchet-type frames in the in-order
 scope, which takes `DecryptOracleOf` (likewise), and on the three exhibiting runs, which take the same contracts or

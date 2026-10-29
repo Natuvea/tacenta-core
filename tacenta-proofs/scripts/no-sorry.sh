@@ -252,8 +252,8 @@ python3 scripts/check-atomicity-negatives.py || fail=1
 }
 
 # Session::decrypt_ratchet and Session::decrypt refine the model's step and keep Session::invariant and the
-# counter budget, from one set of hypotheses (`UnitLifecycleDecryptCompose.lean`). The control plants nine changes
-# (the in-order scope, the unit of budget, the receive laws, the frame type, the restored scope and check, the
+# counter budget, from one set of hypotheses (`UnitLifecycleDecryptCompose.lean`). The control plants ten changes
+# (the in-order clause of `FrameInOrder`, the in-order scope, the unit of budget, the receive laws, the frame type, the restored scope and check, the
 # field decoder, and `FrameInOrder` with its pins kept), and each must be refused at a named declaration or pin, with
 # a message naming the change, after the unmodified copies are accepted.
 phase_decrypt_compose() {
@@ -365,8 +365,8 @@ python3 scripts/check-established-negatives.py || fail=1
 }
 
 # The counter budget at a session Session::import accepts: the ceilings acceptance enforces, the ones it does
-# not, and that acceptance gives no budget (`UnitLifecycleImportBudget.lean`). The control plants fourteen changes
-# (the field decoder, the Braid epoch's headroom, the epoch reader, the parked clock at the ceiling, the invariant, two laws of the round trip, the conclusion of
+# not, and that acceptance gives no budget (`UnitLifecycleImportBudget.lean`). The control plants fifteen changes
+# (the field decoder, the Braid epoch's headroom, the state decoder, the epoch reader, the parked clock at the ceiling, the invariant, two laws of the round trip, the conclusion of
 # the negative result, the stored keys' times, the budget's one step, the chain step and `roomCheck` with its pins
 # kept), and each must be refused at a named declaration or pin, with a message naming the change, after the
 # unmodified copies are accepted.

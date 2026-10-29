@@ -3,9 +3,9 @@
 
 `Translation/UnitLifecycleImportBudget.lean`: The counter budget at a session Session::import accepts: the ceilings acceptance enforces, the ones it does not, and that acceptance gives no budget
 
-The module shows what budget a session `Session::import` accepts has: exactly `roomCheck` of its counters, with the
-classical clock, the sparse epoch and the Braid epoch below their ceilings and nothing more, and that a parked-clock and an
-exhausted-chain copy of every established initiator are accepted with no budget.  The controls:
+The module shows what `Session::import` adds about the counters: the classical clock, the sparse epoch and the Braid
+epoch below their ceilings and nothing more (`roomCheck` is `CounterRoom` as a decidable check, true of every session),
+and that a parked-clock and an exhausted-chain copy of every established initiator are accepted with no budget.  The controls:
 
 * inside the composing proofs: the ceilings read off the field decoder `import_unchecked` instead of `import`
   (`import_ok_ceilings`); the Braid epoch claimed with a step of headroom (`import_ok_braid_epoch`); the parked clock claimed at `u32::MAX` itself (`export_import_parked_clock`); the exhausted
@@ -13,7 +13,8 @@ exhausted-chain copy of every established initiator are accepted with no budget.
   without the ciphertext length bound (`established_parked_clock_accepted`); the established exhausted copy without
   the `Option<u64>` comparison shape (`established_exhausted_chain_accepted`); acceptance claimed not to give the
   invariant, where it does not give the ceilings (`acceptance_does_not_give_headroom`);
-* leaf lemmas: the epoch reader claimed to refuse `u64::MAX - 1` as well (`read_epoch_ne`); an accepted session
+* leaf lemmas: the Braid state decoder claimed to refuse an epoch of `u64::MAX - 1` (`decode_state_epoch`); the epoch
+  reader claimed to refuse `u64::MAX - 1` as well (`read_epoch_ne`); an accepted session
   claimed to have every budget (`import_ok_budget`); the clock moved before a stored
   key's time (`invariant_withClock`); a clock two below the ceiling claimed to have no budget
   (`withClock_parked_no_room`); the chain step of `roomCheck` claimed short by one (`counterRoom_iff_roomCheck`); the
@@ -89,6 +90,8 @@ CEIL = ("    lifecycle.Session.invariant s = ok true ∧ s.triple.classical.even
 BRAID_EP = ("    (Tacenta.SessionUnitBraidT1.State.epoch_val s.braid.state).val < Std.U64.max := by\n"
             "  obtain ⟨bsl, hb⟩ := import_unchecked_braid b s (import_ok_unchecked b s h)\n")
 READ_EP = "    (h : tacenta_braid.read_epoch bytes pos = ok (some e)) : e ≠ core.num.U64.MAX := by\n"
+DSTATE = ("    st = tacenta_braid.State.Failed ∨ Tacenta.SessionUnitBraidT1.State.epoch_val st ≠ core.num.U64.MAX := by\n"
+          "  unfold tacenta_braid.decode_state at h\n")
 CEIL_H = ("theorem import_ok_ceilings (b : Slice U8) (s : lifecycle.Session)\n"
           "    (h : lifecycle.Session.import b = ok (core.result.Result.Ok s)) :\n")
 EXH_INV = ("theorem export_import_exhausted_chain (hz : ZeroizingVecRoundTrip) (hbr : OptionBranchSome)\n"
@@ -155,6 +158,9 @@ MUTANTS = [
      [(ACCEPT, ACCEPT.replace("→ CounterHeadroom s'", "→ lifecycle.Session.invariant s' = ok true"))],
      r'has type\n  \(withClock s 4294967294#u32\)\.invariant = ok true\nbut is expected to have type\n  CounterHeadroom \(withClock s 4294967294#u32\)', ['acceptance_does_not_give_headroom']),
     # leaf lemmas
+    ('module', 'state-decoder-claimed-to-refuse-the-epoch-below-the-reserved-one',
+     [(DSTATE, DSTATE.replace("≠ core.num.U64.MAX := by", "≠ 18446744073709551614#u64 := by"))],
+     r'has type\n  next_epoch✝ ≠ core\.num\.U64\.MAX\nbut is expected to have type\n  next_epoch✝ ≠ 18446744073709551614#u64', ['decode_state_epoch']),
     ('module', 'epoch-reader-claimed-to-refuse-the-epoch-below-the-reserved-one',
      [(READ_EP, READ_EP.replace("e ≠ core.num.U64.MAX", "e ≠ 18446744073709551614#u64"))],
      r"Tactic `assumption` failed[\s\S]*?⊢ e' ≠ 18446744073709551614#u64", ['read_epoch_ne']),

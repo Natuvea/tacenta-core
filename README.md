@@ -321,8 +321,9 @@ strict alternation, an intermediate scope, not evidence for arbitrary delivery, 
 accepted stored state, and no run reaches a receive with an agreement transition or output. These preservation results
 are conditional and not complete: no successful receive outside the in-order scope (a stored key, a skip, an eviction)
 is covered; the budget at a session imported from arbitrary bytes is stated, and it is none that acceptance
-guarantees (a check on the decoded counters that `import` does not make; copies of an established initiator with a
-parked clock or an exhausted chain are accepted with no budget, under the round trip's assumed laws); the relation after
+guarantees (acceptance adds three counter ceilings, each one step above the budget; copies of an established
+initiator with a parked clock or an exhausted chain are accepted with no budget in the sense of the uniform premise the
+step theorems take, under the round trip's assumed laws); the relation after
 each call is a hypothesis of the step theorems, derived on receive only where receive preservation is composed with the
 decrypt refinement, for ratchet-type frames in the in-order scope, under a decrypt oracle record whose AEAD open clause
 is false of the shipping AEAD by reading at long lengths, so it says nothing about the shipping code until that

@@ -2,23 +2,25 @@ import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEncryptPreserve
 
 /-!
-# The counter budget at a session `Session::import` accepts
+# The counter ceilings `Session::import` enforces, and the budget it does not give
 
 `Session::import` is the root every persisted session comes back through.  `import_ok_gives_invariant`
 (`UnitLifecycleRestoredSession`) shows that every accepted session passes `Session::invariant`; the step theorems of
 `UnitLifecycleEncryptPreserve` and `UnitLifecycleDecryptPreserve` also take a budget, `CounterRoom s (k + 1)`.  This
-module states what budget an accepted session has, for every byte string, and shows that acceptance gives none.
+module states which counter ceilings acceptance enforces, for every byte string, and shows that acceptance gives no
+budget.
 
 ## What it shows
 
-* `counterRoom_iff_roomCheck`, `roomCheck_zero`: room for `k` operations is exactly the decidable check
-  `roomCheck s k` on the session's four counters (the classical clock, the sparse epoch, every sparse chain counter
-  and the Braid epoch); at `k = 0` it is `headroomCheck`.  No hypothesis.
-* `import_ok_ceilings`, `import_ok_budget`: every session `import` accepts, from every byte string, passes the
-  invariant, has its classical clock below `u32::MAX` (so at most `MAX_EVENTS = u32::MAX - 1`), its sparse epoch
-  below `u64::MAX` and its Braid epoch below `u64::MAX`, and has room for `k` operations exactly when `roomCheck s k`
-  passes.  Each of the three ceilings is one step above what room for zero operations asks, and `import` makes no
-  `roomCheck`.  No hypothesis.
+* `counterRoom_iff_roomCheck`, `roomCheck_zero`: `roomCheck` is `CounterRoom` written as a decidable check on the
+  session's four counters (the classical clock, the sparse epoch, every sparse chain counter and the Braid epoch);
+  the equivalence holds of every session, by construction, and says nothing about `import`.  At `k = 0` the check is
+  `headroomCheck`.  No hypothesis.
+* `import_ok_ceilings`: what acceptance itself adds about the counters: every session `import` accepts, from every
+  byte string, passes the invariant, has its classical clock below `u32::MAX` (so at most `MAX_EVENTS =
+  u32::MAX - 1`), its sparse epoch below `u64::MAX` and its Braid epoch below `u64::MAX`.  Each of the three ceilings
+  is one step above what room for zero operations asks, so none is a budget.  No hypothesis.  `import_ok_budget`
+  bundles it with the equivalence above, which takes nothing from the import.
 * `read_epoch_ne`, `decode_state_epoch`, `braid_from_bytes_epoch`, `import_ok_unchecked`, `import_unchecked_braid`,
   `import_ok_braid_epoch`: the Braid epoch's ceiling at acceptance, which the invariant does not give: the persisted
   epoch reader refuses `u64::MAX`, every state the Braid's state decoder returns is `Failed` or reads its epoch with
@@ -35,12 +37,16 @@ module states what budget an accepted session has, for every byte string, and sh
 * `acceptance_does_not_give_headroom`: if `establish_initiator_for` succeeds once, it is false that every session
   `import` accepts meets `CounterHeadroom`, which is room for zero operations (`counterRoom_zero`).
 
-So acceptance guarantees no budget.  The budget of an accepted session is `roomCheck` of its decoded counters, a
-property of the bytes that a caller must check before the step theorems apply; acceptance enforces a clock of at most
-`MAX_EVENTS` and a sparse epoch and a Braid epoch below `u64::MAX`, and no ceiling on a sparse chain counter.
-`Session::import`'s
-documentation says as much (a saturated counter is accepted, and its check belongs at the use site); these are the
-theorems.  What the code does at the ceilings is read, not proved here: the classical clock is clamped at `MAX_EVENTS`
+So acceptance adds the three ceilings and no budget: whether an accepted session has room for `k` operations depends
+on its counters, which acceptance bounds only one step above the ceilings and not at all for a chain counter.
+`Session::import`'s documentation says as much (a saturated counter is accepted, and its check belongs at the use
+site); these are the theorems.  "No budget" is meant in the sense of `CounterRoom`, the uniform premise every step
+theorem takes: it asks all four counters, including counters the operation does not move (a send does not move the
+receive clock, a receive does not read the send chain), so a session with no budget is one no step theorem applies
+to, not one shown unusable; whether a premise per operation would cover a send at a parked clock, or a receive at an
+exhausted send chain, is not checked.  An honest session also reaches the parked clock, after 2^32 accepted receives;
+there the ratchet stops expiring by age the skipped keys stored within `MAX_SKIPPED_AGE` of the stop, behaviour no
+theorem covers.  What the code does at the ceilings is read, not proved here: the classical clock is clamped at `MAX_EVENTS`
 (`tacenta-core/ratchet/src/lib.rs`), so a parked session goes on working outside the refinement theorems, which take
 `CounterHeadroom`; a step past a sparse chain counter of `u64::MAX` is refused with `ChainExhausted`
 (`tacenta-core/spqr/src/lib.rs`).  Proved, elsewhere: every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps
@@ -72,6 +78,8 @@ the invariant and every budget (`UnitLifecycleEncryptPreserve.encrypt_err_keeps_
 * What `encrypt` or `decrypt` does at a session with no budget: no preservation or refinement theorem applies there,
   beyond the refused calls keeping the invariant.
 * That `import` checks the budget: it does not, and no Rust is changed here.
+* Whether a premise per operation, asking only the counters that operation moves, would cover a send at a parked clock
+  or a receive at an exhausted send chain: not checked.
 * That the shipping functions meet the nine laws.
 -/
 
@@ -87,7 +95,7 @@ open Tacenta.UnitLifecycleEstablishInitiatorShape (DhPublicValid KemCiphertextLe
 open Tacenta.UnitLifecycleSessionCodec
 open Tacenta.UnitLifecycleSessionRoundTrip
 
-/-! ## The budget is a check on the decoded counters -/
+/-! ## The budget as a decidable check (of every session) -/
 
 /-- **Room for `k` operations as one decidable check on a session's counters**: the classical clock, the
 sparse epoch, every sparse chain counter (each operation may move it by up to `MAX_SKIP + 1 = 1001`) and the
@@ -101,8 +109,9 @@ def roomCheck (s : lifecycle.Session) (k : Nat) : Bool :=
     (match p.2.receive with | some ch => decide (ch.n.val + 1001 * k < Std.U64.max) | none => true)) &&
   decide ((Tacenta.SessionUnitBraidT1.State.epoch_val s.braid.state).val + k + 1 < Std.U64.max)
 
-/-- **The budget is exactly `roomCheck`**, for every session and every `k`: `CounterRoom s k` holds exactly when
-the check on the session's four counters passes.  No hypothesis. -/
+/-- **`roomCheck` is `CounterRoom` as a decidable check**, for every session and every `k`: `CounterRoom s k` holds
+exactly when the check on the session's four counters passes.  True by construction; no hypothesis, and nothing
+about `import`. -/
 theorem counterRoom_iff_roomCheck (s : lifecycle.Session) (k : Nat) :
     CounterRoom s k ↔ roomCheck s k = true := by
   constructor
@@ -295,9 +304,9 @@ theorem import_ok_ceilings (b : Slice U8) (s : lifecycle.Session)
   exact ⟨hinv, hr'.clock_room, Tacenta.SessionUnitRatchetImportInv.Spqr.inv_gives_epoch_room _ hq',
     import_ok_braid_epoch b s h⟩
 
-/-- **The budget at every session `Session::import` accepts**: it passes the invariant and the three ceilings of
-`import_ok_ceilings`, and it has room for `k` operations exactly when `roomCheck` passes on its counters, a check
-`import` does not make. -/
+/-- **`import_ok_ceilings` bundled with `counterRoom_iff_roomCheck`**: an accepted session passes the invariant and the
+three ceilings, and, as every session does, has room for `k` operations exactly when `roomCheck` passes on its
+counters.  The last conjunct takes nothing from the import; `import` makes no such check. -/
 theorem import_ok_budget (b : Slice U8) (s : lifecycle.Session)
     (h : lifecycle.Session.import b = ok (core.result.Result.Ok s)) :
     lifecycle.Session.invariant s = ok true ∧ s.triple.classical.events.val < Std.U32.max ∧

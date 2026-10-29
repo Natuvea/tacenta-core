@@ -1225,12 +1225,12 @@ recorded decision or a target-closing slice:
   the chunk altered in one byte or given another index,
   and the held-value predicate without its held bytes (refused by its `#print` pin alone),
   each refused),
-  `check-import-budget-negatives.py` (two unmodified copies accepted and fourteen changes refused, each at a named
+  `check-import-budget-negatives.py` (two unmodified copies accepted and fifteen changes refused, each at a named
   declaration or pin: the ceilings read off the field decoder, the Braid epoch claimed with a step of headroom, the
   parked clock claimed at `u32::MAX`, the exhausted
   copy without the invariant, the established copies without the ciphertext length bound and without the
   `Option<u64>` comparison shape, and acceptance claimed not to give the invariant, each in the composing proof and
-  accepted there with that proof emptied; the epoch reader claimed to refuse `u64::MAX - 1`, an accepted session
+  accepted there with that proof emptied; the Braid state decoder and the epoch reader claimed to refuse `u64::MAX - 1`, an accepted session
   claimed to have every budget, the clock moved before a
   stored key, a clock two below the ceiling claimed without budget, `roomCheck`'s chain step short by one, the
   exhausted shape at the old counter, and `roomCheck` held by its `#print` pin),
@@ -1268,8 +1268,8 @@ recorded decision or a target-closing slice:
   each in the composing proof and accepted there with that proof emptied,
   and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
-  `check-decrypt-compose-negatives.py` (two unmodified copies accepted and nine changes refused, each at a named
-  declaration or pin: the ratchet composition without the in-order scope, without a unit of budget and without the
+  `check-decrypt-compose-negatives.py` (two unmodified copies accepted and ten changes refused, each at a named
+  declaration or pin: `FrameInOrder` without its in-order clause, the ratchet composition without the in-order scope, without a unit of budget and without the
   receive laws, the public composition at an initial-type frame and without the in-order scope, the restored route
   with a check leaving no unit, outside the restored scope and read off the field decoder, each in the composing proof
   and accepted there with that proof emptied, and `FrameInOrder` held by its `#print` pin),

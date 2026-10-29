@@ -55,14 +55,23 @@ scope (`decryptRatchet_receiveStep`), and neither is a hypothesis any more.
   `ReceiveInvariantLaws` hold in `Interp.modelT3`.  No theorem shows the whole hypothesis set of the composed results
   jointly satisfiable with a successful receive, and no run here exhibits it; the reply's run reaches the same
   conclusion by another route (`UnitLifecycleDecryptPreserve.initiator_receives_reply_via_general`).
+* The success branch has no witness.  The one joint witness of the refinement's hypotheses is at a frame whose
+  composite carries the all-zero ratchet key, which the screen's oracle refuses
+  (`UnitLifecycleDecryptRatchetScreen.sample_model_refuses`; whether the witness's own oracle refuses it is not
+  checked), so the branch where the relation after the call and the model step are derived is exhibited by no
+  witness.  A witness there needs, at one interpretation, the invariant at a session holding a receiving chain,
+  `ReceiveInvariantLaws`, and `DecryptOracleOf` with an oracle whose agreement and AEAD open succeed on that frame.
+  The oracle that meets `DecryptOracleOf` here is read off the opaque primitives (`decryptOracleOf_of_laws`), and no
+  law states that they succeed on a given frame; the screen's successful run (`succReal`, `succMessage`) uses an
+  oracle that meets the clauses in a model interpretation, not at the real constants.
 
 ## What it does not show
 
 * A receive outside the in-order scope (a stored key, a skip on either chain, an eviction from a full store), so
   reordered, delayed or dropped delivery is not covered.
 * An initial-type frame through the public `decrypt`: only ratchet-type frames are composed.
-* A run that exhibits the composed hypotheses with a successful receive, or a receive with an agreement transition or
-  an output on any run.
+* A witness or run that exhibits the composed hypotheses with a successful receive (the success branch has no
+  witness), or a receive with an agreement transition or an output on any run.
 * That the shipping AEAD meets `DecryptOracleOf` (false by reading at long lengths), or that the shipping KEM and the
   other functions meet `ReceiveInvariantLaws`, the agreements and the contracts.
 * A restored session outside the restored scope, or the budget of a restored session without the caller's check.

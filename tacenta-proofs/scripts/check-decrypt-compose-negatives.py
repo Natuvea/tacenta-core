@@ -7,7 +7,8 @@ The module composes the `decrypt_ratchet` refinement with receive preservation: 
 `decrypt` of a ratchet-type frame refine the model's step and keep `Session::invariant` and the counter budget, from
 one set of hypotheses, and the same from the bytes `Session::import` accepted.  The controls:
 
-* inside the composing proofs: the ratchet composition without the in-order scope, without a unit of budget to spend,
+* inside the composing proofs: `FrameInOrder` with its in-order clause dropped; the ratchet composition without the
+  in-order scope, without a unit of budget to spend,
   and without the receive laws (`decrypt_ratchet_refines_keeps_invariant`); the public composition at an initial-type
   frame and without the in-order scope (`decrypt_refines_keeps_invariant`); the restored route with a check that
   leaves no unit to spend, outside the restored scope, and read off the field decoder `import_unchecked`
@@ -91,6 +92,8 @@ PUB_TYPE = ("    (htype : serialization.message_type message = ok (some serializ
 RES_HEAD = ("    (bytes : Slice Std.U8) (s : lifecycle.Session) (k : Nat)\n"
             "    (h : lifecycle.Session.import bytes = ok (core.result.Result.Ok s))\n"
             "    (hscope : RestoredScope s) (hcheck : roomCheck s (k + 1) = true)\n")
+FRAME_BODY = ("    InOrderOut m.triple (Model.Lifecycle.tripleHeaderOf c) (Model.Lifecycle.sparseOutputOf\n"
+              "      (Model.Braid.receive oracle.braidKem m.braid (Model.Lifecycle.braidMessageOf view m.braid c)).2.1)\n")
 FRAME = ("  ∀ c ct, Model.CompositeHeader.decodeDetailed msg = .ok (c, ct) →\n")
 
 # (copy, name, [(old text, new text), ...] each occurring exactly once, a regular expression the refused
@@ -102,6 +105,9 @@ MUTANTS = [
     ('module', 'ratchet-composition-without-the-in-order-scope',
      [(DR_ROOM, DR_ROOM.replace("(hord : FrameInOrder view oracle m (sliceOf message))", "(hord : True)"))],
      r'hord\nhas type\n  True\nbut is expected to have type\n  ∀ \(c : Model\.CompositeHeader\.Composite\) \(ct : List UInt8\),[\s\S]*?in the application\n  decryptRatchet_receiveStep view oracle m \(sliceOf message\) hord', ['decrypt_ratchet_refines_keeps_invariant']),
+    ('module', 'frame-scope-without-the-in-order-clause',
+     [(FRAME_BODY, "    True\n")],
+     r'hord\nhas type\n  FrameInOrder view oracle m \(sliceOf message\)\nbut is expected to have type\n  ∀ \(c : Model\.CompositeHeader\.Composite\) \(ct : List UInt8\),[\s\S]*?InOrderOut m\.triple[\s\S]*?in the application\n  decryptRatchet_receiveStep view oracle m \(sliceOf message\) hord', ['decrypt_ratchet_refines_keeps_invariant']),
     ('module', 'ratchet-composition-without-a-unit-to-spend',
      [(DR_ROOM, DR_ROOM.replace("(hroom : CounterRoom s (k + 1))", "(hroom : CounterRoom s k)"))],
      r'hroom\nhas type\n  CounterRoom s k\nbut is expected to have type\n  CounterRoom s \(k \+ 1\)\nin the application\n  decrypt_ratchet_keeps_invariant laws', ['decrypt_ratchet_refines_keeps_invariant']),
@@ -142,6 +148,7 @@ COMPOSING = {
 # there: the refusal is attributable to that proof.
 INSIDE = {
     'ratchet-composition-without-the-in-order-scope': 'decrypt_ratchet_refines_keeps_invariant',
+    'frame-scope-without-the-in-order-clause': 'decrypt_ratchet_refines_keeps_invariant',
     'ratchet-composition-without-a-unit-to-spend': 'decrypt_ratchet_refines_keeps_invariant',
     'ratchet-composition-without-the-receive-laws': 'decrypt_ratchet_refines_keeps_invariant',
     'public-composition-at-an-initial-frame': 'decrypt_refines_keeps_invariant',
