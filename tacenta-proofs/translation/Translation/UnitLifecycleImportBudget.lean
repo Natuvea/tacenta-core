@@ -45,10 +45,12 @@ theorem takes: it asks all four counters, including counters the operation does 
 receive clock, a receive does not read the send chain), so a session with no budget is one no step theorem applies
 to, not one shown unusable; whether a premise per operation would cover a send at a parked clock, or a receive at an
 exhausted send chain, is not checked.  An honest session also reaches the parked clock, after 2^32 accepted receives;
-there the ratchet stops expiring by age the skipped keys stored within `MAX_SKIPPED_AGE` of the stop, behaviour no
-theorem covers.  What the code does at the ceilings is read, not proved here: the classical clock is clamped at `MAX_EVENTS`
+there the ratchet stops expiring by age the skipped keys stored within `MAX_SKIPPED_AGE` of the stop, as the
+specification states (LIM-18) and as the model's `ageStore` does too, and no theorem about the session covers the
+operations there.  What the code does at the ceilings is read, not proved here: the classical clock is clamped at `MAX_EVENTS`
 (`tacenta-core/ratchet/src/lib.rs`), so a parked session goes on working outside the refinement theorems, which take
-`CounterHeadroom`; a step past a sparse chain counter of `u64::MAX` is refused with `ChainExhausted`
+`CounterHeadroom` (since the model clamps the clock the same way, whether that clock clause is needed for refinement
+at the stop, or is an artefact of how the proofs were written, is not checked); a step past a sparse chain counter of `u64::MAX` is refused with `ChainExhausted`
 (`tacenta-core/spqr/src/lib.rs`).  Proved, elsewhere: every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps
 the invariant and every budget (`UnitLifecycleEncryptPreserve.encrypt_err_keeps_invariant` and its two siblings).
 

@@ -24,7 +24,8 @@ hypothesis.
   (`modelRatchetInv_skip`: the skip's own check bounds the store, the skipped keys are stored at the clock, the store
   stays a map).
 * The sparse receive, every case: `modelSpqrInv_receive_any`: every successful sparse receive without the agreement's
-  output keeps `ModelSpqrInv`, the epoch and the direction, and moves every chain counter by at most `maxSkip + 1`.
+  output keeps `ModelSpqrInv`, the epoch and the direction, and leaves every chain counter at most `maxSkip + 1`
+  above some counter of the table before (not necessarily the same chain's; enough for the uniform budget).
 * Eviction: `receiveWithEviction_ok_shrunk`: every successful receive with eviction is one Triple receive at a state
   whose two stores are sublists of the session's (`StoreShrunk`), for every fuel of the model's retry loop
   (`loop_ok_shrunk`, which names the private loop through `open private`, as `UnitLifecycleRetryLoopT3` does).

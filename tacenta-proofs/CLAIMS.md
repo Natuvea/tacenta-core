@@ -7642,7 +7642,10 @@ for `k` operations depends on its counters and is not decided by acceptance. "No
 operation does not move (a send does not move the receive clock; a receive does not read the send chain): a session
 with no budget is one no step theorem applies to, not one shown unusable. An honest session also reaches the parked
 clock, after 2^32 accepted receives; there the ratchet stops expiring by age the skipped keys stored within
-`MAX_SKIPPED_AGE` of the stop (`age_store`), behaviour no theorem covers. What the code does at the ceilings is read, not proved: the classical clock is clamped at `MAX_EVENTS`
+`MAX_SKIPPED_AGE` of the stop (`age_store`), as the specification states (LIM-18) and as the model's `ageStore` does
+too; no theorem about the session covers the operations there, and since model and code clamp the clock alike, whether
+`CounterHeadroom`'s clock clause is needed for refinement at the stop, or is an artefact of how the proofs were
+written, is not checked. What the code does at the ceilings is read, not proved: the classical clock is clamped at `MAX_EVENTS`
 (`tacenta-core/ratchet/src/lib.rs`), so a parked session goes on working outside the refinement theorems; a step past a
 sparse chain counter of `u64::MAX` is refused with `ChainExhausted` (`tacenta-core/spqr/src/lib.rs`); every refused call
 keeps the invariant and every budget (proved: `encrypt_err_keeps_invariant` and its two siblings). **Not shown:** that a session the operations reach has a parked clock or an exhausted
@@ -7812,12 +7815,15 @@ structural invariant and `DhPublicValid`), as in the in-order step. The results 
 - `triple_receive_split`, `advanced_chains`, `triple_receive_any_frame`, `triple_receive_any`, `modelTripleInv_shrunk`:
   every successful Triple receive, at every header, with or without the agreement's output, keeps `ModelTripleInv`
   given a canonical header key and a canonical sending key after it, and keeps the direction, moves the sparse epoch only
-  with an output, moves the clock by at most one and every chain counter by at most `maxSkip + 1`.
+  with an output, moves the clock by at most one, and leaves every chain counter at most `maxSkip + 1`, or at most
+  `maxSkip + 1` above some counter of the table before (not necessarily the same chain's; enough for the uniform
+  budget).
 - `decryptRatchet_receiveStepAny`, `decrypt_receiveStepAny`, `receiveStepAny_parts`, `modelTripleInv_stepAny`,
   `modelCounterRoom_stepAny`, `step_frame_stepAny`: the model's `decryptRatchet` of every frame, and its public
   `decrypt` of every message its dispatch passes on, is a `ReceiveStepAny` (no hypothesis); such a step keeps
   `ModelTripleInv`, spends at most one unit of the budget `ModelCounterRoom` (the `1001` per operation the budget
-  reserves for a chain counter is exactly the `maxSkip + 1` a skip and a step move it), keeps the direction, makes a
+  reserves for a chain counter covers the `maxSkip + 1` by which a counter after the step can exceed some counter
+  before it), keeps the direction, makes a
   changed sending key the oracle's public key of the new ratchet key, and keeps clause (b) and the role.
 - `skip_stored`, `ratchet_receive_consumes`, `spqr_skip_stored`, `spqr_receive_consumes`, `triple_receive_consumes`,
   `decryptRatchet_consumes`: on every frame the model's `decryptRatchet` accepts, the session after it holds no stored
@@ -7889,10 +7895,12 @@ inside a composing proof to be accepted there when that proof is replaced by `so
 receive laws, the public composition at an initial-type frame, the restored route outside the restored scope and with a
 check leaving no unit, and the store effect without the decoded header. One projection: the store effect claimed for
 the number below the frame's, refused where `decrypt_ratchet_refines_consumes_any` forwards `decryptRatchet_consumes`.
-On the model lemmas (nine), each refused by its own content: the classical receive claimed not to move the clock, a
-sparse counter claimed to move by at most `maxSkip`, a classical skip claimed to stop one number short, the used key
-claimed absent for the number below, either store's eviction claimed to remove nothing, the model's step claimed
-without eviction, a sparse skip claimed to store from number two, and the step's budget claimed with no unit to spend.
+On the model lemmas (nine): six refused by their own content (an `omega` goal the changed statement leaves unproved):
+the classical receive claimed not to move the clock, a sparse counter claimed to stay within `maxSkip` of a counter
+before, a classical skip claimed to stop one number short, the used key claimed absent for the number below, a sparse
+skip claimed to store from number two, and the step's budget claimed with no unit to spend; three refused as a type the
+lemma's proof cannot meet (a shape refusal, not a refusal by content): either store's eviction claimed to remove
+nothing (`=` for `Sublist`), and the model's step claimed without eviction.
 The last is `ReceiveStepAny` with its candidate renamed and its pins kept (refused at its pin). No statement-shape check
 is labelled.
 

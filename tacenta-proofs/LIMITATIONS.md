@@ -4342,7 +4342,10 @@ a copy of every established initiator with its clock at `MAX_EVENTS`, or with it
 accepted with room for no operation (`acceptance_does_not_give_headroom`). Those copies are made by editing counters;
 that operations reach them is by reading (the clock's clamp, the chain counter), not a theorem: an honest session
 parks its clock after 2^32 accepted receives, and there the ratchet stops expiring by age the skipped keys stored
-within `MAX_SKIPPED_AGE` of the stop (`age_store`), behaviour no theorem covers. What `encrypt` and `decrypt` do at a
+within `MAX_SKIPPED_AGE` of the stop (`age_store`), as the specification states (LIM-18) and as the model's `ageStore`
+does too: no departure between model and code. No theorem about the session covers the operations there, and whether
+`CounterHeadroom`'s clock clause is needed for refinement at the stop, or is an artefact of how the proofs were
+written, is not checked. What `encrypt` and `decrypt` do at a
 session with no budget is outside every preservation and refinement result, beyond the refused calls keeping the
 invariant. "No budget" is in the sense of `CounterRoom`, the uniform premise every step theorem takes, which asks all
 four counters, including counters the operation does not move: a session with no budget is one no step theorem
@@ -4369,8 +4372,9 @@ with the decrypt refinement (`decrypt_ratchet_refines_keeps_invariant_any`, `dec
 `restored_decrypt_keeps_invariant_any`) takes the hypotheses of the in-order composition without `FrameInOrder`: it is
 conditional on `DecryptOracleOf` in the same way and, as stated, says nothing about the shipping code at any length
 until that contract is repaired. No clause of the invariant and no counter of the budget is broken on these paths
-within the budget premise; the `1001` the budget reserves per operation for a chain counter is what a skip of at most
-`MAX_SKIP` and a step move it. On success the session keeps no stored key for the frame's classical key and number or
+within the budget premise; the `1001` the budget reserves per operation for a chain counter covers the `MAX_SKIP + 1`
+by which a counter after the step can exceed some counter of the table before (the lemmas compare with some counter,
+not necessarily the same chain's; that is enough for the uniform budget). On success the session keeps no stored key for the frame's classical key and number or
 its sparse epoch and number (`decrypt_ratchet_refines_consumes_any`, for `decrypt_ratchet` only). The canonicity of the
 sending key a Diffie-Hellman step installs comes from the code through `DhPublicValid`, as in the in-order step. The
 model's retry loop is private to `Model/Lifecycle.lean`; this module names it through `open private`, as

@@ -1249,9 +1249,10 @@ recorded decision or a target-closing slice:
   `check-out-of-order-receive-negatives.py` (two unmodified copies accepted and 18 changes refused, each at a named
   declaration or pin: seven inside the composing proofs (the unit of budget of the step and of the ratchet composition,
   the receive laws, the initial-type frame, the restored scope and check, the store effect's decoded header), one
-  projection (the store effect at the number below), nine on the model lemmas refused by their own content (the
-  classical clock, the sparse counter's bound, the classical skip's upper end, the used key's number, both evictions,
-  the eviction in the model's step, the sparse skip's lower end, the step's budget), and `ReceiveStepAny` held by its
+  projection (the store effect at the number below), nine on the model lemmas, six refused by their own content (the
+  classical clock, the sparse counter's bound, the classical skip's upper end, the used key's number, the sparse skip's
+  lower end, the step's budget) and three as a type the lemma's proof cannot meet (both evictions, the eviction in the
+  model's step), and `ReceiveStepAny` held by its
   pin; each control the script labels inside one of the six composing proofs also run with that proof replaced by
   `sorry` and required to be accepted there, which verifies attribution only; the controls it labels projections are
   not probed; the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and

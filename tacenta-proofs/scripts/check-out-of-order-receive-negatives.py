@@ -12,13 +12,14 @@ composition at an initial-type frame (`decrypt_refines_keeps_invariant_any`), th
 scope and with a check leaving no unit (`restored_decrypt_keeps_invariant_any`), and the store effect without the
 decoded header (`decrypt_ratchet_refines_consumes_any`). One is a projection: the store effect claimed for the number
 below the frame's, refused where `decrypt_ratchet_refines_consumes_any` forwards `decryptRatchet_consumes`. Nine are
-on the model lemmas, each refused by its own content (an `omega` goal or a type the lemma's proof cannot meet): the
-classical receive claimed not to move the clock (`ratchet_receive_any_frame`), a sparse counter claimed to move by at
-most `maxSkip` (`modelSpqrInv_receive_any`), a classical skip claimed to stop one number short (`skip_stored`), the used
-key claimed absent for the number below (`ratchet_receive_consumes`), the classical and the sparse eviction claimed to
-remove nothing (`evictOldestClassical_shrunk`, `evictOldestPostQuantum_shrunk`), the model's step claimed without
-eviction (`decryptRatchet_receiveStepAny`), a sparse skip claimed to store from number two (`spqr_skip_stored`), and the
-step's budget claimed with no unit to spend (`modelCounterRoom_stepAny`). The last is `ReceiveStepAny` with its
+on the model lemmas. Six are refused by their own content (an `omega` goal the changed statement leaves unproved): the
+classical receive claimed not to move the clock (`ratchet_receive_any_frame`), a sparse counter claimed to stay within
+`maxSkip` of a counter before (`modelSpqrInv_receive_any`), a classical skip claimed to stop one number short
+(`skip_stored`), the used key claimed absent for the number below (`ratchet_receive_consumes`), a sparse skip claimed
+to store from number two (`spqr_skip_stored`), and the step's budget claimed with no unit to spend
+(`modelCounterRoom_stepAny`). Three are refused as a type the lemma's proof cannot meet, a shape refusal rather than
+one by content: the classical and the sparse eviction claimed to remove nothing (`evictOldestClassical_shrunk`,
+`evictOldestPostQuantum_shrunk`) and the model's step claimed without eviction (`decryptRatchet_receiveStepAny`). The last is `ReceiveStepAny` with its
 candidate renamed and its pins kept, refused at its `#print` pin. 0 controls are labelled statement-shape.
 
 A proof that Lean accepts after the fact it rests on is removed would hold nothing, so this script makes one
@@ -159,7 +160,7 @@ MUTANTS = [
      [(CONS_HD, CONS_HD.replace("(hd : Model.CompositeHeader.decodeDetailed (sliceOf message) = .ok (c, ct))", "(hd : True)"))],
      r'hd\nhas type\n  True\nbut is expected to have type\n  Model\.CompositeHeader\.decodeDetailed \(sliceOf message\) = Except\.ok \(c, ct\)\nin the application\n  decryptRatchet_consumes',
      ['decrypt_ratchet_refines_consumes_any']),
-    # the model lemmas the step rests on, refused by their own content
+    # the model lemmas the step rests on: six refused by content, three by type (see the docstring)
     ('module', 'classical-receive-claimed-not-to-move-the-clock',
      [(FRAME_EV, FRAME_EV.replace("st'.events ≤ st.events + 1", "st'.events ≤ st.events"))],
      r'omega could not prove the goal[\s\S]*?st\.events',
