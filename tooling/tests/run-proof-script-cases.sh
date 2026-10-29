@@ -97,7 +97,6 @@ py_controls=(
   check-established-negatives.py
   check-import-budget-negatives.py
   check-restored-negatives.py
-  check-restored-responder-negatives.py
   check-encrypt-negatives.py
   check-encrypt-preservation-negatives.py
   check-responder-negatives.py
@@ -107,6 +106,7 @@ py_controls=(
   check-responder-successor-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
+  check-responder-restored-negatives.py
   check-responder-second-receipt-negatives.py
   check-responder-second-send-negatives.py
   check-send-preservation-negatives.py
@@ -214,7 +214,6 @@ for called in \
   check-established-negatives.py \
   check-import-budget-negatives.py \
   check-restored-negatives.py \
-  check-restored-responder-negatives.py \
   check-encrypt-negatives.py \
   check-encrypt-preservation-negatives.py \
   check-responder-negatives.py \
@@ -224,6 +223,7 @@ for called in \
   check-responder-successor-negatives.py \
   check-responder-reply-negatives.py \
   check-responder-reply-receipt-negatives.py \
+  check-responder-restored-negatives.py \
   check-responder-second-receipt-negatives.py \
   check-responder-second-send-negatives.py \
   check-send-preservation-negatives.py \

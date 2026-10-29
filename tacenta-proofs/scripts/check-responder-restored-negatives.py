@@ -580,7 +580,7 @@ def main():
     parser.add_argument('--log-dir', type=Path)
     parser.add_argument('--timeout', type=int, default=900)
     args = parser.parse_args()
-    logs = args.log_dir or Path(tempfile.mkdtemp(prefix='restored-responder-logs-'))
+    logs = args.log_dir or Path(tempfile.mkdtemp(prefix='responder-restored-logs-'))
     logs.mkdir(parents=True, exist_ok=True)
     module = MODULE.read_text()
     sources = {
@@ -591,7 +591,7 @@ def main():
         'module_sha256': hashlib.sha256(module.encode()).hexdigest(),
         'accepted': [], 'rejected': {},
     }
-    with tempfile.TemporaryDirectory(prefix='restored-responder-controls-') as tmp:
+    with tempfile.TemporaryDirectory(prefix='responder-restored-controls-') as tmp:
         tmp = Path(tmp)
         for label, text in sources.items():
             path = tmp / f'baseline_{label}.lean'

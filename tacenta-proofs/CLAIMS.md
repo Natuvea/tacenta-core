@@ -8099,7 +8099,7 @@ opaque constants of the unit. Of the other 26 results, 14 rest on `propext`, `Cl
 or a subset of them, and 12 on those and between 1 and 46 opaque constants of the unit. Each of the 33 results carries
 an axiom pin and a statement pin, and each of the 6 definitions (`be16`, `chunkEnc`, `decEnc`, `braidEncNH`,
 `CodecShapeR`, `sessionEncR`) a `#print` pin; that the pinned statement is the right one is decided by reading.
-`check-restored-responder-negatives.py` plants 14 faults in copies of the module, every one a change to a statement or
+`check-responder-restored-negatives.py` plants 14 faults in copies of the module, every one a change to a statement or
 a definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
 proof-breakage check at that place, not a proof that the changed statement is false), and each control it labels
 inside a composing proof to be accepted there when that proof is replaced by `sorry` (attribution only). Inside (five):

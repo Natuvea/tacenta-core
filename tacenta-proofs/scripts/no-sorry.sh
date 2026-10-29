@@ -409,18 +409,6 @@ phase_restored() {
 python3 scripts/check-restored-negatives.py || fail=1
 }
 
-# the responder's session after its first receipt survives Session::export then Session::import as itself, and
-# The responder's session after its first receipt survives Session::export then Session::import as itself, and the
-# restored copy continues with encrypt (`UnitLifecycleRestoredResponder.lean`). The control accepts the two unmodified
-# copies, then plants fourteen changes (the restored encrypt's budget and its oracle's KEM, the round trip's codec law,
-# the shape round trip's invariant, the reach's zeroizing law, the decoder's encoding length, the size cast, the
-# decoder read back at two chunks, the header-wait tag, the ephemeral's length, the received decoder's chunk, the
-# decoder's size cap, the received budget, and the shape with its pins kept), each of which must be refused at its
-# named declaration or pin, with a message naming the change.
-phase_responder_restored() {
-python3 scripts/check-restored-responder-negatives.py || fail=1
-}
-
 # The public `encrypt` at every successful `establish_initiator_for` output, its two outcomes and the
 # session a successful send leaves (`UnitLifecycleEstablishedEncrypt.lean`): a copy with a law, a bound or a
 # premise removed, the draw record or the key-generation law weakened, the model step or the successor
@@ -552,6 +540,18 @@ python3 scripts/check-responder-reply-negatives.py || fail=1
 # guidance).
 phase_responder_reply_receipt() {
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
+}
+
+# the responder's session after its first receipt survives Session::export then Session::import as itself, and
+# The responder's session after its first receipt survives Session::export then Session::import as itself, and the
+# restored copy continues with encrypt (`UnitLifecycleRestoredResponder.lean`). The control accepts the two unmodified
+# copies, then plants fourteen changes (the restored encrypt's budget and its oracle's KEM, the round trip's codec law,
+# the shape round trip's invariant, the reach's zeroizing law, the decoder's encoding length, the size cast, the
+# decoder read back at two chunks, the header-wait tag, the ephemeral's length, the received decoder's chunk, the
+# decoder's size cap, the received budget, and the shape with its pins kept), each of which must be refused at its
+# named declaration or pin, with a message naming the change.
+phase_responder_restored() {
+python3 scripts/check-responder-restored-negatives.py || fail=1
 }
 
 # The responder's decrypt of the initiator's second message at its session after the reply, with Session::invariant

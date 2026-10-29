@@ -35,7 +35,6 @@ cases=0
 # named here fails this runner rather than going unheld.
 named=(
   check-responder-successor-negatives.py
-  check-restored-responder-negatives.py
   check-decrypt-compose-negatives.py
   check-decrypt-preservation-negatives.py
   check-encrypt-compose-negatives.py
@@ -44,6 +43,7 @@ named=(
   check-initiator-repeated-reply-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
+  check-responder-restored-negatives.py
   check-send-preservation-negatives.py
   check-size-rule-negatives.py
   check-size-witness-negatives.py
