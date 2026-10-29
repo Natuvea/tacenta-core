@@ -308,9 +308,12 @@ real constants under the same assumed laws). The initiator's receipt of that sec
 covered. A successful `encrypt` at every agreement state, the two whose send draws included, keeps `Session::invariant`
 and spends one unit of that budget, given the relation after the call, under existing KEM records and one new assumed
 size law of encapsulation (used at the sampling state only; its premises there are shown on no run); the only derivation
-of that relation composes with the general encrypt refinement, whose two per-call records stay hypotheses and whose AEAD
-contracts are false of the shipping AEAD by reading, so for the shipping code it says nothing at any length until those
-contracts are repaired. Every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole
+of that relation composes with the general encrypt refinement, whose AEAD contracts are false of the shipping AEAD by
+reading, so for the shipping code it says nothing at any length until those contracts are repaired; its two per-call
+records and its headroom are derived, and the composition stated, at every session that passes the invariant, has room
+for one operation and refines a model session whose encoder has codewords left, at every agreement state but the
+sampling one (where no record is supplied), with no new law and the premises exhibited together at the established
+initiator's session only. Every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole
 budget with no law. A successful `decrypt` and `decrypt_ratchet` at every agreement state and transition, with or
 without the agreement's output, keeps `Session::invariant` and spends one unit of that budget, given the relation after
 the call and a model step in the in-order scope, under existing records and two new assumed length laws of the KEM

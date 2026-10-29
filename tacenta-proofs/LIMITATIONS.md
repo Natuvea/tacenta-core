@@ -3360,7 +3360,8 @@ every state but `HeaderReceived` (`encrypt_keeps_invariant_unless_sampling`). Th
 two of them, the per-call records `braidTrace` and `providers`, state what the agreement send and the model's Triple do
 at this call: they are intermediate hypotheses of the kind the E2E-01 acceptance criterion names (`GAP-REGISTER.md`), not
 discharged here, and at a `HeaderReceived` session no theorem in the tree supplies `braidTrace` (a seeded encapsulation
-law would be needed and is not assumed). Among the same hypotheses are `AeadSealBounded` and `OracleOf`, whose AEAD clauses are stated for every length and are false of the shipping AEAD by reading (the totality row above; row `AEAD-LENGTH-CONTRACTS`), so, as stated, the composed form, and with it the only derivation of the relation after the call, says nothing about the shipping code at any length until the AEAD contracts are repaired; the step theorems take neither. **Where the premises are exhibited.** At `KeysUnsampled`, shown jointly satisfiable on the established initiator's first send of the empty plaintext from the byte-stream source (`established_encrypt_via_general_reachable`, under the laws of `established_encrypt_successor_reachable`, which a toy model holds together and some of which, the AEAD totality laws, are false of the shipping AEAD by reading: consistency in a model, not exhibition of the shipping code) (a single run in strict alternation: an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary accepted stored state); at `HeaderReceived`, on no run (no run in
+law would be needed and is not assumed). `UnitLifecycleEncryptCompose` (in the section on the preservation results
+below) derives both records and the headroom at every invariant session outside `HeaderReceived`. Among the same hypotheses are `AeadSealBounded` and `OracleOf`, whose AEAD clauses are stated for every length and are false of the shipping AEAD by reading (the totality row above; row `AEAD-LENGTH-CONTRACTS`), so, as stated, the composed form, and with it the only derivation of the relation after the call, says nothing about the shipping code at any length until the AEAD contracts are repaired; the step theorems take neither. **Where the premises are exhibited.** At `KeysUnsampled`, shown jointly satisfiable on the established initiator's first send of the empty plaintext from the byte-stream source (`established_encrypt_via_general_reachable`, under the laws of `established_encrypt_successor_reachable`, which a toy model holds together and some of which, the AEAD totality laws, are false of the shipping AEAD by reading: consistency in a model, not exhibition of the shipping code) (a single run in strict alternation: an intermediate scope, not evidence for arbitrary delivery, mixed implementations or arbitrary accepted stored state); at `HeaderReceived`, on no run (no run in
 the tree reaches that state); at the nine no-draw states as the send paragraph above says. **The budget** is spent as
 before: one unit per call, the sparse epoch stepping by one on a send with an agreement output and the new chains' counters
 bounded through the clock's room. **Not shown:** a successful receive outside the in-order scope of the paragraph above (a
@@ -4382,6 +4383,27 @@ model's retry loop is private to `Model/Lifecycle.lean`; this module names it th
 reaches a stored key used, a skip or an eviction, so whether the hypotheses hold together at such a frame is not
 checked; that a delayed frame is still decrypted after an eviction or after its key aged out is not shown.
 
+`UnitLifecycleEncryptCompose` derives the encrypt route's per-call records instead of taking them: the counted draw
+record `braidTrace` (`braidSendTraceCounted_of_scope`: at a failed agreement and the nine no-draw states the send
+returns the source as given; at `KeysUnsampled` under `KeyGenSeededFor` and two draws left), the Triple providers
+(`encryptProviders_of_invariant`, from `Session::invariant` read on the model and any budget) and `EncryptHeadroom`
+(`encryptHeadroom_of_invariant`, from the invariant, which fixes a pending ciphertext to `kem::ciphertext_len` bytes,
+and `KemCiphertextLenBound`, for a plaintext of at most `Usize.max - 65770` bytes). Composed with the preservation step,
+`encrypt_refines_keeps_invariant` states that at every session that passes `Session::invariant`, has room for one
+operation and refines a model session whose encoder, if any, has codewords left (`EncodersLive`), at every agreement
+state but `HeaderReceived`, `encrypt` returns, every outcome refines the model's step, and the session returned passes
+the invariant with one unit of budget spent; `encrypt_refines_effects` adds, on success, the classical sending counter
+one higher, the clock, the stored keys and the agreement's epoch as given, and the draws as given at every state but
+`KeysUnsampled`. No new law. It takes `AeadSealBounded` and `OracleOf`, whose AEAD clauses are false of the shipping
+AEAD by reading (row `AEAD-LENGTH-CONTRACTS`), so, as stated, it says nothing about the shipping code at any length
+until those contracts are repaired. `EncodersLive` is kept: whether `Session::invariant` implies it is not checked;
+by reading `Encoder::invariant` accepts an exhausted encoder, so it is not expected to. The premise list is exhibited
+together at one session only, the established initiator's at `KeysUnsampled`, with a successful call, under laws a toy
+model holds together (`encrypt_of_invariant_hypotheses_jointly_satisfiable`): consistency in a model, not exhibition of
+the shipping code. Not covered: `encrypt` at `HeaderReceived` (a law relating `encapsulate1` at the drawn bytes to the
+model KEM's at that randomness would be needed, with `Encaps1SizesOf`, and none is assumed); a session whose encoder has
+no codewords left or without the budget premise; a second party or a relation between two parties' sessions.
+
 **What stays open (register row `PRESERVATION-GAPS`).** Preservation is not complete. Out-of-order receives (a stored
 key used, a message skipped on either chain, an eviction from a full store) are covered by the step at every frame and
 its composition above, conditional on `DecryptOracleOf` and with no witness or run reaching such a receive. The
@@ -4390,7 +4412,8 @@ that acceptance guarantees; the step theorems apply at an imported session only 
 and no API checks that. Behaviour at the ceilings is not refined (row `PROOF-BOUNDARY-HEADROOM`, deferred by a recorded
 decision). The relation after each call is a hypothesis of every step
 theorem; it is derived in the encrypt composition, which takes `AeadSealBounded` and `OracleOf` (false of the shipping
-AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), in the decrypt compositions for ratchet-type frames, in the in-order
+AEAD by reading, row `AEAD-LENGTH-CONTRACTS`), with the route's per-call records derived at every invariant session
+outside `HeaderReceived` (`UnitLifecycleEncryptCompose`), in the decrypt compositions for ratchet-type frames, in the in-order
 scope and at every frame, which take `DecryptOracleOf` (likewise), and on the three exhibiting runs, which take the same contracts or
 `AeadRoundTrip`; for the shipping code those derivations say nothing at any length until the AEAD contracts are
 repaired. No run reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`.

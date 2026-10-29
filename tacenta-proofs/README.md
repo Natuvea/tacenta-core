@@ -100,10 +100,13 @@ reach at the real constants under the same assumed laws; the initiator's receipt
 not covered; a successful `encrypt` at every agreement state, the two whose send draws included, keeping
 `Session::invariant` and spending one unit of that budget, given the relation after the call, under existing KEM records
 and one new assumed size law of encapsulation (used at the sampling state only), the only derivation of that relation
-composing with the general encrypt refinement, whose two per-call records stay hypotheses and whose AEAD contracts are
-false of the shipping AEAD by reading, so that for the shipping code it says nothing at any length until those contracts
-are repaired, its premises shown jointly satisfiable only in a toy model on the established initiator's first send of
-the empty plaintext and at the sampling state on no run; every refused `encrypt`, `decrypt` and `decrypt_ratchet`
+composing with the general encrypt refinement, whose AEAD contracts are false of the shipping AEAD by reading, so that
+for the shipping code it says nothing at any length until those contracts are repaired, its premises shown jointly
+satisfiable only in a toy model on the established initiator's first send of the empty plaintext and at the sampling
+state on no run; the refinement's two per-call records and its headroom derived, and the composition stated, at every
+session that passes the invariant, has room for one operation and refines a model session whose encoder has codewords
+left, at every agreement state but the sampling one, with no new law and the premises exhibited together at the
+established initiator's session only; every refused `encrypt`, `decrypt` and `decrypt_ratchet`
 keeping the invariant and the whole budget, with no law; a successful `decrypt` and `decrypt_ratchet` at every agreement
 state and transition, with or without the agreement's output, keeping `Session::invariant` and spending one unit of that
 budget, given the relation after the call and a model step in the in-order scope, under existing records and two new
