@@ -42,6 +42,7 @@ import Translation.NumericWitnessSession
 import Translation.SessionUnitDecodedStateDischarge
 import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
+import Translation.UnitLifecycleDecryptCompose
 import Translation.UnitLifecycleDecryptPreserve
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleResponderEstablishReplay
@@ -78,6 +79,7 @@ import Translation.UnitLifecycleSizeWitness
 import Translation.UnitLifecycleSparseSkipKindT3
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
+import Translation.UnitLifecycleImportBudget
 import Translation.UnitLifecycleEstablishResponder
 import Translation.UnitLifecycleResponderFirstFrame
 import Translation.UnitLifecycleResponderFirstReceipt
@@ -277,6 +279,19 @@ translated `Braid::receive` keeps `Braid::invariant` at every state; every sessi
 its inner receive's and keeps the invariant given the same of that receive.  Not shown: a receive outside the in-order scope,
 a receive with a transition or an output on a run, the budget at an imported session, the composition with the decrypt
 refinement, or that the shipping KEM meets the laws, which are assumed and not accepted as trust.
+`UnitLifecycleImportBudget.lean` states the counter budget at a session `Session::import` accepts: exactly the check
+`roomCheck` on its counters, with the classical clock below `u32::MAX` and the sparse and Braid epochs below
+`u64::MAX` and no other ceiling enforced, with no hypothesis; and, under the nine laws of the round trip, a copy of every established
+initiator with its clock at `MAX_EVENTS` or its send chain at `u64::MAX` is accepted with no budget, so acceptance does
+not give the ceilings.  Not shown: that operations reach those copies, or what the operations do at a session with no
+budget.
+`UnitLifecycleDecryptCompose.lean` composes the `decrypt_ratchet` refinement with receive preservation: under the
+refinement's hypotheses, `ReceiveInvariantLaws` and the in-order scope of the frame, `decrypt_ratchet` and the public
+`decrypt` of a ratchet-type frame refine the model's step and leave a session that passes the invariant with one unit of
+budget spent, the relation after the call and the model step derived; and the same from the bytes `import` accepted, in
+the restored scope, with the budget check.  Conditional on `DecryptOracleOf`, whose AEAD open clause is false of the
+shipping AEAD by reading at long lengths.  Not shown: the out-of-order family, initial-type frames, a run exhibiting the
+hypotheses with a successful receive.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

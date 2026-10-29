@@ -114,6 +114,7 @@ py_stubs=(
   check-lifecycle-translation-coverage.py
   check-receive-preservation-negatives.py
   check-atomicity-negatives.py
+  check-decrypt-compose-negatives.py
   check-decrypt-preservation-negatives.py
   check-repair-negatives.py
   check-responder-establish-replay-negatives.py
@@ -125,6 +126,7 @@ py_stubs=(
   check-tampered-reply-negatives.py
   check-decrypt-ratchet-negatives.py
   check-established-negatives.py
+  check-import-budget-negatives.py
   check-initiator-repeated-reply-negatives.py
   check-initiator-second-message-negatives.py
   check-restored-negatives.py

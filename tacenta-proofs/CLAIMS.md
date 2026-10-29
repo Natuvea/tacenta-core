@@ -240,10 +240,15 @@ this section says in one place what is not proved.
   is a single run in strict alternation: an intermediate scope, not evidence for arbitrary delivery, mixed
   implementations or arbitrary accepted stored state. Preservation is not complete: out-of-order receives (a stored key,
   a skip, an eviction) are covered by no preservation result; the counter budget at a session `Session::import` returns
-  from arbitrary accepted bytes is not stated (only the own-export round trip of an establishment output,
-  `restored_established_continues`, has it); the relation after each call is a hypothesis of every step theorem; no run
-  reaches a receive with an agreement transition or output, or `encrypt` at `HeaderReceived`; and receive preservation
-  is not composed with the decrypt refinement. The results are conditional on three assumed laws, `Encaps1SizesOf`,
+  from arbitrary accepted bytes is stated, and it is none that acceptance guarantees: it is a check on the decoded
+  counters that `import` does not make, and copies of an established initiator with a parked clock or an exhausted
+  chain are accepted with no budget, under the round trip's nine assumed laws ("Proved (tier T3, session lifecycle: the
+  counter budget at a session `Session::import` accepts ...)"); the relation after each call is a hypothesis of every
+  step theorem, derived on receive only in the composition with the decrypt refinement, for `decrypt_ratchet` and the
+  public `decrypt` of ratchet-type frames in the in-order scope, which takes `DecryptOracleOf`, false of the shipping
+  AEAD by reading at long lengths ("Proved (tier T3, session lifecycle: `Session::decrypt_ratchet` and the public
+  `decrypt` of a ratchet-type frame refine the model's step ...)"); and no run reaches a receive with an agreement
+  transition or output, or `encrypt` at `HeaderReceived`. The results are conditional on three assumed laws, `Encaps1SizesOf`,
   `KeyPairEkVectorLen` and `Encapsulate2Len`, which are not accepted as trust (register rows `PRESERVATION-GAPS` and
   `PRESERVE-LAW-*`).
   The oracle that inhabits the record is the code itself read through the byte views (`oracleOfLaws`), so the
@@ -7384,6 +7389,8 @@ reading, the wrapper returns libcrux's fixed-size 1408-byte first ciphertext hal
 is covered, not shown reachable); that the ceilings are kept (false of the code); the budget at a session `Session::import` returns from arbitrary accepted bytes (the invariant does not give it; only the own-export round trip of an establishment output, `restored_established_continues`, has it); restored sessions beyond the restored-session section's scope;
 a second party or a conversation; that `Session::invariant` says a session is reachable (it is a predicate on fields).
 
+The budget at a session `Session::import` accepts is stated in a later section (acceptance gives none).
+
 **Compiler trust and pins.** No result here lists a compiler-trust axiom; there is no compiler-trusted result to set
 apart. Of the other 47 results, 17 rest on `propext`, `Classical.choice` and `Quot.sound` alone, or a subset of them (`strip_ite_else`, `advance_ok_parts`, `modelSpqrInv_advance`,
 `spqr_send_some_split`, `modelSpqrInv_send_any`, `spqr_send_dir_epoch`, `modelTripleInv_send_any`,
@@ -7525,6 +7532,10 @@ laws; that an `establish_responder` input's inner receive is a `ReceiveStep` or 
 at any input but the first frame's run (an initial frame that skips or names a stored key is outside the scope); the
 budget at a session `Session::import` returns from arbitrary accepted bytes (the invariant does not give it; only the own-export round trip of an establishment output, `restored_established_continues`, has it); that the ceilings are kept (false of the code); that `Session::invariant` says a session is reachable (it is a predicate on fields).
 
+Two of those items are taken up in the sections that follow: the budget at a session `Session::import` accepts is
+stated there (acceptance gives none), and the receive step is composed there with the decrypt refinement, so that the
+relation after the call and the model step are derived for frames in the in-order scope.
+
 **Compiler trust and pins.** No result here lists a compiler-trust axiom; there is no compiler-trusted result to set
 apart. Of the other 63 results, 16 rest on `propext`, `Classical.choice` and `Quot.sound` alone, or a subset of them
 (`inv_loop_general`, `model_chunk_len`, `add_mac`, `receive_clauses`, `triple_receive_advance`,
@@ -7561,6 +7572,170 @@ is `KeyPairEkVectorLen` with its bound vector renamed and its pins kept (refused
 The script's labels and per-class counts are its own labelling and guidance, not a claim. An error that is not a
 refusal voids a run anywhere in the copy, compared without regard to case; a heartbeat or deterministic timeout never
 counts as the named refusal, and one elsewhere in the copy is logged.
+
+## Proved (tier T3, session lifecycle: the counter budget at a session `Session::import` accepts is exactly a check on its counters that `import` does not make, and acceptance gives no budget, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleImportBudget.lean`.
+
+Every persisted session comes back through `Session::import`, and every accepted session passes `Session::invariant`
+(`import_ok_gives_invariant`, above). The preservation step theorems also take a budget, `CounterRoom s (k + 1)`. This
+section states what budget an accepted session has, for every byte string: exactly the decidable check `roomCheck`
+on its four counters, which `import` does not make; acceptance enforces three ceilings, each one step above what room
+for zero operations asks, and none on a sparse chain counter; and acceptance gives no budget at all, shown by copies
+of every established initiator that `import` accepts and that have room for no operation. No Rust changes:
+`Session::import`'s documentation already says that a saturated counter is accepted and its check belongs at the use
+site.
+
+**Laws and premises.** No new law. The budget characterisation and the three ceilings take no hypothesis. The round-trip
+results take the five laws of `export_import_of_shape` (`ZeroizingVecRoundTrip`, `OptionBranchSome`, `VecAsSlice`,
+`DhPrivateBytesRoundTrip`, `DhPublicBytesRoundTrip`); the establishment forms add the four of
+`export_import_established` (`DhPublicValid`, `KemCiphertextLenOf`, `KemCiphertextLenBound`, `OptionEqU64Shape`); all
+nine are existing and assumed, and hold together in one interpretation (`restored_laws_model`, which shows them
+consistent and nothing of the shipping functions).
+
+- `counterRoom_iff_roomCheck`, `roomCheck_zero`: for every session and every `k`, `CounterRoom s k` holds exactly when
+  `roomCheck s k` passes (the classical clock, the sparse epoch and the Braid epoch each `k + 1` below their ceilings,
+  every sparse chain counter `1001 * k` below `u64::MAX`); at `k = 0` the check is `headroomCheck`. No hypothesis.
+- `import_ok_ceilings`, `import_ok_budget`: for every byte string `b` and session `s` with
+  `Session::import b = Ok s`, `s` passes `Session::invariant`, its classical clock is below `u32::MAX` (at most
+  `MAX_EVENTS = u32::MAX - 1`), its sparse epoch below `u64::MAX` and its Braid epoch below `u64::MAX` (a failed Braid
+  counts zero), and for every `k`, `CounterRoom s k` holds exactly when `roomCheck s k` passes. No hypothesis. Each
+  ceiling is one step above what `CounterHeadroom` asks, so none is a budget.
+- `read_epoch_ne`, `decode_state_epoch`, `braid_from_bytes_epoch`, `import_ok_unchecked`, `import_unchecked_braid`,
+  `import_ok_braid_epoch`: the Braid epoch's ceiling at acceptance, which `Session::invariant` does not give: the
+  persisted-epoch reader `read_epoch` refuses `u64::MAX`; every state the Braid's state decoder returns is `Failed` or
+  read its epoch with it, so every Braid `Braid::from_bytes` accepts is `Failed` or below that epoch; a session `import`
+  accepts is the one `import_unchecked` decoded, whose Braid is one `Braid::from_bytes` accepted; so every accepted
+  session's Braid epoch is below `u64::MAX`. No hypothesis.
+- `structural_withClock`, `invariant_withClock`, `codecShape_withClock`, `withClock_parked_no_room`: moving a session's
+  classical clock (`withClock`) changes nothing `Session::structural_invariant` reads; to a value below `u32::MAX` and
+  not before any stored key's time it keeps `Session::invariant`; it keeps the round trip's covered shape; and at
+  `MAX_EVENTS` the session has room for no operation.
+- `export_import_parked_clock`: under the five laws, for every session of the covered shape (`CodecShape`) that passes
+  `Session::invariant`, the copy with its clock at `MAX_EVENTS` exports to bytes that `Session::import` accepts,
+  returning that copy, at which `CounterRoom` fails for every `k`.
+- `structural_withExhaustedSend`, `invariant_withExhaustedSend`, `codecShape_withExhaustedSend`,
+  `withExhaustedSend_no_room`: moving every sparse send chain to counter `u64::MAX` (`withExhaustedSend`) changes
+  nothing the structural clauses read and keeps `Session::invariant` (the invariant reads no chain counter); a session
+  of the covered shape keeps the shape with its send chain at `u64::MAX`, and has room for no operation.
+- `export_import_exhausted_chain`: under the five laws, the same as `export_import_parked_clock` for the copy with its
+  send chain at `u64::MAX`.
+- `established_parked_clock_accepted`, `established_exhausted_chain_accepted`: under the nine laws, for every success
+  output of `establish_initiator_for`, the parked copy and the exhausted copy are each accepted by `import` of their own
+  export and have room for no operation.
+- `acceptance_does_not_give_headroom`: under the nine laws, if `establish_initiator_for` succeeds once, it is false
+  that every session `Session::import` accepts meets `CounterHeadroom` (room for zero operations).
+
+**What this establishes, and what it does not.** The budget of an accepted session is `roomCheck` of its decoded
+counters, a property of the bytes; acceptance guarantees the invariant, a clock of at most `MAX_EVENTS`, a sparse epoch
+and a Braid epoch below `u64::MAX`, and no budget, so a caller that wants the step theorems at an imported session must make the
+check itself. What the code does at the ceilings is read, not proved: the classical clock is clamped at `MAX_EVENTS`
+(`tacenta-core/ratchet/src/lib.rs`), so a parked session goes on working outside the refinement theorems; a step past a
+sparse chain counter of `u64::MAX` is refused with `ChainExhausted` (`tacenta-core/spqr/src/lib.rs`); every refused call
+keeps the invariant and every budget (proved: `encrypt_err_keeps_invariant` and its two siblings). **Not shown:** that a session the operations reach has a parked clock or an exhausted
+chain (the copies are built by editing counters); what `encrypt` or `decrypt` does at a session with no budget (no
+preservation or refinement theorem applies there, beyond the refused calls keeping the invariant); that `import` checks
+the budget (it does not, and no Rust is changed); that the shipping functions meet the nine laws.
+
+**Non-vacuity.** The nine laws hold together in `restored_laws_model`. The establishment forms take one success of
+`establish_initiator_for`; `restored_established_inhabited` shows one exists under the initiator axiom base and
+`InitiatorSuccessShape`. The copies are edits of a session's counters; no run reaches them by operations.
+
+**Compiler trust and pins.** Nine results name `Session::import` or `Session::export` and list the one compiler-trust
+axiom of the generated `export`'s panic message, `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1`
+(as every statement about exporting and importing a session does; `UnitLifecycleSessionRoundTrip.export_message_fits`
+proves its proposition with the kernel): `import_ok_unchecked`, `import_ok_braid_epoch`, `import_ok_ceilings`,
+`import_ok_budget`, `export_import_parked_clock`,
+`export_import_exhausted_chain`, `established_parked_clock_accepted`, `established_exhausted_chain_accepted` and
+`acceptance_does_not_give_headroom`, with between 33 and 62 opaque constants of the unit. Of the other 14 results, 1
+rests on `propext`, `Classical.choice` and `Quot.sound` alone, or a subset of them (`read_epoch_ne`), and 13 on those
+and between 4 and 18 opaque constants of the unit. Each of the 23 results
+carries an axiom pin and a statement pin, and each of the four definitions (`roomCheck`, `withClock`, `exhaustSend`,
+`withExhaustedSend`) a `#print` pin; that the pinned statement is the right one is decided by reading.
+`check-import-budget-negatives.py` plants 14 faults in copies of the module, every one a change to a statement or a
+definition, and requires Lean to refuse each at a named declaration or pin, against a message naming the change (a
+proof-breakage check at that place, not a proof that the changed statement is false), and each control it labels
+inside a composing proof to be accepted there when that proof is replaced by `sorry` (attribution only). Inside
+(seven): the ceilings read off the field decoder `import_unchecked` (`import_ok_ceilings`); the Braid epoch claimed with
+a step of headroom (`import_ok_braid_epoch`); the parked clock claimed at
+`u32::MAX` (`export_import_parked_clock`); the exhausted copy of a session without the invariant
+(`export_import_exhausted_chain`); the established parked copy without the ciphertext length bound and the established
+exhausted copy without the `Option<u64>` comparison shape (the two `established_*` results); acceptance claimed not to
+give the invariant (`acceptance_does_not_give_headroom`). On the leaf lemmas (six): the epoch reader claimed to refuse
+`u64::MAX - 1` as well, an accepted session claimed to have
+every budget, the clock moved before a stored key, a clock two below the ceiling claimed without budget, `roomCheck`'s
+chain step short by one, the exhausted shape at the old counter. The last is `roomCheck` with its chain step changed and
+its pins kept (refused at its pin). No projection or statement-shape check is labelled.
+
+## Proved (tier T3, session lifecycle: `Session::decrypt_ratchet` and the public `decrypt` of a ratchet-type frame refine the model's step and keep `Session::invariant` and the counter budget, from one set of hypotheses, in the in-order scope, conditional on `DecryptOracleOf` and the assumed laws of `ReceiveInvariantLaws`, on the eight-leaf unit)
+
+Location: `Translation/UnitLifecycleDecryptCompose.lean`.
+
+The receive-preservation results take the relation after the call and a model step as hypotheses; the decrypt
+refinement supplies the first and the model's own step the second. This section composes them: from the hypotheses of
+`decrypt_ratchet_refines_of_invariant`, `ReceiveInvariantLaws`, room for `k + 1` operations and a frame whose every
+decoded header is in the in-order scope with the agreement's output (`FrameInOrder`, which names the hypothesis
+`decryptRatchet_receiveStep` takes), the call returns, refines the model's step, and leaves a session that passes
+`Session::invariant` and has room for `k`, whether it succeeds or refuses. Neither the relation after the call nor the
+model step is a hypothesis.
+
+**Laws and premises.** No new law. `ReceiveInvariantLaws` (eleven fields, among them the assumed laws
+`KeyPairEkVectorLen` and `Encapsulate2Len`); the hypotheses of `decrypt_ratchet_refines_of_invariant` (`DecryptOracleOf`,
+`DhCodecOf`, `DecryptRatchetContracts`, `DerivedKeysModel`, `DecryptRatchetAgreements`, the trace equation and
+`DecryptRatchetRunInputs`: the chunk relation, `HonestChunk` and one draw). The oracle's `dhPublic` clause the
+preservation step takes is `DecryptOracleOf.dhPublic`. `DecryptOracleOf`'s AEAD open clause is, by reading, false of the
+shipping AEAD at long lengths (in a 64-bit build with overflow checks, and there only formally; row
+`AEAD-LENGTH-CONTRACTS`), so each result here is conditional on a proposition that does not hold and, as stated, says
+nothing about the shipping code at any length until that contract is repaired. `FrameInOrder` is a restriction of
+scope about the model session and the frame. The results are conditional intermediate results.
+
+- `decrypt_ratchet_refines_keeps_invariant`: for every session `s` that passes `Session::invariant`, has room for
+  `k + 1` operations and refines a model session `m`, and every frame in `FrameInOrder` at `m`, under the hypotheses
+  above, `decrypt_ratchet` returns an output whose result, session and draws refine the model's `decryptRatchet`, and
+  whose session passes `Session::invariant` and has room for `k`; on success through
+  `decrypt_ratchet_keeps_invariant` with the relation from the refinement and the step from
+  `decryptRatchet_receiveStep`, on refusal through `decrypt_ratchet_err_keeps_invariant`.
+- `decrypt_refines_keeps_invariant`: the same for the public `decrypt` of a frame whose type byte is the ratchet type,
+  refining the model's `decrypt`: over the size bound the frame is refused with the session unchanged; otherwise the
+  public call refines through `decrypt_ratchet_message_refines`, the model's dispatch passes the frame on, and the step is
+  `decrypt_receiveStep`.
+- `restored_decrypt_keeps_invariant`: for every byte string `Session::import` accepts with a session `s` in the restored
+  scope (`RestoredScope`) whose counters pass `roomCheck s (k + 1)`, and every ratchet-type frame in `FrameInOrder` at
+  `restoredModelOf dh s`, the public `decrypt` returns, refines the model's `decrypt` at `restoredModelOf dh s`, and
+  leaves a session that passes `Session::invariant` and has room for `k`; the invariant from acceptance, the relation and
+  `HonestChunk` from the scope, the budget from the check (acceptance gives none,
+  `acceptance_does_not_give_headroom`), under the same hypotheses but the relation and `HonestChunk`.
+
+**What this establishes, and what it does not.** Item (4) of `PRESERVATION-GAPS` (receive preservation composed with
+the decrypt refinement) is composed for `decrypt_ratchet` and for the public `decrypt` of ratchet-type frames, in the
+in-order scope, conditional on the hypotheses above, among them `DecryptOracleOf`. **Not shown:** a receive outside the
+in-order scope (a stored key, a skip on either chain, an eviction from a full store), so reordered, delayed or dropped
+delivery is not covered; an initial-type frame through the public `decrypt` (only ratchet-type frames are composed); a
+run that exhibits the composed hypotheses with a successful receive, or a receive with an agreement transition or an
+output on any run; that the shipping AEAD meets `DecryptOracleOf` (false by reading at long lengths), or that the
+shipping KEM and the other functions meet `ReceiveInvariantLaws`, the agreements and the contracts; a restored session
+outside the restored scope, or the budget of a restored session without the caller's check; that the ceilings are kept
+(false of the code, so the statements spend a budget).
+
+**Non-vacuity.** The hypotheses of `decrypt_ratchet_refines_of_invariant` hold together at one witness session under
+named laws (`decrypt_of_invariant_hypotheses_jointly_satisfiable`); the two new laws of `ReceiveInvariantLaws` hold in
+`Interp.modelT3`. No theorem shows the whole hypothesis set of the composed results jointly satisfiable with a
+successful receive, and no run here exhibits it; the reply's run reaches the same conclusion by another route
+(`initiator_receives_reply_via_general`), a single run in strict alternation.
+
+**Compiler trust and pins.** `restored_decrypt_keeps_invariant` names `Session::import` and lists the compiler-trust
+axiom `tacenta_session_unit.lifecycle.PrekeyStore.to_bytes._native.decide.ax_1`, with 62 opaque constants of the unit;
+the other two rest on `propext`, `Classical.choice`, `Quot.sound` and 55 opaque constants. Each of the three results
+carries an axiom pin and a statement pin, and `FrameInOrder` a `#print` pin. `check-decrypt-compose-negatives.py`
+plants nine faults in copies of the module, every one a change to a statement or a definition, refused at a named
+declaration or pin against a message naming the change (a proof-breakage check, not a proof that the changed statement
+is false), and each control labelled inside a composing proof is accepted there when that proof is replaced by `sorry`
+(attribution only). Inside (eight): the ratchet composition without the in-order scope, without a unit of budget to
+spend and without the receive laws (`decrypt_ratchet_refines_keeps_invariant`); the public composition at an
+initial-type frame and without the in-order scope (`decrypt_refines_keeps_invariant`); the restored route with a check
+leaving no unit to spend, outside the restored scope and read off the field decoder `import_unchecked`
+(`restored_decrypt_keeps_invariant`). The last is `FrameInOrder` with its bound ciphertext renamed and its pins kept
+(refused at its pin). No leaf, projection or statement-shape control is labelled.
 
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt` at the session its receipt of the reply returns, with `Session::invariant` and the four ceilings derived there and kept through the send, on the eight-leaf unit)
 

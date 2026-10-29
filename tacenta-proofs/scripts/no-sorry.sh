@@ -251,6 +251,15 @@ phase_atomicity() {
 python3 scripts/check-atomicity-negatives.py || fail=1
 }
 
+# Session::decrypt_ratchet and Session::decrypt refine the model's step and keep Session::invariant and the
+# counter budget, from one set of hypotheses (`UnitLifecycleDecryptCompose.lean`). The control plants nine changes
+# (the in-order scope, the unit of budget, the receive laws, the frame type, the restored scope and check, the
+# field decoder, and `FrameInOrder` with its pins kept), and each must be refused at a named declaration or pin, with
+# a message naming the change, after the unmodified copies are accepted.
+phase_decrypt_compose() {
+python3 scripts/check-decrypt-compose-negatives.py || fail=1
+}
+
 # Session::decrypt and decrypt_ratchet keep Session::invariant and spend one unit of the counter budget at every
 # agreement state, in the in-order scope with the agreement's output (`UnitLifecycleDecryptPreserve.lean`).
 # A copy with a budget claimed unspent, the relation after the call claimed to the model before it, a law of the
@@ -353,6 +362,16 @@ python3 scripts/check-decrypt-ratchet-negatives.py || fail=1
 # the unmodified copies are accepted.
 phase_established() {
 python3 scripts/check-established-negatives.py || fail=1
+}
+
+# The counter budget at a session Session::import accepts: the ceilings acceptance enforces, the ones it does
+# not, and that acceptance gives no budget (`UnitLifecycleImportBudget.lean`). The control plants fourteen changes
+# (the field decoder, the Braid epoch's headroom, the epoch reader, the parked clock at the ceiling, the invariant, two laws of the round trip, the conclusion of
+# the negative result, the stored keys' times, the budget's one step, the chain step and `roomCheck` with its pins
+# kept), and each must be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+phase_import_budget() {
+python3 scripts/check-import-budget-negatives.py || fail=1
 }
 
 # `Session::decrypt` of the responder's reply delivered again, at the initiator's session after its first receipt
@@ -772,6 +791,7 @@ phases() {
   run_phase braid-agreement plain "Braid agreement witnesses control" phase_braid_agreement
   run_phase initial-dispatch sliceable "initial dispatcher proof-dependency controls" phase_initial_dispatch units_initial_dispatch
   run_phase atomicity plain "lifecycle frame-proof controls" phase_atomicity
+  run_phase decrypt-compose plain "decrypt-compose proof-dependency control" phase_decrypt_compose
   run_phase decrypt-preservation plain "decrypt-preservation proof-dependency control" phase_decrypt_preservation
   run_phase repair plain "restated dispatch record controls" phase_repair
   run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
@@ -783,6 +803,7 @@ phases() {
   run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet
   run_phase established plain "established initiator proof-dependency control" phase_established
+  run_phase import-budget plain "import-budget proof-dependency control" phase_import_budget
   run_phase initiator-repeated-reply plain "initiator-repeated-reply proof-dependency control" phase_initiator_repeated_reply
   run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored

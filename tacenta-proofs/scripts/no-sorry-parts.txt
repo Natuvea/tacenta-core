@@ -56,10 +56,12 @@ hosted decrypt:
   kdf-realisation
   receive-preservation
   audit-negatives
+  decrypt-compose
   decrypt-preservation
 hosted responder:
   restored
   encrypt
+  import-budget
   responder
   responder-establish-replay
   responder-frame

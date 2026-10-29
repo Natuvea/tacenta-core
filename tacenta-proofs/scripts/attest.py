@@ -1381,6 +1381,12 @@ REQUIRED_PINS = frozenset(
         "encrypt_err_leaves_state",
         "encrypt_ok_writes",
     )]
+    # Session::decrypt_ratchet and Session::decrypt refine the model's step and keep Session::invariant and the counter budget, from one set of hypotheses (`UnitLifecycleDecryptCompose`).
+    + ["Tacenta.UnitLifecycleDecryptCompose." + n for n in (
+        "decrypt_ratchet_refines_keeps_invariant",
+        "decrypt_refines_keeps_invariant",
+        "restored_decrypt_keeps_invariant",
+    )]
     # Session::decrypt and decrypt_ratchet keep Session::invariant and spend one unit of the counter budget at every agreement state, in the in-order scope with the agreement's output (`UnitLifecycleDecryptPreserve`).
     + ["Tacenta.UnitLifecycleDecryptPreserve." + n for n in (
         "inv_loop_general",
@@ -2380,6 +2386,32 @@ REQUIRED_PINS = frozenset(
         "established_encrypt_successor_hypotheses_jointly_satisfiable",
         "established_encrypt_successor_reachable",
     )]
+    # The counter budget at a session Session::import accepts: the ceilings acceptance enforces, the ones it does not, and that acceptance gives no budget (`UnitLifecycleImportBudget`).
+    + ["Tacenta.UnitLifecycleImportBudget." + n for n in (
+        "counterRoom_iff_roomCheck",
+        "roomCheck_zero",
+        "read_epoch_ne",
+        "decode_state_epoch",
+        "braid_from_bytes_epoch",
+        "import_ok_unchecked",
+        "import_unchecked_braid",
+        "import_ok_braid_epoch",
+        "import_ok_ceilings",
+        "import_ok_budget",
+        "structural_withClock",
+        "invariant_withClock",
+        "codecShape_withClock",
+        "withClock_parked_no_room",
+        "export_import_parked_clock",
+        "structural_withExhaustedSend",
+        "invariant_withExhaustedSend",
+        "codecShape_withExhaustedSend",
+        "withExhaustedSend_no_room",
+        "export_import_exhausted_chain",
+        "established_parked_clock_accepted",
+        "established_exhausted_chain_accepted",
+        "acceptance_does_not_give_headroom",
+    )]
     # `establish_responder` over every input: its outcomes and effects, the intermediate session's
     # invariant, ceilings and relation, the inner `decrypt_ratchet` refined, and the inhabited outcomes
     # and the joint model (`UnitLifecycleEstablishResponder`).
@@ -2778,6 +2810,18 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleRestoredSession.restored_established_initiator_decrypt_refines",
         "Tacenta.UnitLifecycleRestoredSession.restored_established_inhabited",
         "Tacenta.UnitLifecycleRestoredSession.restored_decrypt_hypotheses_jointly_satisfiable",
+        # `UnitLifecycleImportBudget`: the results whose pins list a compiler-trust axiom.
+        "Tacenta.UnitLifecycleImportBudget.import_ok_unchecked",
+        "Tacenta.UnitLifecycleImportBudget.import_ok_braid_epoch",
+        "Tacenta.UnitLifecycleImportBudget.import_ok_ceilings",
+        "Tacenta.UnitLifecycleImportBudget.import_ok_budget",
+        "Tacenta.UnitLifecycleImportBudget.export_import_parked_clock",
+        "Tacenta.UnitLifecycleImportBudget.export_import_exhausted_chain",
+        "Tacenta.UnitLifecycleImportBudget.established_parked_clock_accepted",
+        "Tacenta.UnitLifecycleImportBudget.established_exhausted_chain_accepted",
+        "Tacenta.UnitLifecycleImportBudget.acceptance_does_not_give_headroom",
+        # `UnitLifecycleDecryptCompose`: the results whose pins list a compiler-trust axiom.
+        "Tacenta.UnitLifecycleDecryptCompose.restored_decrypt_keeps_invariant",
         # Until 2026-10-21 this list also held the 78 results that inherited the nine `native_decide`
         # constants of the sparse ratchet and Triple refinements (labels, skip bounds, one step of
         # `receive_refines_continuation`, the combine label) and `SessionT3.shared_secret_refines_some`
@@ -3180,6 +3224,13 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "encrypt_err_leaves_state",
         "encrypt_ok_writes",
         "establish_responder_err_leaves_store",
+    )]
+    # Session::decrypt_ratchet and Session::decrypt refine the model's step and keep Session::invariant and the counter budget, from one set of hypotheses (`UnitLifecycleDecryptCompose`).
+    + ["Tacenta.UnitLifecycleDecryptCompose." + n for n in (
+        "decrypt_ratchet_refines_keeps_invariant",
+        "decrypt_refines_keeps_invariant",
+        "restored_decrypt_keeps_invariant",
+        "FrameInOrder",
     )]
     # Session::decrypt and decrypt_ratchet keep Session::invariant and spend one unit of the counter budget at every agreement state, in the in-order scope with the agreement's output (`UnitLifecycleDecryptPreserve`).
     + ["Tacenta.UnitLifecycleDecryptPreserve." + n for n in (
@@ -4584,6 +4635,36 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "sentSession",
         "EstablishedEncryptSuccessorHypotheses",
     )]
+    # The counter budget at a session Session::import accepts: the ceilings acceptance enforces, the ones it does not, and that acceptance gives no budget (`UnitLifecycleImportBudget`).
+    + ["Tacenta.UnitLifecycleImportBudget." + n for n in (
+        "counterRoom_iff_roomCheck",
+        "roomCheck_zero",
+        "read_epoch_ne",
+        "decode_state_epoch",
+        "braid_from_bytes_epoch",
+        "import_ok_unchecked",
+        "import_unchecked_braid",
+        "import_ok_braid_epoch",
+        "import_ok_ceilings",
+        "import_ok_budget",
+        "structural_withClock",
+        "invariant_withClock",
+        "codecShape_withClock",
+        "withClock_parked_no_room",
+        "export_import_parked_clock",
+        "structural_withExhaustedSend",
+        "invariant_withExhaustedSend",
+        "codecShape_withExhaustedSend",
+        "withExhaustedSend_no_room",
+        "export_import_exhausted_chain",
+        "established_parked_clock_accepted",
+        "established_exhausted_chain_accepted",
+        "acceptance_does_not_give_headroom",
+        "roomCheck",
+        "withClock",
+        "exhaustSend",
+        "withExhaustedSend",
+    )]
     # `establish_responder` over every input (`UnitLifecycleEstablishResponder`).
     + ["Tacenta.UnitLifecycleEstablishResponder." + n for n in (
         "signed_prekey_err",
@@ -5261,6 +5342,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "leNat",
         "streamOf",
     )]
+    # Session::decrypt_ratchet and Session::decrypt refine the model's step and keep Session::invariant and the counter budget, from one set of hypotheses (`UnitLifecycleDecryptCompose`).
+    + ["Tacenta.UnitLifecycleDecryptCompose." + n for n in (
+        "FrameInOrder",
+    )]
     # Session::decrypt and decrypt_ratchet keep Session::invariant and spend one unit of the counter budget at every agreement state, in the in-order scope with the agreement's output (`UnitLifecycleDecryptPreserve`).
     + ["Tacenta.UnitLifecycleDecryptPreserve." + n for n in (
         "prefixIdx",
@@ -5455,6 +5540,13 @@ REQUIRED_PRINT_FORM = frozenset(
         "sentTriple",
         "sentSession",
         "EstablishedEncryptSuccessorHypotheses",
+    )]
+    # The counter budget at a session Session::import accepts: the ceilings acceptance enforces, the ones it does not, and that acceptance gives no budget (`UnitLifecycleImportBudget`).
+    + ["Tacenta.UnitLifecycleImportBudget." + n for n in (
+        "roomCheck",
+        "withClock",
+        "exhaustSend",
+        "withExhaustedSend",
     )]
     # The initiator's second send on the run of the reply's receipt, with Session::invariant and the four ceilings at the session the receipt returns derived on that run and kept through the send (`UnitLifecycleInitiatorSecondMessage`).
     + ["Tacenta.UnitLifecycleInitiatorSecondMessage." + n for n in (

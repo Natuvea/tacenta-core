@@ -1035,6 +1035,7 @@ recorded decision or a target-closing slice:
   `check-initiator-repeated-reply-negatives.py`,
   `check-initiator-second-message-negatives.py`,
   `check-atomicity-negatives.py`,
+  `check-decrypt-compose-negatives.py`,
   `check-decrypt-preservation-negatives.py`,
   `check-repair-negatives.py`,
   `check-responder-establish-replay-negatives.py`,
@@ -1046,6 +1047,7 @@ recorded decision or a target-closing slice:
   `check-tampered-reply-negatives.py`,
   `check-decrypt-ratchet-negatives.py`,
   `check-established-negatives.py`,
+  `check-import-budget-negatives.py`,
   `check-restored-negatives.py`,
   `check-encrypt-negatives.py`,
   `check-encrypt-preservation-negatives.py`,
@@ -1151,6 +1153,13 @@ recorded decision or a target-closing slice:
   budget and laws, the decoder's distinct indices, `needed` and message length, the model
   receive's role, budget, clause (b) and epoch, the structural clause (b), the sparse epoch's room, the two length
   laws at their states, the model step's relation shape, and the key-pair length law's definition;
+  `check-import-budget-negatives.py`: the budget at an accepted `Session::import` (the field decoder, the three ceilings,
+  the epoch reader,
+  the budget check's chain step) and the parked-clock and exhausted-chain copies (the clock at the ceiling, the
+  invariant, the stored keys' times, two laws of the round trip, the negative result's conclusion);
+  `check-decrypt-compose-negatives.py`: the composition of the decrypt refinement with receive preservation (the
+  in-order scope, the unit of budget, the receive laws, the frame type, the restored scope, check and field decoder,
+  and `FrameInOrder`'s definition);
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1216,6 +1225,15 @@ recorded decision or a target-closing slice:
   the chunk altered in one byte or given another index,
   and the held-value predicate without its held bytes (refused by its `#print` pin alone),
   each refused),
+  `check-import-budget-negatives.py` (two unmodified copies accepted and fourteen changes refused, each at a named
+  declaration or pin: the ceilings read off the field decoder, the Braid epoch claimed with a step of headroom, the
+  parked clock claimed at `u32::MAX`, the exhausted
+  copy without the invariant, the established copies without the ciphertext length bound and without the
+  `Option<u64>` comparison shape, and acceptance claimed not to give the invariant, each in the composing proof and
+  accepted there with that proof emptied; the epoch reader claimed to refuse `u64::MAX - 1`, an accepted session
+  claimed to have every budget, the clock moved before a
+  stored key, a clock two below the ceiling claimed without budget, `roomCheck`'s chain step short by one, the
+  exhausted shape at the old counter, and `roomCheck` held by its `#print` pin),
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
   `check-kdf-realisation-negatives.py` (two unmodified copies accepted and 8 changes refused, each at its named place: HKDF's bound, HMAC's output direction, the model's argument order for each, the Session leaf's totality bound, the record's field type and the corollary's trace premise at their named declarations, and the record held by its `#print` pin;
@@ -1250,6 +1268,11 @@ recorded decision or a target-closing slice:
   each in the composing proof and accepted there with that proof emptied,
   and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
+  `check-decrypt-compose-negatives.py` (two unmodified copies accepted and nine changes refused, each at a named
+  declaration or pin: the ratchet composition without the in-order scope, without a unit of budget and without the
+  receive laws, the public composition at an initial-type frame and without the in-order scope, the restored route
+  with a check leaving no unit, outside the restored scope and read off the field decoder, each in the composing proof
+  and accepted there with that proof emptied, and `FrameInOrder` held by its `#print` pin),
   `check-decrypt-preservation-negatives.py` (two unmodified copies accepted and twenty-four changes refused, each at a
   named declaration or pin:
   the receive step's budget claimed unspent and its relation after the call claimed to the model before it,
