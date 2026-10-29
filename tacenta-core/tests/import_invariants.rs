@@ -1,4 +1,5 @@
-//! Import-time semantic validation (external review, 2026-09, item 3).
+//! Import-time semantic validation (item 3 of what a commit of 2026-09-09 cites
+//! as an external review; source not identified in this repository).
 //!
 //! `Session::import` and `PrekeyStore::from_bytes` used to re-encode and
 //! compare, which catches a second spelling of a value and nothing about the

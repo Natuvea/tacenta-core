@@ -1,9 +1,10 @@
 # Session and prekey operation model
 
-This is the P6 design slice for the session/prekey operation surface that
-partly rests on ASM-19. Its bounded L2 model, vectors, concrete checks and
-independent reader are recorded in `P6-L2-TARGET-DECISION.md`; it does not
-claim a Rust-to-model refinement or proof of the whole operation surface.
+This is the P6 design slice for the session/prekey operation surface that partly
+rests on ASM-19. Its bounded L2 model, vectors, concrete checks and the P6
+operation reader (specification-only; written and run by a related party) are
+recorded in `P6-L2-TARGET-DECISION.md`; it does not claim a Rust-to-model
+refinement or proof of the whole operation surface.
 
 The persisted session and prekey-store formats are already modelled and driven
 through the differential harness over their shared structural domains. This note

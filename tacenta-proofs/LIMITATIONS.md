@@ -3641,7 +3641,7 @@ Whatever a dispatch theorem proves with it is a statement about the model run wi
   them is held by the statement pin of the theorem and by no other gate. That the eleven hypotheses of the first two hold
   together is argued from `oracleOf_joint_model`, a theorem about `OracleLaws` at a model, by the argument about
   derivations above; the four of `decryptOracleOf_of_laws` are among them.
-- These results have been read by their writer and by tool-assisted readers working for the maintainer; no reviewer
+- These results have been read by tool-assisted readers working for the maintainer; no reviewer
   independent of the maintainer has read them.
 
 ### The Braid's preservation theorems: one new law on each translation, and what they do not cover
@@ -3965,9 +3965,8 @@ witness below tests it at a Braid that holds a key pair. What the joint witness 
 - `check-hypothesis-witnesses.sh` does not read the `CLAIMS.md` section of these results (its heading names no tier). A
   law added to the bundle, or a hypothesis added to `decrypt_ratchet_refines_complete`, is held by the `#print` pins of
   `DecryptJointLawsShape` and `DecryptHypotheses`, by `DecryptHypotheses.refines` and by the build, and by no other gate.
-- These results have been read by their writer, a tool-assisted agent working for the maintainer, and by one
-  tool-assisted reader working for the maintainer, whose findings were applied; no reviewer independent of the maintainer
-  has read them.
+- These results have been read by one tool-assisted reader working for the maintainer, whose findings were applied; no
+  review of them by anyone independent of the maintainer is recorded in this repository.
 
 No proof here chooses a width of `usize`, and no result depends on a compiler-trust axiom (`DecryptHypotheses.refines`
 did, through the nine of the refinement, until 2026-10-21), so each result holds at both widths; no hypothesis of the set is width-dependent at this witness.
@@ -4022,7 +4021,7 @@ What the second witness is not:
   AEAD open or success is reached.
 - The oracle's other KEM fields are not related to `wrapperKem`; nothing is shown of ML-KEM; a key pair restored by
   `from_bytes` has no model value at `wrapperKem`.
-- These results have been read by their writer, a tool-assisted agent working for the maintainer; no other reader has.
+- These results were made with tool assistance under the maintainer's account and read by tool-assisted readers working for the maintainer, whose findings were applied; no review of them by anyone independent of the maintainer is recorded in this repository.
 
 No proof here chooses a width of `usize`, and no result depends on a compiler-trust axiom (the pins), so each holds at
 both widths.

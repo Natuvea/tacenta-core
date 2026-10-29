@@ -266,7 +266,8 @@ fn decrypt_refuses_a_tampered_header_and_changes_nothing() {
 
 // --------------------------------------------------------- last-resort bound
 
-/// The 1024-entry bound fails closed (CR-28; external review, 2026-09). The
+/// The 1024-entry bound fails closed (CR-28; cited as an external review in a
+/// commit of 2026-09-09; source not identified in this repository). The
 /// record never evicts: once a last-resort KEM key's budget is spent, a
 /// handshake naming that key which the record has not seen is refused with
 /// `LastResortRecordFull` and the store is untouched, while every fingerprint
@@ -364,8 +365,9 @@ fn a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays() 
     assert_eq!(pt, b"through a one-time prekey");
 }
 
-/// One rotation is the whole relief a full budget needs (external review,
-/// 2026-09). The bound is per key, so the key `rotate_kem` opens starts empty
+/// One rotation is the whole relief a full budget needs (cited as an external
+/// review in a commit of 2026-09-09; source not identified in this
+/// repository). The bound is per key, so the key `rotate_kem` opens starts empty
 /// and accepts a full budget of its own, while the spent key keeps its entries
 /// and keeps refusing every replay against them.
 ///

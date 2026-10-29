@@ -3740,7 +3740,7 @@ and `attest.py` requires the pins (`REQUIRED_STATEMENT_PINS`, `REQUIRED_PRINT_FO
   derived from (`UnitSatisfiabilitySpqrSessionLaws.SpqrSessionLawsShape`, the next section), so they are not met only by
   a wipe that ignores its instance record. It rests on no axiom of the unit but `rand_core`'s error type.
 
-This section was made by its author with tool assistance and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
+This section was made with tool assistance under the maintainer's account and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
 
 ## Proved (the Session unit's two sparse agreements, from named laws about opaque operations)
 
@@ -3794,7 +3794,7 @@ bundle, the shape and the four laws of `UnitSatisfiabilityRatchet.lean` carry `#
 `vecRetainAgrees_of_laws` takes it (`Vec::pop` only returning, `Option::as_mut` at one type, `Vec::capacity` at one element
 type, `Vec::zeroize` without the chain table, `Array::zeroize` at 16 bytes), each field of the shape dropped and its pop
 law weakened (refused by the binding), and the model witness removed (refused by its pins). This section was
-made by its author with tool assistance and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
+made with tool assistance under the maintainer's account and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
 
 What is not shown. That the real `Vec::pop`, `Option::as_mut`, `Vec::capacity`, `Vec::zeroize` and `Array::zeroize` satisfy
 the laws. That the theorems that still take the two agreements as hypotheses (the Session unit's sparse refinement
@@ -7968,7 +7968,7 @@ each decoded key, and compares the two outputs, `false` when either decode or ei
 message, through the model's `DecodeEC`, `Model.Lifecycle.decodeEc` (33 bytes, the curve type byte, a canonical key, by the
 initial-message decoder's own `checkCurve` and `checkKey`). Before the decode was added the model handed the two 33-byte strings to the
 agreement without decoding them, and no theorem could relate it to the code (`GAP-REGISTER.md`, row
-`E2E-04-SAME-EPHEMERAL-MODEL`). This section was made by its author with tool assistance and has not been read by anyone else.
+`E2E-04-SAME-EPHEMERAL-MODEL`). This section was made with tool assistance under the maintainer's account and read by tool-assisted readers working for the maintainer, whose findings were applied; no review of it by anyone independent of the maintainer is recorded in this repository.
 
 - `decodeEc_eq_some_iff`, `decodeEc_eq_none_iff`, `decodeEc_length`: `Model.Lifecycle.decodeEc e = some k` exactly when `e` is
   33 bytes long, its first byte is `Model.Messages.ecCurveByte` and `Model.Messages.canonicalKey (e.drop 1)` holds, with
@@ -8296,7 +8296,7 @@ the bytes of its arguments, and that it reads the random source in the stated or
 code's own primitives and to no specification of X25519, the AEAD, ML-KEM or XEdDSA. These results are about a hypothesis
 of the dispatch theorems, not about the product. The `decrypt_ratchet` section above shows `DhCodecOf` and the four clauses `decrypt_ratchet` uses satisfiable in a
 separate interpretation, with a fixed toy oracle (`decrypt_boundary_has_a_model`); this section decides all twelve clauses
-together, with the oracle read off the code, and does not repeat that result. Its writer and tool-assisted readers working for the maintainer have read it; no reviewer
+together, with the oracle read off the code, and does not repeat that result. Tool-assisted readers working for the maintainer have read it; no reviewer
 independent of the maintainer has.
 
 - `isValidIdentityKey_is`, `oracleOf_iff_shape`, `oracleOfShape_iff_clauses`, `dhCodecOf_iff_shape`,
@@ -8408,7 +8408,7 @@ section above, because `OracleOf` also has the identity, seal, KEM and signing c
 show that four of the laws suffice for the record (they are not shown necessary: of `DhCodecTotal` the proof uses only the
 `public_key` conjunct, and the view law is stronger than the clauses need), and show from the model's definitions which oracle fields `Model.Lifecycle.decrypt` reads. They
 are about a hypothesis of the decrypt refinements, not about the product. No theorem takes the narrowed lemma yet: the
-refinements take `DecryptOracleOf` as a hypothesis. This section was made by its author with tool assistance and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
+refinements take `DecryptOracleOf` as a hypothesis. This section was made with tool assistance under the maintainer's account and read by tool-assisted readers working for the maintainer; no reader independent of the maintainer has read it.
 
 - `decryptOracleOf_of_laws`: for every `dh : DhView`, under `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal` and
   `Function.Injective dh.privateKey ∧ Function.Injective dh.publicKey`, and for every `draws : List Model.Lifecycle.Key` and
@@ -8479,9 +8479,9 @@ places: the four oracle clauses with a toy oracle at `toyKem` (`decrypt_boundary
 oracle from laws (`oracleOf_of_laws`, `decryptOracleOf_of_laws`), and the per-run records at runs over sessions that fail
 `Session::invariant`. These results show the whole set, with `Session::invariant` added, at one oracle, one state pair, one
 message and one source, under named laws, and show the laws satisfiable together in one interpretation. They are about the
-hypotheses of the refinement, not about the product. Their writer, a tool-assisted agent working for the maintainer, and
-one tool-assisted reader working for the maintainer have read them, and the reader's findings were applied; no reviewer
-independent of the maintainer has.
+hypotheses of the refinement, not about the product. One tool-assisted reader working for the maintainer has read them,
+and the reader's findings were applied; no review of them by anyone independent of the maintainer is recorded
+in this repository.
 
 - `decrypt_hypotheses_jointly_satisfiable`, `decrypt_hypotheses_jointly_satisfiable_statement`: the second is the first
   as the proposition `DecryptHypothesesJointlySatisfiableStatement`. For every Braid KEM model `K` and DH view `dh` that meet
@@ -8600,7 +8600,7 @@ The Braid refinement agreements `KemLenAgrees K`, `KemAgreesFor K` and `Validate
 and before these results no `K` in the tree was related to the shipped wrapper (`toyKem` and `shippedSizeKem` never refuse
 and return constant bytes). These results build one `K` from the wrapper's functions and prove the agreements of it from
 eight laws about those functions, assumed. They are about opaque constants read through byte views, not about ML-KEM.
-Their writer, a tool-assisted agent working for the maintainer, has read them; no other reader has.
+They were made with tool assistance under the maintainer's account and read by tool-assisted readers working for the maintainer, whose findings were applied; no review of them by anyone independent of the maintainer is recorded in this repository.
 
 - `wrapperKemOf` (a definition, `#print`-pinned) and `wrapperKem`, which is `wrapperKemOf Interp.real`: a
   `Model.Braid.Kem` whose four operations call the wrapper's functions on byte views of their arguments. The model's
@@ -8692,8 +8692,8 @@ The two sections above show the hypotheses of `decrypt_ratchet_refines_complete`
 `KeysUnsampled`, where the relation holds at every Braid KEM model and the run carries no agreement chunk. These results
 show them together at a second witness whose Braid holds a key pair, so that the relation at the KEM model read off the
 wrapper is asked of a held value. The witness is built for the hypotheses, as the first is; the shipped code does not
-produce this combination of Triple and Braid states; the invariant admits it. Their writer, a tool-assisted agent working for the maintainer, has read them; no other
-reader has.
+produce this combination of Triple and Braid states; the invariant admits it. They were made with tool assistance under the maintainer's account and read by tool-assisted
+readers working for the maintainer, whose findings were applied; no review of them by anyone independent of the maintainer is recorded in this repository.
 
 - The definitions `heldReal`, `heldModel`, `heldBraid`, `heldModelBraid`, `hdrMsgOf` and `HeldKemAt` (`#print`-pinned):
   the first witness's session with its Braid replaced by `KeysSampled` at epoch 1 under the zero authenticator, holding a key

@@ -917,8 +917,9 @@ is SemVer against the specified protocol (not the implementation).
     director of Natuvea Ltd, so it is related-party evidence, not independent
     review. The evidence file now says so, and so do ASM-19 in `threat-model/assumptions.md`
     and a `missing_evidence` kind in `security-properties/evidence-index.json`, which called it "the independent
-    reader". The corpus `source` string of `tacenta-test-vectors/traces/session-operation-trace.json` ("independent clean-room author") and the docstring of `tooling/prepare-operation-reader-packet.py` ("the independent author") said the same and were corrected on 2026-10-28; with the two files above they make four files in the tags that call its author independent; seven more files in the same tags, and `ASSURANCE.md` in `tacenta-assurance-v0.2.0`, call the reader itself independent, and `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md`'s "independent-reader evidence" beside the P6 L2 decision may mean the operation reader's; `GAP-REGISTER.md`, `READER-INDEPENDENCE`, lists them. The L2 target decision still says "independently authored" (lines 8 and 9) and "the independent reader" (line 39), and `tacenta-model/SESSION-OPERATION-MODEL.md` (line 5) says "independent reader"; both change with the next refresh of the source attestation, which hashes `tacenta-model` (`GAP-REGISTER.md`,
-    `STALE-WORDING-KNOWN`). Row `READER-INDEPENDENCE` is BLOCKING while
+    reader". The corpus `source` string of `tacenta-test-vectors/traces/session-operation-trace.json` ("independent clean-room author") and the docstring of `tooling/prepare-operation-reader-packet.py` ("the independent author") said the same and were corrected on 2026-10-28; with the two files above they make four files in the tags that call its author independent; seven more files in the same tags, and `ASSURANCE.md` in `tacenta-assurance-v0.2.0`, call the reader itself independent, and `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md`'s "independent-reader evidence" beside the P6 L2 decision may mean the operation reader's; `GAP-REGISTER.md`, `READER-INDEPENDENCE`, lists them. The L2 target decision, which said "independently authored" and "the independent reader", and `tacenta-model/SESSION-OPERATION-MODEL.md`, which said "independent reader", name it "the
+    P6 operation reader (specification-only; written and run by a
+    related party)", and the decision's reopening work asks for "clean-room evidence from that reader" where it said "clean-room reader evidence", with the source attestation refreshed, since it hashes `tacenta-model`. Row `READER-INDEPENDENCE` is BLOCKING while
     independence claims the repository does not support remain. The earlier
     wording stands in the tags `tacenta-assurance-v0.2.0` to
     `tacenta-assurance-v0.4.6`.
@@ -936,6 +937,16 @@ is SemVer against the specified protocol (not the implementation).
     tool-assisted reviews of #272 listed among what replaces "vetted" now note
     that their statement that the tree recorded a reading by the maintainer
     was withdrawn on #272 on 2026-10-28.
+  - Files that change only with a regeneration of the translation now carry
+    the same corrections: the crate documentation of `tacenta-kdf`, the module
+    docstring of `UnitLifecycleKdf` and the comment headers of the 44 `Kdf*`
+    Lean modules state the recorded authorship and what the rule-7 review
+    comments on #272 say, not a dated reading; the comments in the lifecycle
+    sources and tests that cite an external review say which citation they
+    carry; and a `tacenta-kem` comment no longer states an unrecorded reading
+    of compiled assembly. Every generated translation is byte for byte the
+    same. The copyright line in the crate documentation of `tacenta-kdf` is
+    unchanged and waits for the owner's determination.
 
 ### Decided
 - `decisions/ADR-0009-identity-verification.md` (accepted).
