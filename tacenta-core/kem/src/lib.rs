@@ -205,10 +205,10 @@ const COEFFICIENT_BOUND: i16 = 3328;
 /// Whether every little-endian `i16` in `bytes` has magnitude at most `bound`.
 ///
 /// No early return and, at the source level, no data-dependent branch: the two
-/// sign bits are accumulated into one mask across the whole slice. The aarch64
-/// release assembly was read once at the commit that added this and had no
-/// data-dependent branch in the loop either; nothing gates that, and other
-/// targets were not read. `bytes.len()` must be even; the one caller passes a
+/// sign bits are accumulated into one mask across the whole slice. No record
+/// of a check of the compiled assembly for a data-dependent branch in the loop
+/// is in this repository, and nothing gates one. `bytes.len()` must be even;
+/// the one caller passes a
 /// constant that is.
 fn coefficients_bounded(bytes: &[u8], bound: i16) -> bool {
     let bound = bound as i32;

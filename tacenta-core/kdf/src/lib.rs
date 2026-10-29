@@ -4,11 +4,11 @@
 //! # Where the bodies come from
 //!
 //! The three modules below were written from FIPS 180-4, FIPS 198-1 and RFC
-//! 5869, in the subset Charon and Aeneas translate, and copied here: written by
-//! the maintainer with tool assistance in a separate, unpublished repository;
-//! the three Rust files were read in full by the maintainer on 2026-10-23, and
-//! before that only by tool-assisted sessions; no reader independent of the
-//! maintainer has read the three files, and no human has read their proofs.
+//! 5869, in the subset Charon and Aeneas translate, and copied here: written with
+//! tool assistance under the maintainer's account in a separate, unpublished
+//! repository; the rule-7 review comments on pull request #272 of tacenta-core say
+//! under "Not checked" that every review and read of that change was tool-assisted;
+//! no independent review of the files or their proofs is recorded in tacenta-core.
 //! In this repository they are distributed under its own licence, Apache-2.0
 //! (`LICENSE`, `NOTICE`: Copyright 2026 Natuvea Ltd); the source repository
 //! carries no licence statement. A

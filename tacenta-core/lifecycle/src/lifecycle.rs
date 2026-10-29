@@ -3580,8 +3580,8 @@ impl Session {
         // trip. A failed Braid reports no epoch and is exempt: a failure is
         // terminal and persisted as such. Outside this relation the sparse ratchet refuses the next
         // agreement output as `EpochOutOfOrder`, on every message, and the
-        // session never recovers -- the external review's 346 failures in
-        // 400 round trips.
+        // session never recovers: 346 failures in 400 round trips, cited as an
+        // external review in a commit of 2026-09-09; source not identified in this repository.
         if !self.braid.failed() {
             let braid_epoch = self.braid.epoch();
             let folded = self.triple.epoch();
@@ -4785,8 +4785,8 @@ mod tests {
         );
     }
 
-    /// The exact case external review reported: one byte of the current signed
-    /// prekey's signature, at offset 69 of a v4 store.
+    /// The exact case reported by the review of `d2dc386` (an unverified project assertion,
+    /// not counted as assurance): one byte of the current signed prekey's signature, at offset 69 of a v4 store.
     ///
     /// Written at the byte level rather than through the field, because the
     /// offset and the canonicality are half the finding: the flip survives the

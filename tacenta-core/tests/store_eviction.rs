@@ -119,7 +119,8 @@ fn a_full_store_makes_room_and_the_conversation_continues() {
 /// figures since CR-19; the post-quantum one climbed 1, 2, 4, ... until the
 /// sparse ratchet gained the two accessors that let a shortfall be computed
 /// for the epoch a header names, and took 127 for a 99-key excess -- 28 keys
-/// the message never displaced (external review, 2026-09). The two are
+/// the message never displaced (cited as an external review in a commit of
+/// 2026-09-09; source not identified in this repository). The two are
 /// distinguishable through what still decrypts, because a message needs a key
 /// from each store: the message whose classical key survives by one is the one
 /// that says the post-quantum half stopped in the same place.
