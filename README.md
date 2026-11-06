@@ -230,7 +230,8 @@ boundary records, chunk relation and draw), is proved under nine assumed laws (s
 the `Option::eq` law), and every session `import` accepts passes `Session::invariant`, while the ceilings stay a check on what it accepted.
 On the responder's side, the session `establish_responder` returns on the initiator's first frame (its agreement waiting
 for the header with a decoder holding at most one chunk) is likewise returned unchanged by `import` of the bytes `export`
-writes, under the receipt's hypotheses (including `DecryptOracleOf` and `AeadRoundTrip`) and the laws of the round trip,
+writes, under the receipt's hypotheses (including `DecryptOracleOf` and `AeadRoundTrip`, false of the shipping AEAD by
+reading) and the laws of the round trip,
 and the restored copy's `encrypt` refines the model's step and keeps the
 invariant, under the encrypt boundary records whose AEAD contracts are false of the shipping AEAD by reading; later
 responder states and `Session::clone` are not covered.
@@ -322,8 +323,8 @@ of that relation composes with the general encrypt refinement, whose AEAD contra
 reading, so for the shipping code it says nothing at any length until those contracts are repaired; its two per-call
 records and its headroom are derived, and the composition stated, at every session that passes the invariant, has room
 for one operation and refines a model session whose encoder has codewords left, at every agreement state but the
-sampling one (where no record is supplied), with no new law and the premises exhibited together at the established
-initiator's session only. Every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole
+sampling one (where no record is supplied), with no new law and the premises exhibited together at two sessions only,
+the established initiator's and the restored responder's after its first receipt. Every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole
 budget with no law. A successful `decrypt` and `decrypt_ratchet` at every agreement state and transition, with or
 without the agreement's output, keeps `Session::invariant` and spends one unit of that budget, given the relation after
 the call and a model step in the in-order scope, under existing records and two new assumed length laws of the KEM

@@ -2915,7 +2915,9 @@ The receipt's hypotheses include `DecryptOracleOf` and `AeadRoundTrip`, and the 
 `OracleOf`, whose AEAD clauses are false of the shipping AEAD by reading at long lengths (row `AEAD-LENGTH-CONTRACTS`),
 so, as stated, the composed results say nothing about the shipping code at any length until those contracts are
 repaired. The round trip is exhibited on a run (`first_send_restored_reachable`), under laws that hold together in
-`Interp.modelFirstReceipt`; the continuation with `encrypt` is not exhibited in that module. Not covered: a responder session at any later
+`Interp.modelFirstReceipt`; the continuation with `encrypt` is not exhibited in that module.
+`received_counterRoom` is stated with `k + 3 < u32::MAX`; it also holds with the weaker `k + 2` (checked by a sibling
+copy of the module, not pinned), so the stated form is not tight. Not covered: a responder session at any later
 state, a decoder holding more than one chunk, stored skipped keys, `Session::clone`, and a copy restored from bytes the
 session did not write.
 
@@ -4427,9 +4429,11 @@ one higher, the clock, the stored keys and the agreement's epoch as given, and t
 AEAD by reading (row `AEAD-LENGTH-CONTRACTS`), so, as stated, it says nothing about the shipping code at any length
 until those contracts are repaired. `EncodersLive` is kept: whether `Session::invariant` implies it is not checked;
 by reading `Encoder::invariant` accepts an exhausted encoder, so it is not expected to. The premise list is exhibited
-together at one session only, the established initiator's at `KeysUnsampled`, with a successful call, under laws a toy
-model holds together (`encrypt_of_invariant_hypotheses_jointly_satisfiable`): consistency in a model, not exhibition of
-the shipping code. Not covered: `encrypt` at `HeaderReceived` (a law relating `encapsulate1` at the drawn bytes to the
+together at two sessions only, each with a successful call, under laws a model holds together: the established
+initiator's at `KeysUnsampled` (`encrypt_of_invariant_hypotheses_jointly_satisfiable`) and, at a state whose agreement
+takes no draw, the restored responder's after its first receipt at `NoHeaderReceived`
+(`UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable`): consistency in a model, not exhibition of the shipping code; the
+other no-draw states, `Failed` and later sessions are not exhibited. Not covered: `encrypt` at `HeaderReceived` (a law relating `encapsulate1` at the drawn bytes to the
 model KEM's at that randomness would be needed, with `Encaps1SizesOf`, and none is assumed); a session whose encoder has
 no codewords left or without the budget premise; a second party or a relation between two parties' sessions.
 

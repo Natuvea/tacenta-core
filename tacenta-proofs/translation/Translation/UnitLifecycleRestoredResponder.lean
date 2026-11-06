@@ -67,7 +67,8 @@ reach's laws and the four laws of the round trip, all of which hold together in 
   encapsulation state or an encoder), a decoder holding more than one chunk, or stored skipped keys: the codec shape
   here is the first receipt's.
 * `Session::clone`, or a copy restored from bytes the session did not write.
-* The continuation with `encrypt` on a run: the reach exhibits the round trip only.
+* The continuation with `encrypt` on a run: the reach here exhibits the round trip only
+  (`UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable` exhibits it on that run).
 * The continuation with `decrypt` as a theorem (its session-side premises, the relation, the invariant and the
   ceilings, hold at the restored copy because it is the same session; the frame's chunk relation and draw are the
   caller's).

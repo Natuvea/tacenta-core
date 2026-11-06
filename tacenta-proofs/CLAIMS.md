@@ -38,8 +38,8 @@ this section says in one place what is not proved.
   derived, under the encrypt boundary records, the oracle record and the AEAD contracts false of the shipping AEAD by
   reading (the section "Proved (tier T3, session lifecycle: `Session::encrypt` refines the model's step and keeps
   `Session::invariant` and the counter budget at every invariant session outside the sampling state ...)"; exhibited
-  at the established initiator's session in that module, and at the restored first-receipt responder in
-  `UnitLifecycleRestoredResponderWitness` under the existing reach's laws); and on named runs at the first send from a session `establish_initiator_for` returned, under the encrypt
+  together at two sessions only: the established initiator's in that module, and the restored first-receipt responder
+  in `UnitLifecycleRestoredResponderWitness` under the existing reach's laws); and on named runs at the first send from a session `establish_initiator_for` returned, under the encrypt
   boundary records, the oracle record and three assumed laws, one of them new (the section "Proved (tier T3, session lifecycle: the public
   `encrypt` at every successful `establish_initiator_for` output ...)"), and the responder's first send from the session
   `establish_responder` returned on the initiator's first frame, where the call has one outcome (the section "Proved (tier
@@ -7991,8 +7991,12 @@ lengths); that `Session::invariant` says a session is reachable.
 **Non-vacuity.** `encrypt_of_invariant_hypotheses_jointly_satisfiable` exhibits the whole premise list at one session,
 the established initiator's at `KeysUnsampled`, with a successful call, at the real constants under laws a toy model
 holds together, some of them (the AEAD totality laws) false of the shipping AEAD by reading: consistency in a model, not
-exhibition of the shipping code. No other agreement state is exhibited in this section; the no-draw states are reached
-on the named runs of the earlier sections, which take their own discharges of the route's records.
+exhibition of the shipping code. One more session is exhibited, in the section on the restored first-receipt
+responder's joint encrypt witness: `UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable`
+instantiates the whole record at the responder's session after its first receipt (agreement at `NoHeaderReceived`, a
+state that takes no draw), restored from its own exported bytes, with a successful call, under the existing reach's
+laws. Those two are the only sessions at which the premise list is exhibited together; the other eight no-draw states,
+`Failed` and later sessions are not.
 
 **Compiler trust and pins.** No result here lists a compiler-trust axiom. `encrypt_ok_arm` rests on `propext` and
 `Quot.sound`; the other 12 results on `propext`, `Classical.choice`, `Quot.sound` and between 8 and 56 opaque constants
@@ -8012,8 +8016,13 @@ claimed shorter than `kem::ciphertext_len`, the headroom claimed for every plain
 at a failed agreement. Seven of the inside and leaf controls (the composition at the sampling state and without a unit,
 the draws at key generation, the record without the live encoder, the draw record's two, the sparse output's) weaken a
 premise and are refused where the proof hands it to the lemma that needs it: they show the dependency, not that the
-changed statement is false. The last control is the record with its plaintext bound moved and its pins kept (refused at
-its pin). No statement-shape check is labelled.
+changed statement is false. Of the other ten, eight are classified by a true variant of the planted change (a
+sibling) run at the named place: the chain's epoch, the headroom and the model's success arm are content refusals (each
+true sibling is accepted there); the composed budget, the sending counter, the agreement's epoch, the failed send's
+source and the pending ciphertext are shape refusals (a true sibling, such as the conclusion widened by `∨ False` or
+`=` weakened to `≤`, is refused too, where the proof places the exact conjunct it derived); the joint witness is the
+projection above. The last control is the record with its plaintext bound moved and its pins kept (refused at its
+pin). No statement-shape check is labelled.
 
 ## Proved (tier T3, session lifecycle: the responder's session after its first receipt survives `Session::export` then `Session::import` as itself, and the restored copy continues with `encrypt`, conditional on the AEAD contracts, on the eight-leaf unit)
 
@@ -8060,7 +8069,8 @@ whose Braid KEM is the receipt's (`hK`). The results are conditional intermediat
   existing walk with that fact kept); a decoder that passes `Decoder::invariant` is for at most `32 · MAX_CODEWORDS`
   bytes under `DivCeilValue`; such a session that passes `Session::invariant` has `CodecShapeR` (associated data of 66
   bytes under `DhCodecTotal`, an established ephemeral of 33) and room for every `k` operations with
-  `k + 3 < u32::MAX`.
+  `k + 3 < u32::MAX`. That form is not tight: the lemma also holds with the weaker premise `k + 2 < u32::MAX` (checked by
+  a sibling copy of the module, accepted at the lemma; not pinned).
 - `first_receipt_successor_round_trip`, `responder_first_frame_restored`, `initiator_first_send_responder_restored`:
   at every successful return of `establish_responder` on the initiator's first frame (at the inner receive, at the
   call, and on the bytes the initiator's first `encrypt` emitted), the session returned refines `firstReceiptSession`,
@@ -8106,12 +8116,16 @@ proof-breakage check at that place, not a proof that the changed statement is fa
 inside a composing proof to be accepted there when that proof is replaced by `sorry` (attribution only). Inside (five):
 the restored `encrypt`'s budget claimed unspent and its oracle's KEM left unrelated, the round trip without
 `DhCodecTotal`, the shape round trip without the invariant, the reach without `ZeroizingVecRoundTrip`; the last four
-weaken a premise and are refused where it is handed on (a dependency check). On the lemmas (eight): the decoder's
-encoding claimed a byte shorter per chunk, the header-wait tag claimed 6, the established ephemeral claimed 32 bytes,
-the decoder's size claimed one below the cap and the received budget claimed past the clock, each refused by its own
-content; the received decoder claimed empty, refused where the proof places the bound of one chunk that `add_chunk`
-leaves; the size cast claimed through `u16`, refused where the proof's rewrite no longer applies; and the decoder read
-back at two chunks, refused where the proof hands its bound to the length lemma (a dependency check). The last is `CodecShapeR` with its ephemeral bound moved and its pins kept (refused at its pin). No projection
+weaken a premise and are refused where it is handed on (a dependency check), and the budget claimed unspent is a shape
+refusal (its true sibling, the conclusion widened by `∨ False`, is refused too). On the lemmas (eight), classified by
+true siblings: the decoder's encoding claimed a byte shorter per chunk, the decoder's size claimed one below the cap and
+the received budget claimed past the clock are content refusals (each true sibling is accepted); the established
+ephemeral claimed 32 bytes, the received decoder claimed empty and the size cast claimed through `u16` are shape
+refusals (each true sibling, `= 33 ∨ = 32`, `≤ 2`, and a cast through `u128`, is refused too, by a type the proof
+cannot meet or a rewrite that no longer applies); the decoder read back at two chunks is refused where the proof hands
+its bound to the length lemma (a dependency check); and the header-wait tag claimed 6 is refused with `False` left after
+the byte comparison, a content refusal by reading (the one true sibling tried, the tag written `(5 : U8)`, is refused
+too, so no sibling confirms it). The last is `CodecShapeR` with its ephemeral bound moved and its pins kept (refused at its pin). No projection
 or statement-shape check is labelled.
 
 ## Proved (tier T3, session lifecycle: the restored first-receipt responder's joint encrypt witness and proof-level composition, conditional on existing laws)
