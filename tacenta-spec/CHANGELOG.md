@@ -830,6 +830,40 @@ is SemVer against the specified protocol (not the implementation).
   composite header's `bv_decide` round trips and the export and import
   statements, through the length bound of a debug-assertion message in the
   generated `export`. No rule, byte or constant changes.
+- `protocol/session-establishment.md`, Sending the initial message and
+  Primitives (ML-KEM-1024): the initiator verifies both prekey signatures
+  before she draws any random value for the session, so a bundle refused for
+  a signature, or by any check before the signatures, leaves her random
+  source as it was. The page had said so only through the order of its prose
+  ("She then generates `EKA`"), and its note that whether `EKA` is drawn
+  before the KEM prekey's input checks is not fixed weakened even that. A
+  random source the caller supplies tells the readings apart: a bundle under
+  an identity key her expectation accepts, with a signature that does not
+  verify, is refused with nothing drawn, or after `EKA`'s 32 bytes.
+  - Decided from the page: the check against her expectation and the
+    identity-key rule already come before anything is drawn, so that nothing
+    is spent on a bundle she refuses, and REQ-AUTH-01 already puts both
+    signatures before encapsulation, which draws `m`. `EKA` was the one draw
+    left unordered against them.
+  - The rule stops at the KEM prekey's input checks. Those checks are part of
+    encapsulating, and the page takes generating `EKA` and encapsulating as one
+    step ("She then generates `EKA`, encapsulates"). The change puts the whole
+    of that step after both signatures, where REQ-AUTH-01 already puts
+    encapsulation. Where `EKA` is drawn within the step, against the input
+    checks, stays not fixed.
+  - Rejected: leaving the draw unordered against the signatures. Nothing
+    before the signatures needs randomness, and the page's reason for its
+    order, that nothing is spent on a bundle she refuses, holds for a bundle a
+    signature refuses as it does for one the identity-key rule refuses. The
+    vectors' pin that an authentication failure draws nothing agrees with the
+    decision; it is not the reason for it.
+  - An implementation that draws a random value for the session before both
+    signatures verify does not conform. Nothing in this repository does: the
+    model, `tacenta-core` and the project's reader draw nothing before both
+    signatures verify, and the Rust vector runner requires that.
+  - No byte, constant, stored format or vector outcome changes. Register row
+    `INIT-NO-DRAW-BEFORE-SIGNATURES` stays open until a later reader pass reads
+    the sentence.
 
 ### Fixed
 - `protocol/sparse-pq-ratchet.md`, The store also has a total bound: the
