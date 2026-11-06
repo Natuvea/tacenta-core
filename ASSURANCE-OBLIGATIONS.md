@@ -1059,6 +1059,7 @@ recorded decision or a target-closing slice:
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
   `check-responder-restored-negatives.py`,
+  `check-responder-restored-witness-negatives.py`,
   `check-responder-second-receipt-negatives.py`,
   `check-responder-second-send-negatives.py`,
   `check-send-preservation-negatives.py`,
@@ -1170,6 +1171,7 @@ recorded decision or a target-closing slice:
   step, the sparse skip's lower end, the step's budget, and `ReceiveStepAny`'s definition);
   `check-encrypt-compose-negatives.py`: Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every invariant session outside the sampling state (the composed budget, the sampling-state and budget premises, the effects, the joint witness's budget, the record, and the route's derived records and headroom);
   `check-responder-restored-negatives.py`: the responder's session after its first receipt survives the export/import round trip as itself and its restored copy continues with `encrypt` (the restored encrypt's budget and KEM, the round trip's laws and invariant, the decoder's and the agreement's codec, the ephemeral's length, the received decoder, the budget, and `CodecShapeR`);
+  `check-responder-restored-witness-negatives.py`: the proof-level restore/encrypt composition reads the same saved bytes, preserves its RNG input and performs the next encrypt; the conditional witness remains conditional on existing reach and codec laws;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1498,6 +1500,7 @@ recorded decision or a target-closing slice:
   each at a named declaration or pin with a message naming the change:
   five inside the composing proofs, accepted there with that proof emptied
   (the restored encrypt's budget claimed unspent and its oracle's KEM left unrelated, the round trip without
+  `check-responder-restored-witness-negatives.py` (two complete baselines and one equivalent body accepted; three changed definitions typechecked separately, then refused at the unchanged composition lemma for other saved bytes, reset RNG and omitted encrypt; thirteen failure-classifier cases; not Rust mutation evidence),
   `DhCodecTotal`, the shape round trip without the invariant, the reach without `ZeroizingVecRoundTrip`),
   eight on the lemmas (the decoder's encoding a byte shorter per chunk, the size cast through `u16`, the decoder read
   back at two chunks, the header-wait tag 6, the ephemeral 32 bytes, the received decoder empty, the decoder's size one

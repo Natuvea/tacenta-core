@@ -2741,6 +2741,11 @@ REQUIRED_PINS = frozenset(
         "initiator_first_send_responder_restored",
         "first_send_restored_reachable",
     )]
+    # The conditional first-receipt responder round trip and its next encrypt share one session and RNG source (`UnitLifecycleRestoredResponderWitness`).
+    + ["Tacenta.UnitLifecycleRestoredResponderWitness." + n for n in (
+        "restore_then_encrypt_of_calls",
+        "first_send_restored_encrypt_jointly_reachable",
+    )]
     # The responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame: the
     # agreement's send while it waits for the header, the model's reply, the route's providers and headroom, the
     # refinement there, the derivations that keep the receipt's key equations, the composition on the run and the
@@ -2941,6 +2946,9 @@ COMPILER_TRUSTED_PINS = frozenset(
         "Tacenta.UnitLifecycleRestoredResponder.responder_first_frame_restored_encrypt",
         "Tacenta.UnitLifecycleRestoredResponder.initiator_first_send_responder_restored",
         "Tacenta.UnitLifecycleRestoredResponder.first_send_restored_reachable",
+        # `UnitLifecycleRestoredResponderWitness`: the results whose pins list a compiler-trust axiom.
+        "Tacenta.UnitLifecycleRestoredResponderWitness.restore_then_encrypt_of_calls",
+        "Tacenta.UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable",
         # `UnitLifecycleDecryptCompose`: the results whose pins list a compiler-trust axiom.
         "Tacenta.UnitLifecycleDecryptCompose.restored_decrypt_keeps_invariant",
         # Until 2026-10-21 this list also held the 78 results that inherited the nine `native_decide`
@@ -5183,6 +5191,12 @@ REQUIRED_STATEMENT_PINS = frozenset(
         "CodecShapeR",
         "sessionEncR",
     )]
+    # The conditional first-receipt responder round trip and its next encrypt share one session and RNG source (`UnitLifecycleRestoredResponderWitness`).
+    + ["Tacenta.UnitLifecycleRestoredResponderWitness." + n for n in (
+        "restore_then_encrypt_of_calls",
+        "first_send_restored_encrypt_jointly_reachable",
+        "restoreThenEncrypt",
+    )]
     # The responder's reply after the first receipt (`UnitLifecycleResponderReply`).
     + ["Tacenta.UnitLifecycleResponderReply." + n for n in (
         "array_clone_u8",
@@ -5889,6 +5903,10 @@ REQUIRED_PRINT_FORM = frozenset(
         "braidEncNH",
         "CodecShapeR",
         "sessionEncR",
+    )]
+    # The conditional first-receipt responder round trip and its next encrypt share one session and RNG source (`UnitLifecycleRestoredResponderWitness`).
+    + ["Tacenta.UnitLifecycleRestoredResponderWitness." + n for n in (
+        "restoreThenEncrypt",
     )]
     # The four definitions of the responder's reply (`UnitLifecycleResponderReply`).
     + ["Tacenta.UnitLifecycleResponderReply." + n for n in (

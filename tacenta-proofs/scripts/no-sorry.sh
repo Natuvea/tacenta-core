@@ -554,6 +554,13 @@ phase_responder_restored() {
 python3 scripts/check-responder-restored-negatives.py || fail=1
 }
 
+# The conditional restored-responder witness's proof-level composition: wrong saved bytes,
+# a reset RNG and an omitted continuation must be typed and rejected at the named equality goal.
+# Complete baselines and an equivalent body must pass. This is not Rust mutation evidence.
+phase_responder_restored_witness() {
+python3 scripts/check-responder-restored-witness-negatives.py || fail=1
+}
+
 # The responder's decrypt of the initiator's second message at its session after the reply, with Session::invariant
 # and the four ceilings kept through the receive (`UnitLifecycleResponderSecondReceipt.lean`): nineteen changes to
 # statements and definitions (the draw, the plaintext, the stale arm's refusal and the decoder after the receipt in
@@ -854,6 +861,7 @@ phases() {
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
   run_phase responder-restored plain "responder-restored proof-dependency control" phase_responder_restored
+  run_phase responder-restored-witness plain "responder-restored-witness proof-dependency control" phase_responder_restored_witness
   run_phase responder-second-receipt plain "responder-second-receipt proof-dependency control" phase_responder_second_receipt
   run_phase responder-second-send plain "responder-second-send proof-dependency control" phase_responder_second_send
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation

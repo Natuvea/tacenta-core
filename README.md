@@ -230,9 +230,14 @@ boundary records, chunk relation and draw), is proved under nine assumed laws (s
 the `Option::eq` law), and every session `import` accepts passes `Session::invariant`, while the ceilings stay a check on what it accepted.
 On the responder's side, the session `establish_responder` returns on the initiator's first frame (its agreement waiting
 for the header with a decoder holding at most one chunk) is likewise returned unchanged by `import` of the bytes `export`
-writes, under the same laws of the round trip, and the restored copy's `encrypt` refines the model's step and keeps the
+writes, under the receipt's hypotheses (including `DecryptOracleOf` and `AeadRoundTrip`) and the laws of the round trip,
+and the restored copy's `encrypt` refines the model's step and keeps the
 invariant, under the encrypt boundary records whose AEAD contracts are false of the shipping AEAD by reading; later
 responder states and `Session::clone` are not covered.
+`UnitLifecycleRestoredResponderWitness` exhibits the complete encrypt hypothesis bundle and a successful next
+encrypt at that restored first-receipt responder, carrying the receipt's actual RNG state unchanged. Its proof-level
+restore/encrypt composition is held by three typed body controls. This remains conditional on the existing laws;
+it does not establish them for shipping primitives or close the lifecycle claim.
 Every statement that names `export` or `import` is compiler-trusted for one fact, that a panic message in the generated
 `export` fits a `u32` length (`toStr`, `by decide +native`); the kernel proves that same proposition
 (`export_message_fits`), but the generated code refers to the compiler's axiom, so the dependency stays until a

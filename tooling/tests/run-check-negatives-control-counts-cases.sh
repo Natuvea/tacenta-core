@@ -44,6 +44,7 @@ named=(
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
   check-responder-restored-negatives.py
+  check-responder-restored-witness-negatives.py
   check-send-preservation-negatives.py
   check-size-rule-negatives.py
   check-size-witness-negatives.py
@@ -283,10 +284,19 @@ for script in names:
                 and x[1] not in m.STATEMENT_SHAPE)
     trials = [("slice", run(m.MUTANTS[:-1]), "INCOMPLETE RUN"),
               ("continue", run([x for x in m.MUTANTS if x is not leaf]), "INCOMPLETE RUN"),
-              ("emptied-run-skipped", run(m.MUTANTS, skip_inside=True), "emptied-proof run of an inside control"),
               ("baseline-skipped", run(m.MUTANTS, baselines=list(sources)[:-1]), "unmodified copies accepted"),
               ("fabricated", run(m.MUTANTS, lean=False), "Lean ran 0 accepting and 0 refusing times"),
               ("result-dropped", (run(m.MUTANTS[:-1])[0], run(m.MUTANTS)[1]), "controls refused, expected")]
+    if m.INSIDE:
+        trials.append(("emptied-run-skipped", run(m.MUTANTS, skip_inside=True),
+                       "emptied-proof run of an inside control"))
+    else:
+        # A leaf-only runner has no emptied-proof run to skip. This is still a
+        # complete run, not evidence that check_complete missed an omission.
+        results, runs = run(m.MUTANTS, skip_inside=True)
+        m.RUNS[:] = runs
+        m.check_complete(results, sources)
+        ran += 1
     if m.PROJECTION:
         trials.append(("projection-unrecorded", run(m.MUTANTS, skip_projection=True), "place of a projection"))
     for what, (results, runs), reason in trials:

@@ -39,10 +39,14 @@ boundary records, chunk relation and draw, is proved under nine assumed laws (si
 and trusts the compiler for one fact, a panic message's length in the generated `export`, which the kernel also proves
 (`export_message_fits`), and
 every session `import` accepts passes `Session::invariant`, the ceilings staying a check on it; on the responder's side
-the session `establish_responder` returns on the initiator's first frame is likewise returned unchanged by `import`,
+the session `establish_responder` returns on the initiator's first frame is likewise returned unchanged by `import`
+under the receipt's hypotheses (including `DecryptOracleOf` and `AeadRoundTrip`) and the round-trip laws,
 and its restored copy's `encrypt` refines the model's step and keeps the invariant, under the encrypt boundary records
 whose AEAD contracts are false of the shipping AEAD by reading (later responder states and `Session::clone` not
-covered); at that established session
+covered). `UnitLifecycleRestoredResponderWitness` exhibits the full encrypt record and a successful next encrypt at
+the restored first-receipt responder under those existing laws, using the receipt's actual returned RNG unchanged;
+its proof-only restore/encrypt composition has three typed body controls, not shipping-Rust mutation evidence.
+No lifecycle or primitive-contract obligation closes. At that established session
 the first `encrypt` is related to the model's step (its refusal arm only at a model KEM that refuses, since the shipping key
 generation does not refuse, by reading), and the session a successful send leaves passes the invariant and meets the
 ceilings, under the encrypt boundary records, the oracle record, three assumed laws (a new key-generation law, the
@@ -175,7 +179,7 @@ Read [CLAIMS.md](CLAIMS.md) for what is established and
 runs on every push and checks that every theorem CLAIMS.md names exists in the
 file it names, that every axiom-pinned theorem is claimed, that the pins named in
 `REQUIRED_PINS` exist as live code and that a pin is labelled compiler-trusted exactly when
-`COMPILER_TRUSTED_PINS` names it (thirty, `counts.compiler_trusted` in the verification manifest), and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
+`COMPILER_TRUSTED_PINS` names it (thirty-two, `counts.compiler_trusted` in the verification manifest), and that the attestation hashes are current; it does not read LIMITATIONS.md and it does
 not compare theorem *statements* to the prose, which is a reviewer's job
 (REPRODUCING.md says what a green `attest` does and does not establish).
 [REPRODUCING.md](REPRODUCING.md) is the toolchain and the steps.

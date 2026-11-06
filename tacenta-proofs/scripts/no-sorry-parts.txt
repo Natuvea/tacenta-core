@@ -70,6 +70,7 @@ hosted responder:
   responder-second-receipt
   responder-repeated-frame
   responder-restored
+  responder-restored-witness
 hosted reply:
   responder-successor
   initiator-repeated-reply

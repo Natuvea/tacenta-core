@@ -88,6 +88,7 @@ import Translation.UnitLifecycleResponderFirstReceipt
 import Translation.UnitLifecycleResponderRepeatedFrame
 import Translation.UnitLifecycleResponderSuccessor
 import Translation.UnitLifecycleRestoredResponder
+import Translation.UnitLifecycleRestoredResponderWitness
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
 import Translation.UnitLifecycleResponderSecondReceipt
@@ -315,6 +316,7 @@ pending initial message): `import` of the exported bytes returns that session it
 `establish_responder` and on the bytes the initiator's first `encrypt` emitted, and the restored copy's `encrypt`
 refines the model's step and keeps the invariant with one unit of budget spent.  No new law; conditional on the AEAD
 contracts, false of the shipping AEAD by reading at long lengths.  Not shown: later responder states, `Session::clone`.
+`UnitLifecycleRestoredResponderWitness.lean` exhibits the first-receipt responder's accepted round trip, full next-encrypt hypothesis record and successful continuation together, including the actual returned RNG state. Its proof-level restore/encrypt composition has typed body controls. All existing reach and codec laws remain, including the AEAD contracts false of shipping code by reading; this is not primitive realization or full lifecycle closure.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

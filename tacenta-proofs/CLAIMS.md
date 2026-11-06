@@ -38,7 +38,8 @@ this section says in one place what is not proved.
   derived, under the encrypt boundary records, the oracle record and the AEAD contracts false of the shipping AEAD by
   reading (the section "Proved (tier T3, session lifecycle: `Session::encrypt` refines the model's step and keeps
   `Session::invariant` and the counter budget at every invariant session outside the sampling state ...)"; exhibited
-  at the established initiator's session only); and on named runs at the first send from a session `establish_initiator_for` returned, under the encrypt
+  at the established initiator's session in that module, and at the restored first-receipt responder in
+  `UnitLifecycleRestoredResponderWitness` under the existing reach's laws); and on named runs at the first send from a session `establish_initiator_for` returned, under the encrypt
   boundary records, the oracle record and three assumed laws, one of them new (the section "Proved (tier T3, session lifecycle: the public
   `encrypt` at every successful `establish_initiator_for` output ...)"), and the responder's first send from the session
   `establish_responder` returned on the initiator's first frame, where the call has one outcome (the section "Proved (tier
@@ -523,21 +524,21 @@ this section says in one place what is not proved.
   take a third precondition, `State.decoders_bounded`, and their `DecoderMessageTotal` is stated for
   decoders that need at most `MAX_CODEWORDS` chunks (the session lifecycle T1 section).
 
-- **Kernel-checked is not kernel-only, and thirty pinned results still trust the compiler.** Since 2026-10-21 no
+- **Kernel-checked is not kernel-only, and thirty-two pinned results still trust the compiler.** Since 2026-10-21 no
   lifecycle result rests on a `native_decide` constant: the nine constants the sparse ratchet's and the Triple's
   refinements on the session unit carried (four labels, the two skip bounds and `MAX_SKIP`'s value, one step of
   `receive_refines_continuation`, the combine label) are proved by `simp`, `decide` and `rfl`, and their pins list the
   kernel's three axioms (the section "Proved (the Session unit's refinement constants, by the kernel)"). The results that
   inherited them are now kernel-checked over the unit's opaque constants, which is not the same as kernel-only: those
   constants are the declarations of what the translation could not see, and a theorem about them says nothing about the
-  real primitives beyond its hypotheses. Twenty-nine statements that name `Session::export` or `Session::import` (eleven
+  real primitives beyond its hypotheses. Thirty-one statements that name `Session::export` or `Session::import` (eleven
   since 2026-10-21, ten more since the budget at an imported session and the decrypt composition, one since the
-  composition at every frame, and seven since the responder's round trip) still list one
+  composition at every frame, seven since the responder's round trip and two since its joint continuation witness) still list one
   compiler-trust axiom, the length bound of `toStr` on a panic message of the generated `export`, which Aeneas discharges
   `by decide +native`; `export_message_fits` proves that same proposition with the kernel alone, so the trusted fact is
   true, but the generated definition refers to the axiom, and removing it needs a change to the Rust message or to Aeneas
   at a re-translation. `Proofs.Serialization.decode_encode_composite` rests on three `bv_decide` lemmas. `attest.py`'s
-  `COMPILER_TRUSTED_PINS` lists exactly these thirty and refuses an entry whose pin lists no compiler-trust axiom.
+  `COMPILER_TRUSTED_PINS` lists exactly these thirty-two and refuses an entry whose pin lists no compiler-trust axiom.
 
 - **Identity records are tested and pinned, and the public initiator entry is
   outside every proof.** The identity pair digest, the verification number, the
@@ -4313,7 +4314,7 @@ and the `(1 : u64)` step of `receive_refines_continuation` claimed as two, is re
 
 What this does not change: these are facts about the translated constants and the model's constants only. The results that
 used them still rest on the unit's opaque constants and on every hypothesis their statements name; kernel-checked over
-opaque constants is not kernel-only. Twelve pinned results still trusted the compiler then, and thirty do now (the
+opaque constants is not kernel-only. Twelve pinned results still trusted the compiler then, and thirty-two do now (the
 section "Read this first").
 
 ## Proved (tier T3, session lifecycle retry prerequisites, on the eight-leaf unit)
@@ -8083,13 +8084,13 @@ session at a later state (after its reply, after a second receipt, or at any sta
 encapsulation state or an encoder), a decoder holding more than one chunk, or stored skipped keys; `Session::clone`;
 a copy restored from bytes the session did not write; the continuation with `decrypt` as a theorem (its session-side
 premises hold at the restored copy because it is the same session; the frame's chunk relation and draw are the
-caller's); the continuation with `encrypt` on a run; that the real primitives meet the boundary records or the laws;
+caller's); in this module, the continuation with `encrypt` on a run; that the real primitives meet the boundary records or the laws;
 that `Session::invariant` says a session is reachable.
 
 **Non-vacuity.** `first_send_restored_reachable` exhibits the round trip on a run at the real constants under laws
 that hold together in `Interp.modelFirstReceipt` (`first_receipt_laws_model`, which includes the five laws of the
 round trip): consistency in a model, not exhibition of the shipping code. The continuation with `encrypt` is not
-exhibited on that run.
+exhibited on that run in this module; the following section supplies the conditional continuation witness.
 
 **Compiler trust and pins.** Seven results here (`export_spec_R`, `export_import_of_shape_R`,
 `first_receipt_successor_round_trip`, `responder_first_frame_restored`, `responder_first_frame_restored_encrypt`,
@@ -8112,6 +8113,56 @@ content; the received decoder claimed empty, refused where the proof places the 
 leaves; the size cast claimed through `u16`, refused where the proof's rewrite no longer applies; and the decoder read
 back at two chunks, refused where the proof hands its bound to the length lemma (a dependency check). The last is `CodecShapeR` with its ephemeral bound moved and its pins kept (refused at its pin). No projection
 or statement-shape check is labelled.
+
+## Proved (tier T3, session lifecycle: the restored first-receipt responder's joint encrypt witness and proof-level composition, conditional on existing laws)
+
+Location: `Translation/UnitLifecycleRestoredResponderWitness.lean`.
+
+This is a conditional intermediate result, not closure of `E2E-01`,
+`AEAD-LENGTH-CONTRACTS`, any preservation gap or a proven-core claim.
+
+- `restore_then_encrypt_of_calls`: the proof-level `restoreThenEncrypt` composes the actual translated
+  `Session::import` and `Session::encrypt`. Given their two call equations, its result is the same encrypt result.
+  An import refusal maps to `none` in this proof-only helper; this is not an additional shipping API or a
+  refinement theorem for every import refusal.
+- `first_send_restored_encrypt_jointly_reachable`: under the existing first-receipt reach's primitive, codec,
+  establishment and key-generation laws, a 64-byte byte-stream source whose model key generation succeeds,
+  and the four existing additional round-trip laws, there are one first send, its responder receipt, that
+  responder's exported bytes and their accepted import, with the entire `EncryptOfInvariantHypotheses` record
+  instantiated at that very session at `NoHeaderReceived`. Its next encrypt of the empty plaintext succeeds,
+  refines `Model.Lifecycle.encrypt`, preserves `Session::invariant` and `CounterRoom 0`, and leaves the actual
+  RNG state returned by the receipt unchanged. The proof-level composition on those same saved bytes has
+  that same successful result. No caller supplies a separate successful continuation equation.
+
+**Laws and non-vacuity.** No new primitive or codec law is added. The witness derives the next encrypt record
+from the existing receipt, its model relation and the original boundary records. The oracle's draws are set to
+the trace of the receipt's returned RNG, not reset to the sender's seed. The old reach's laws have the joint
+interpretation described by `first_receipt_laws_model`; that is consistency in a model, not realization by
+shipping primitives. In particular the retained AEAD totality contracts are false of the shipping AEAD by
+reading at long lengths, so the composed theorem as stated says nothing about shipping code at any length
+until those contracts are repaired. The last-resort first-receipt, empty-plaintext witness does not establish
+joint satisfiability at every agreement state.
+
+**Not shown:**
+
+- That shipping primitives and codec operations satisfy the assumed laws.
+- General restore/continue for later responder states, stored keys or sampling states.
+- Restore/continue with decrypt, every refusal branch, or the full five-root lifecycle.
+- Rust mutation sensitivity or translation-regeneration correctness.
+
+**Compiler trust and pins.** Both theorems retain the existing
+`lifecycle.PrekeyStore.to_bytes._native.decide.ax_1` serialization fact and opaque primitive/runtime
+declarations, with no new axiom or `native_decide`. Each of the 2 results has an axiom pin and a statement pin;
+`restoreThenEncrypt` has a whole-body `#print` pin. No trust policy is widened.
+
+**Controls.** `check-responder-restored-witness-negatives.py` plants 3 well-typed body changes in the proof-level
+composition: different saved bytes, an empty RNG instead of the returned source, and no encrypt after accepted
+import. The unchanged `restore_then_encrypt_of_calls` must reject each at its equality goal. Each changed
+definition compiles separately with no proof and no added axiom. Two complete unmodified copies, with and
+without pins, and an equivalent `rng ++ []` body with the whole proof must pass. Thirteen classifier cases
+distinguish a named semantic goal failure from context-only text, another site, type/name/syntax/instance
+errors, timeouts, process failure, a survivor and an extra unrelated error. These are proof-level controls,
+not mutations of shipping Rust or regenerated translations; no composing proof is emptied in these controls.
 
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt` at the session its receipt of the reply returns, with `Session::invariant` and the four ceilings derived there and kept through the send, on the eight-leaf unit)
 

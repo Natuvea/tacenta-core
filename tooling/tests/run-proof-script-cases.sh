@@ -107,6 +107,7 @@ py_controls=(
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
   check-responder-restored-negatives.py
+  check-responder-restored-witness-negatives.py
   check-responder-second-receipt-negatives.py
   check-responder-second-send-negatives.py
   check-send-preservation-negatives.py
@@ -224,6 +225,7 @@ for called in \
   check-responder-reply-negatives.py \
   check-responder-reply-receipt-negatives.py \
   check-responder-restored-negatives.py \
+  check-responder-restored-witness-negatives.py \
   check-responder-second-receipt-negatives.py \
   check-responder-second-send-negatives.py \
   check-send-preservation-negatives.py \
