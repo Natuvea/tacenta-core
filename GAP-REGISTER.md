@@ -182,10 +182,12 @@ decision, assumption or waiver closes them, `SIZE-BOUND-READER` took the specifi
 changed, row `E2E-01` was not touched, and no reviewer independent of the maintainer has read these edits.
 
 The conditional result `UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable`
-exhibits the full encrypt hypothesis record and successful next encrypt at the same restored first-receipt
+exhibits the full encrypt hypothesis record and successful next encrypt of the empty plaintext, on the last-resort path, at the same restored first-receipt
 responder, using its actual returned RNG. Its proof-level composition has three typed body controls, not
 shipping-Rust mutation evidence. Existing primitive and codec laws remain; no row, class, status, acceptance
-criterion or `E2E-01` closing rule changes on this increment.
+criterion or `E2E-01` closing rule changes on this increment. The same module's
+`encoder_state_encrypt_hypotheses_jointly_satisfiable` exhibits the record at a session that holds an encoder (the
+initiator's after its first send of the empty plaintext, on the last-resort path); no class or status changes.
 
 This file does not close a gap; it moves a row to Historical only when the
 finding no longer describes the tree. Each row below remains the current

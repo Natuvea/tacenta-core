@@ -2930,8 +2930,13 @@ No new primitive or codec law is added; all of the reach's existing laws, its mo
 and the four round-trip laws remain. This is not realization of those laws by shipping primitives: the AEAD
 totality contracts remain false of shipping code by reading, and no assurance row closes. It covers neither
 later responder states, stored/sampling states, arbitrary restored bytes, decrypt continuation nor every refusal.
-Three independently typed mutations of this proof-only composition are checked at its unchanged equality lemma;
+Three separately typed mutations of this proof-only composition are checked at its unchanged equality lemma;
 they are not Rust-mutation or translation-regeneration evidence.
+The same module's `encoder_state_encrypt_hypotheses_jointly_satisfiable` exhibits the encrypt premise list at a session
+that holds an encoder: the initiator's after its first send of the empty plaintext, at `KeysSampled` epoch 1 with the
+header encoder at position 1, where `EncodersLive` is met by that encoder; the second `encrypt` there returns `Ok`. No
+message is received in between, and no other encoder-holding state, and no encoder near exhaustion, is exhibited. At the
+other two exhibited sessions the encoder premise holds vacuously.
 
 *The first `encrypt` at a session `establish_initiator_for` returned.* `UnitLifecycleEstablishedEncrypt.lean` composes the
 public `encrypt` with every establishment output, through the dispatch layer's encrypt route, and derives that route's state
@@ -4429,11 +4434,19 @@ one higher, the clock, the stored keys and the agreement's epoch as given, and t
 AEAD by reading (row `AEAD-LENGTH-CONTRACTS`), so, as stated, it says nothing about the shipping code at any length
 until those contracts are repaired. `EncodersLive` is kept: whether `Session::invariant` implies it is not checked;
 by reading `Encoder::invariant` accepts an exhausted encoder, so it is not expected to. The premise list is exhibited
-together at two sessions only, each with a successful call, under laws a model holds together: the established
-initiator's at `KeysUnsampled` (`encrypt_of_invariant_hypotheses_jointly_satisfiable`) and, at a state whose agreement
-takes no draw, the restored responder's after its first receipt at `NoHeaderReceived`
-(`UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable`): consistency in a model, not exhibition of the shipping code; the
-other no-draw states, `Failed` and later sessions are not exhibited. Not covered: `encrypt` at `HeaderReceived` (a law relating `encapsulate1` at the drawn bytes to the
+together at three sessions only, each with a successful call, under laws a model holds together: the established
+initiator's at `KeysUnsampled` (`encrypt_of_invariant_hypotheses_jointly_satisfiable`); at states whose agreement takes
+no draw, the restored responder's after its first receipt at `NoHeaderReceived`
+(`UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable`) and the initiator's after its
+first send at `KeysSampled` epoch 1
+(`UnitLifecycleRestoredResponderWitness.encoder_state_encrypt_hypotheses_jointly_satisfiable`): consistency in a model,
+not exhibition of the shipping code; the other no-draw states, `Failed` and later sessions are not exhibited. At the two
+sessions that hold no encoder, the initiator's at `KeysUnsampled` and the restored responder's at `NoHeaderReceived`,
+the encoder premise `EncodersLive` holds vacuously and `notSampling` by the state alone; at the responder `draws` holds
+vacuously too (its state is not `KeysUnsampled`), while at the initiator it is met by the seed's first two draws. At the
+third session, the initiator's after its first send at `KeysSampled` epoch 1, `EncodersLive` is met by the header
+encoder at position 1, and `notSampling` and `draws` hold by the state. No other encoder-holding state (`headerSent`,
+`ct1Received`, `ct1Sampled`, `ekReceivedCt1Sampled`, `ct2Sampled`) is exhibited, and no encoder near exhaustion. Not covered: `encrypt` at `HeaderReceived` (a law relating `encapsulate1` at the drawn bytes to the
 model KEM's at that randomness would be needed, with `Encaps1SizesOf`, and none is assumed); a session whose encoder has
 no codewords left or without the budget premise; a second party or a relation between two parties' sessions.
 

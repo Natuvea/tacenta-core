@@ -2745,6 +2745,7 @@ REQUIRED_PINS = frozenset(
     + ["Tacenta.UnitLifecycleRestoredResponderWitness." + n for n in (
         "restore_then_encrypt_of_calls",
         "first_send_restored_encrypt_jointly_reachable",
+        "encoder_state_encrypt_hypotheses_jointly_satisfiable",
     )]
     # The responder's `encrypt` at the session `establish_responder` returns on the initiator's first frame: the
     # agreement's send while it waits for the header, the model's reply, the route's providers and headroom, the
@@ -5195,6 +5196,7 @@ REQUIRED_STATEMENT_PINS = frozenset(
     + ["Tacenta.UnitLifecycleRestoredResponderWitness." + n for n in (
         "restore_then_encrypt_of_calls",
         "first_send_restored_encrypt_jointly_reachable",
+        "encoder_state_encrypt_hypotheses_jointly_satisfiable",
         "restoreThenEncrypt",
     )]
     # The responder's reply after the first receipt (`UnitLifecycleResponderReply`).

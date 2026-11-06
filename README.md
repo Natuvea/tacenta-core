@@ -236,7 +236,7 @@ and the restored copy's `encrypt` refines the model's step and keeps the
 invariant, under the encrypt boundary records whose AEAD contracts are false of the shipping AEAD by reading; later
 responder states and `Session::clone` are not covered.
 `UnitLifecycleRestoredResponderWitness` exhibits the complete encrypt hypothesis bundle and a successful next
-encrypt at that restored first-receipt responder, carrying the receipt's actual RNG state unchanged. Its proof-level
+encrypt of the empty plaintext, on the last-resort path, at that restored first-receipt responder, carrying the receipt's actual RNG state unchanged. Its proof-level
 restore/encrypt composition is held by three typed body controls. This remains conditional on the existing laws;
 it does not establish them for shipping primitives or close the lifecycle claim.
 Every statement that names `export` or `import` is compiler-trusted for one fact, that a panic message in the generated
@@ -323,8 +323,9 @@ of that relation composes with the general encrypt refinement, whose AEAD contra
 reading, so for the shipping code it says nothing at any length until those contracts are repaired; its two per-call
 records and its headroom are derived, and the composition stated, at every session that passes the invariant, has room
 for one operation and refines a model session whose encoder has codewords left, at every agreement state but the
-sampling one (where no record is supplied), with no new law and the premises exhibited together at two sessions only,
-the established initiator's and the restored responder's after its first receipt. Every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole
+sampling one (where no record is supplied), with no new law and the premises exhibited together at three sessions only,
+the established initiator's before and after its first send and the restored responder's after its first receipt
+(only the initiator's after its first send holds an encoder). Every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole
 budget with no law. A successful `decrypt` and `decrypt_ratchet` at every agreement state and transition, with or
 without the agreement's output, keeps `Session::invariant` and spends one unit of that budget, given the relation after
 the call and a model step in the in-order scope, under existing records and two new assumed length laws of the KEM

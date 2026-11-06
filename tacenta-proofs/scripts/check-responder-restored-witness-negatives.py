@@ -9,7 +9,13 @@ leaf lemma `restore_then_encrypt_of_calls`: replacing the saved bytes, resetting
 and omitting the next encrypt. Each changed definition is separately compiled without any
 proof or added axiom. An equivalent RNG expression is accepted with the complete proof.
 These controls protect the proof-level composition only, not shipping Rust or regeneration.
-There are no inside, projection, statement-shape or pin controls in this runner.
+Six more change statements: three of the restored responder's headline
+(`first_send_restored_encrypt_jointly_reachable`: the state claimed `KeysUnsampled`, the
+source claimed moved, the budget claimed past the clock) and three of the encoder-state
+witness (`encoder_state_encrypt_hypotheses_jointly_satisfiable`: the state claimed
+`KeysUnsampled`, the encoder claimed at position two, the record's budget claimed past the
+clock), each refused where the proof places the conjunct it derived, with a message naming
+the change.  There are no inside, projection, statement-shape or pin controls in this runner.
 
 The local semantic classifier additionally requires one equality-goal failure at the named
 leaf, no unrelated errors and no timeout. Its calibration distinguishes goal text from
@@ -81,6 +87,12 @@ MODULE = ROOT / 'translation/Translation/UnitLifecycleRestoredResponderWitness.l
 IMPORT_CALL = '  let imported ← lifecycle.Session.import saved\n'
 ENCRYPT_CALL = '    let output ← lifecycle.Session.encrypt byteRng byteCrc restored plaintext rng\n'
 CONTINUE_ARM = '  | .Ok restored => do\n' + ENCRYPT_CALL + '    pure (some output)\n'
+STATE_CLAIM = '      (∃ epoch auth dec, sB.braid.state = tacenta_braid.State.NoHeaderReceived epoch auth dec) ∧\n'
+SOURCE_CLAIM = "      rngB' = rngB ∧\n"
+BUDGET_CLAIM = "      lifecycle.Session.invariant sB' = ok true ∧ CounterRoom sB' 0 := by\n"
+ENC_STATE = "      (∃ auth kp enc, s'.braid.state = tacenta_braid.State.KeysSampled 1#u64 auth kp enc) ∧\n"
+ENC_POSITION = "      (∃ e, Tacenta.SessionUnitBraidT3.EncoderOf m'.braid = some e ∧ e.next = 1) ∧\n"
+ENC_RECORD = "        { oracle with draws := byteTrace rng' } s' m' 0 emptyPlaintext rng' ∧\n"
 MUTANTS = [
     ('module', 'restoration-uses-other-bytes',
      [(IMPORT_CALL, IMPORT_CALL.replace('import saved', 'import emptyPlaintext'))],
@@ -91,7 +103,35 @@ MUTANTS = [
     ('module', 'accepted-import-does-not-continue',
      [(CONTINUE_ARM, '  | .Ok _ => pure none\n')],
      r'(?s)(?:unsolved goals|Tactic `rfl` failed).*?⊢', ['restore_then_encrypt_of_calls']),
+    ('module', 'state-claimed-keys-unsampled',
+     [(STATE_CLAIM, '      (∃ epoch auth, ∃ _d : tacenta_erasure.Decoder, '
+                    'sB.braid.state = tacenta_braid.State.KeysUnsampled epoch auth) ∧\n')],
+     r'(?s)hstate\n.*?expected to have type\n\s*sB\.braid\.state = tacenta_braid\.State\.KeysUnsampled epoch auth',
+     ['first_send_restored_encrypt_jointly_reachable']),
+    ('module', 'source-claimed-moved',
+     [(SOURCE_CLAIM, "      rngB' ≠ rngB ∧\n")],
+     r"(?s)hrng\n.*?expected to have type\n\s*rngB' ≠ rngB", ['first_send_restored_encrypt_jointly_reachable']),
+    ('module', 'budget-claimed-past-the-clock',
+     [(BUDGET_CLAIM, BUDGET_CLAIM.replace("CounterRoom sB' 0", "CounterRoom sB' 4294967296"))],
+     r"(?s)hroom'\n.*?expected to have type\n\s*CounterRoom sB' 4294967296",
+     ['first_send_restored_encrypt_jointly_reachable']),
+    ('module', 'encoder-state-claimed-keys-unsampled',
+     [(ENC_STATE, "      (∃ e a, s'.braid.state = tacenta_braid.State.KeysUnsampled e a) ∧\n")],
+     r"(?s)hstate\n.*?expected to have type\n\s*∃ \(e : U64\), ∃ a, s'\.braid\.state = tacenta_braid\.State\.KeysUnsampled e a",
+     ['encoder_state_encrypt_hypotheses_jointly_satisfiable']),
+    ('module', 'encoder-claimed-at-position-two',
+     [(ENC_POSITION, ENC_POSITION.replace('e.next = 1', 'e.next = 2'))],
+     r'(?s)expected to have type\n.*?next := 1 \}\.next = 2', ['encoder_state_encrypt_hypotheses_jointly_satisfiable']),
+    ('module', 'encoder-witness-budget-past-the-clock',
+     [(ENC_RECORD, ENC_RECORD.replace(" m' 0 ", " m' 4294967295 "))],
+     r'(?s)Hc\n\s*has type\n\s*EncryptOfInvariantHypotheses.*?4294967295 emptyPlaintext',
+     ['encoder_state_encrypt_hypotheses_jointly_satisfiable']),
 ]
+
+# The three body changes of the proof-level composition, each also compiled as a typed definition and held to a
+# named equality-goal failure in `restore_then_encrypt_of_calls`.  The other controls change the headline's
+# statement and are held to their named refusal only.
+BODY_MUTANTS = ('restoration-uses-other-bytes', 'continuation-resets-the-source', 'accepted-import-does-not-continue')
 
 # The theorems that compose the run (decided by reading).
 COMPOSING = set()
@@ -602,25 +642,27 @@ def main():
                                      f'text in the {label} copy, found {found}')
                 mutated = mutated.replace(old, new, 1)
             assert mutated != source
-            boundary = mutated.find('/-- The composition uses')
-            if boundary < 0:
-                raise SystemExit('TYPED DEFINITION ANCHOR CHANGED: no boundary before the proof')
-            typed = mutated[:boundary] + '\nend Tacenta.UnitLifecycleRestoredResponderWitness\n'
-            results['typed_definitions'][name] = checked_probe(
-                typed, tmp / f'typed_{name}.lean', logs / f'typed_{name}.log', args.timeout)
+            if name in BODY_MUTANTS:
+                boundary = mutated.find('/-- The composition uses')
+                if boundary < 0:
+                    raise SystemExit('TYPED DEFINITION ANCHOR CHANGED: no boundary before the proof')
+                typed = mutated[:boundary] + '\nend Tacenta.UnitLifecycleRestoredResponderWitness\n'
+                results['typed_definitions'][name] = checked_probe(
+                    typed, tmp / f'typed_{name}.lean', logs / f'typed_{name}.log', args.timeout)
             path = tmp / f'{label}_{name}.lean'
             path.write_text(mutated)
             log = logs / f'{label}_{name}.log'
             status, output = run_lean(path, log, args.timeout)
             place, timeouts = check_refused(name, status, output, marker, log, mutated, where)
-            required = {
+            required = None if name not in BODY_MUTANTS else {
                 'restoration-uses-other-bytes': r'lifecycle\.Session\.import emptyPlaintext',
                 'continuation-resets-the-source': r'lifecycle\.Session\.encrypt.*plaintext \[\]',
                 'accepted-import-does-not-continue': r'pure none',
             }[name]
-            span = declaration_lines(mutated, 'restore_then_encrypt_of_calls')
-            if not semantic_failure_valid(status, output, span, required):
-                raise SystemExit(f'NOT A NAMED SEMANTIC REJECTION: {name}; {log}')
+            if required is not None:
+                span = declaration_lines(mutated, 'restore_then_encrypt_of_calls')
+                if not semantic_failure_valid(status, output, span, required):
+                    raise SystemExit(f'NOT A NAMED SEMANTIC REJECTION: {name}; {log}')
             results['rejected'][f'{label}/{name}'] = {'exit': status, 'marker': marker, 'at': place}
             if timeouts:
                 results['rejected'][f'{label}/{name}']['timeouts_elsewhere'] = timeouts
@@ -657,7 +699,7 @@ def main():
                 results['rejected'][f'{label}/{name}']['projects'] = decl
                 print(f'PASS: {label}/{name} still refused with the proof of {decl} emptied', flush=True)
     check_complete(results, sources)
-    if sorted(results['typed_definitions']) != sorted(m[1] for m in MUTANTS) or \
+    if sorted(results['typed_definitions']) != sorted(BODY_MUTANTS) or \
             set(results['positive_controls']) != {'equivalent-rng-expression'} or results['classifier_cases'] != 13:
         raise SystemExit('INCOMPLETE SEMANTIC CALIBRATION: missing typed, positive or classifier checks')
     if hashlib.sha256(MODULE.read_bytes()).hexdigest() != results['module_sha256']:

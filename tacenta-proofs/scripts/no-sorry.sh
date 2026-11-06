@@ -556,7 +556,9 @@ python3 scripts/check-responder-restored-negatives.py || fail=1
 
 # The conditional restored-responder witness's proof-level composition: wrong saved bytes,
 # a reset RNG and an omitted continuation must be typed and rejected at the named equality goal.
-# Complete baselines and an equivalent body must pass. This is not Rust mutation evidence.
+# Six statement changes to the two witnesses (a state, the source or the encoder's position, a budget) must be
+# refused where the proof places that conjunct. Complete baselines and an equivalent body must pass. This is not
+# Rust mutation evidence.
 phase_responder_restored_witness() {
 python3 scripts/check-responder-restored-witness-negatives.py || fail=1
 }

@@ -38,8 +38,9 @@ this section says in one place what is not proved.
   derived, under the encrypt boundary records, the oracle record and the AEAD contracts false of the shipping AEAD by
   reading (the section "Proved (tier T3, session lifecycle: `Session::encrypt` refines the model's step and keeps
   `Session::invariant` and the counter budget at every invariant session outside the sampling state ...)"; exhibited
-  together at two sessions only: the established initiator's in that module, and the restored first-receipt responder
-  in `UnitLifecycleRestoredResponderWitness` under the existing reach's laws); and on named runs at the first send from a session `establish_initiator_for` returned, under the encrypt
+  together at three sessions only: the established initiator's in that module, and in
+  `UnitLifecycleRestoredResponderWitness` the initiator's after its first send, the one of the three holding an encoder,
+  and the restored first-receipt responder, under the existing reach's laws); and on named runs at the first send from a session `establish_initiator_for` returned, under the encrypt
   boundary records, the oracle record and three assumed laws, one of them new (the section "Proved (tier T3, session lifecycle: the public
   `encrypt` at every successful `establish_initiator_for` output ...)"), and the responder's first send from the session
   `establish_responder` returned on the initiator's first frame, where the call has one outcome (the section "Proved (tier
@@ -7991,12 +7992,20 @@ lengths); that `Session::invariant` says a session is reachable.
 **Non-vacuity.** `encrypt_of_invariant_hypotheses_jointly_satisfiable` exhibits the whole premise list at one session,
 the established initiator's at `KeysUnsampled`, with a successful call, at the real constants under laws a toy model
 holds together, some of them (the AEAD totality laws) false of the shipping AEAD by reading: consistency in a model, not
-exhibition of the shipping code. One more session is exhibited, in the section on the restored first-receipt
+exhibition of the shipping code. Two more sessions are exhibited, in the section on the restored first-receipt
 responder's joint encrypt witness: `UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable`
 instantiates the whole record at the responder's session after its first receipt (agreement at `NoHeaderReceived`, a
-state that takes no draw), restored from its own exported bytes, with a successful call, under the existing reach's
-laws. Those two are the only sessions at which the premise list is exhibited together; the other eight no-draw states,
-`Failed` and later sessions are not.
+state that takes no draw), restored from its own exported bytes, and
+`encoder_state_encrypt_hypotheses_jointly_satisfiable` at the session the established initiator's first send of the
+empty plaintext leaves (agreement at `KeysSampled` epoch 1, the model session holding the header encoder at position 1),
+each with a successful call, under the existing reach's laws. Those three are the only sessions at which the premise
+list is exhibited together; the other seven no-draw states, `Failed` and later sessions are not. At the two sessions
+that hold no encoder, the initiator's at `KeysUnsampled` and the restored responder's at `NoHeaderReceived`, the encoder
+premise `EncodersLive` holds vacuously and `notSampling` by the state alone; at the responder `draws` holds vacuously
+too (its state is not `KeysUnsampled`), while at the initiator it is met by the seed's first two draws. At the third
+session, the initiator's after its first send at `KeysSampled` epoch 1, `EncodersLive` is met by the header encoder at
+position 1, and `notSampling` and `draws` hold by the state. No other encoder-holding state (`headerSent`,
+`ct1Received`, `ct1Sampled`, `ekReceivedCt1Sampled`, `ct2Sampled`) is exhibited, and no encoder near exhaustion.
 
 **Compiler trust and pins.** No result here lists a compiler-trust axiom. `encrypt_ok_arm` rests on `propext` and
 `Quot.sound`; the other 12 results on `propext`, `Classical.choice`, `Quot.sound` and between 8 and 56 opaque constants
@@ -8147,6 +8156,14 @@ This is a conditional intermediate result, not closure of `E2E-01`,
   refines `Model.Lifecycle.encrypt`, preserves `Session::invariant` and `CounterRoom 0`, and leaves the actual
   RNG state returned by the receipt unchanged. The proof-level composition on those same saved bytes has
   that same successful result. No caller supplies a separate successful continuation equation.
+- `encoder_state_encrypt_hypotheses_jointly_satisfiable`: under the laws of `established_encrypt_successor_reachable`
+  (which a model holds together, `established_encrypt_laws_model`) and a 64-byte source at whose bytes the model's key
+  generation answers, the established initiator's first `encrypt` of the empty plaintext returns `Ok` and leaves a session
+  at `KeysSampled` epoch 1 whose model session holds the header encoder at position 1; every field of
+  `EncryptOfInvariantHypotheses` holds there with that model session, one operation of budget, the empty plaintext and the
+  source the first call left (the oracle's draws set to its trace), with `EncodersLive` met by that encoder; and the
+  second `encrypt` there returns `Ok`, refines the model's step and passes `Session::invariant`. No message is received in
+  between; last-resort path.
 
 **Laws and non-vacuity.** No new primitive or codec law is added. The witness derives the next encrypt record
 from the existing receipt, its model relation and the original boundary records. The oracle's draws are set to
@@ -8154,8 +8171,14 @@ the trace of the receipt's returned RNG, not reset to the sender's seed. The old
 interpretation described by `first_receipt_laws_model`; that is consistency in a model, not realization by
 shipping primitives. In particular the retained AEAD totality contracts are false of the shipping AEAD by
 reading at long lengths, so the composed theorem as stated says nothing about shipping code at any length
-until those contracts are repaired. The last-resort first-receipt, empty-plaintext witness does not establish
-joint satisfiability at every agreement state.
+until those contracts are repaired. The last-resort first-receipt, empty-plaintext witness does not establish joint
+satisfiability at every agreement state. At the two sessions that hold no encoder, the initiator's at `KeysUnsampled`
+and the restored responder's at `NoHeaderReceived`, the encoder premise `EncodersLive` holds vacuously and `notSampling`
+by the state alone; at the responder `draws` holds vacuously too (its state is not `KeysUnsampled`), while at the
+initiator it is met by the seed's first two draws. At the third session, the initiator's after its first send at
+`KeysSampled` epoch 1, `EncodersLive` is met by the header encoder at position 1, and `notSampling` and `draws` hold by
+the state. No other encoder-holding state (`headerSent`, `ct1Received`, `ct1Sampled`, `ekReceivedCt1Sampled`,
+`ct2Sampled`) is exhibited, and no encoder near exhaustion.
 
 **Not shown:**
 
@@ -8164,10 +8187,12 @@ joint satisfiability at every agreement state.
 - Restore/continue with decrypt, every refusal branch, or the full five-root lifecycle.
 - Rust mutation sensitivity or translation-regeneration correctness.
 
-**Compiler trust and pins.** Both theorems retain the existing
-`lifecycle.PrekeyStore.to_bytes._native.decide.ax_1` serialization fact and opaque primitive/runtime
-declarations, with no new axiom or `native_decide`. Each of the 2 results has an axiom pin and a statement pin;
-`restoreThenEncrypt` has a whole-body `#print` pin. No trust policy is widened.
+**Compiler trust and pins.** The two restored-responder theorems retain the existing
+`lifecycle.PrekeyStore.to_bytes._native.decide.ax_1` serialization fact and opaque primitive/runtime declarations, with
+no new axiom or `native_decide`; `encoder_state_encrypt_hypotheses_jointly_satisfiable` names neither `export` nor
+`import` and lists no compiler-trust axiom, only `propext`, `Classical.choice`, `Quot.sound` and opaque constants of the
+unit. Each of the 3 results has an axiom pin and a statement pin; `restoreThenEncrypt` has a whole-body `#print` pin. No
+trusted fact is new: two pins carry the existing one, and `COMPILER_TRUSTED_PINS` grows by those two entries.
 
 **Controls.** `check-responder-restored-witness-negatives.py` plants 3 well-typed body changes in the proof-level
 composition: different saved bytes, an empty RNG instead of the returned source, and no encrypt after accepted
@@ -8177,6 +8202,12 @@ without pins, and an equivalent `rng ++ []` body with the whole proof must pass.
 distinguish a named semantic goal failure from context-only text, another site, type/name/syntax/instance
 errors, timeouts, process failure, a survivor and an extra unrelated error. These are proof-level controls,
 not mutations of shipping Rust or regenerated translations; no composing proof is emptied in these controls.
+Six more controls change a statement: on `first_send_restored_encrypt_jointly_reachable` the state claimed
+`KeysUnsampled`, the source claimed moved and the budget claimed past the clock, and on
+`encoder_state_encrypt_hypotheses_jointly_satisfiable` the state claimed `KeysUnsampled`, the encoder claimed at
+position two and the record's budget claimed past the clock. Each is refused where the proof places the conjunct it
+derived, with a message naming the change, and each is a shape refusal: a true sibling (the conjunct widened by
+`∨ False`) is refused there too. They show the proof places those conjuncts, not that the changed statements are false.
 
 ## Proved (tier T3, session lifecycle: the initiator's second `encrypt` at the session its receipt of the reply returns, with `Session::invariant` and the four ceilings derived there and kept through the send, on the eight-leaf unit)
 

@@ -68,9 +68,10 @@ encoder, so it is not expected to.  No premise names a platform width.
 initiator's at `KeysUnsampled`, at the real constants under laws a toy model holds together
 (`established_encrypt_laws_model`), some of them (the AEAD totality laws) false of the shipping AEAD by reading:
 consistency in a model, not exhibition of the shipping code.  No other agreement state is exhibited by this module;
-`UnitLifecycleRestoredResponderWitness.first_send_restored_encrypt_jointly_reachable` exhibits the same premise list
-at a state whose agreement takes no draw (`NoHeaderReceived`, the restored responder's session after its first
-receipt).
+`UnitLifecycleRestoredResponderWitness` exhibits the same premise list at two states whose agreement takes no draw:
+`NoHeaderReceived` (the restored responder's session after its first receipt,
+`first_send_restored_encrypt_jointly_reachable`) and `KeysSampled` epoch 1 (the initiator's session after its first
+send, `encoder_state_encrypt_hypotheses_jointly_satisfiable`, the only exhibited session that holds an encoder).
 
 ## What it does not show
 

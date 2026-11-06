@@ -44,7 +44,7 @@ under the receipt's hypotheses (including `DecryptOracleOf` and `AeadRoundTrip`,
 reading) and the round-trip laws,
 and its restored copy's `encrypt` refines the model's step and keeps the invariant, under the encrypt boundary records
 whose AEAD contracts are false of the shipping AEAD by reading (later responder states and `Session::clone` not
-covered). `UnitLifecycleRestoredResponderWitness` exhibits the full encrypt record and a successful next encrypt at
+covered). `UnitLifecycleRestoredResponderWitness` exhibits the full encrypt record and a successful next encrypt of the empty plaintext, on the last-resort path, at
 the restored first-receipt responder under those existing laws, using the receipt's actual returned RNG unchanged;
 its proof-only restore/encrypt composition has three typed body controls, not shipping-Rust mutation evidence.
 No lifecycle or primitive-contract obligation closes. At that established session
@@ -114,8 +114,9 @@ for the shipping code it says nothing at any length until those contracts are re
 satisfiable only in a toy model on the established initiator's first send of the empty plaintext and at the sampling
 state on no run; the refinement's two per-call records and its headroom derived, and the composition stated, at every
 session that passes the invariant, has room for one operation and refines a model session whose encoder has codewords
-left, at every agreement state but the sampling one, with no new law and the premises exhibited together at two
-sessions only, the established initiator's and the restored responder's after its first receipt; every refused `encrypt`, `decrypt` and `decrypt_ratchet`
+left, at every agreement state but the sampling one, with no new law and the premises exhibited together at three
+sessions only, the established initiator's before and after its first send and the restored responder's after its
+first receipt (only the initiator's after its first send holds an encoder); every refused `encrypt`, `decrypt` and `decrypt_ratchet`
 keeping the invariant and the whole budget, with no law; a successful `decrypt` and `decrypt_ratchet` at every agreement
 state and transition, with or without the agreement's output, keeping `Session::invariant` and spending one unit of that
 budget, given the relation after the call and a model step in the in-order scope, under existing records and two new
