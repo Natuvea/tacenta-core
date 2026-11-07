@@ -564,7 +564,14 @@ request runs fifteen parts on GitHub-hosted machines; a push to main runs one pa
 on the self-hosted runner group, as the job did before the split, and only that part saves the build outputs
 pull requests restore. If the parts of one run restored different build outputs (main saved newer ones while
 they were starting), the combiner refuses them; "Re-run failed jobs" combines the same parts again, so the run
-needs "Re-run all jobs" or a new push. The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
+needs "Re-run all jobs" or a new push. A step of the `checks` job
+(`tooling/check-no-sorry-parts-coverage.py`) fails, before any hosted job runs, when a phase of
+the script is in no part of a partition or in two, when a slice of the sliced check is missing or
+repeated, or when the workflow's matrix names a part the parts file does not have or leaves one
+out; its cases are `tooling/tests/run-check-no-sorry-parts-coverage-cases.sh`. A part can be
+declared with no phase yet (`-` in the parts file): its job runs the three package builds and no
+phase.
+The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
 fail at its first step when a part failed, rather than be skipped; the controls of the workflow checker confirm
 the shape, and none of this matrix has yet run on GitHub. The `translation` receipt records that guard and the
 combiner; the steps of each part (the elan install, the Mathlib fetch and, on the self-hosted runner, the

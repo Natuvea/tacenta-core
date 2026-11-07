@@ -132,6 +132,12 @@ bash tooling/check-workflows.sh
 # loosened by mistake fails this gate rather than the next reader.
 deep_only bash tooling/tests/run-check-workflows-cases.sh
 
+# The parts of no-sorry.sh cover its phases once each, and the workflow's matrix runs exactly the parts of the
+# parts file (a part named in one and not the other, or a phase in no part or two, fails here and not after the
+# hosted run). Its cases run in run-gate-controls.sh. Needs PyYAML, as the checker above does; runs no Lean.
+echo "== The parts of no-sorry.sh cover its phases once, and the workflow runs them =="
+python3 tooling/check-no-sorry-parts-coverage.py
+
 # The regeneration script's comparison and --check verdict, held by their control with a stub
 # docker and no toolchain. Hosted CI runs it in the checks job through run-gate-controls.sh; it
 # runs here too so that a Mac, where its copy step once failed under BSD tar, is a regression check.

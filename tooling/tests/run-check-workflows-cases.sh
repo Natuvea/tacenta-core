@@ -331,7 +331,8 @@ manifest_edits = [
 
 # The two combining jobs, of the attestation negatives and of the translation's parts, run `always()` after
 # their matrix and start with a guard on the matrix's result, so a failed slice or part turns them red instead
-# of skipping them. Each edit below drops the guard, the `always()` or both, or masks the guard, and rewrites
+# of skipping them. Each edit below drops the guard, the `always()` or both, masks the guard, or weakens it to
+# accept a skipped matrix, and rewrites
 # `tooling/required-steps.json` to match, as the person making the edit would: rule 8 itself must still
 # refuse it. More set a shell variable that would make the guard pass from outside its step, at the job or
 # the workflow level: rule 11 refuses them.
@@ -344,7 +345,10 @@ def guard_edits(job_name, guard):
     def drop_always(w): del w["jobs"][job_name]["if"]
     def drop_both(w): drop_guard(w); drop_always(w)
     def mask_guard(w): step(w, job_name, guard)["run"] += " || true"
-    return [drop_guard, drop_always, drop_both, mask_guard]
+    # A guard that refuses a failed matrix and accepts a skipped or cancelled one: a part (or slice) job that was
+    # skipped gives the matrix the result `skipped`, and only `success` may pass.
+    def accept_skipped(w): step(w, job_name, guard)["run"] = 'test "$NEEDS_RESULT" != failure'
+    return [drop_guard, drop_always, drop_both, mask_guard, accept_skipped]
 # The guard neutered from outside the step: bash sources a file, or imports a function, before the step runs.
 def job_bash_env(w): w["jobs"]["attest-negatives"]["env"] = {"BASH_ENV": "/tmp/bypass"}
 def workflow_bash_env(w): w["env"]["BASH_ENV"] = "/tmp/bypass"
