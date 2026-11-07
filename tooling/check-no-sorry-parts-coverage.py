@@ -23,6 +23,13 @@ It fails when
   * the workflow's partition is not the one its matrix feeds, or the expression that names it, or the matrix
     expression, is not one of the two shapes read here. A shape this does not read is a failure, not a pass.
 
+  * the `translation-part` job could run fewer legs or fewer steps than the matrix list says: the matrix has a key
+    other than `part` (`exclude` drops a leg, `include` adds one), the job or a step has `continue-on-error`, the
+    job has an `if`, or a step has an `if` other than the four exact conditions the job has today (all of which
+    only choose between a push and a pull request). A step of a part job skipped by an `if` would leave the part
+    with no directory or an empty one, which the combiner refuses only after the run;
+  The commands of a leg's steps are held by `required-steps.json`, not here.
+
 A part declared `-` (no phase yet) is listed as such. It still has a job and a directory.
 
 What it does not do: run the hosted jobs, or say that the combiner refuses a missing or skipped part when it
@@ -193,6 +200,51 @@ def workflow_parts(workflow):
     return push_list, other_list, push_partition, other_partition
 
 
+# The only step conditions the part job has: they choose between a push and a pull request, or the runner kind.
+ALLOWED_STEP_IF = {
+    "runner.environment == 'self-hosted'",
+    "github.event_name == 'push' && matrix.part == 'all' && steps.mathlib-files.outputs.cache-hit != 'true'",
+    "github.event_name == 'pull_request'",
+    "github.event_name == 'push' && matrix.part == 'all'",
+}
+
+
+def truthy_continue(value):
+    return value is not None and value is not False and str(value).strip().lower() != "false"
+
+
+def check_part_job(workflow):
+    """Problems with the `translation-part` job that let a leg or a step of the matrix not run."""
+    job = yaml.safe_load(Path(workflow).read_text())["jobs"]["translation-part"]
+    problems = []
+    if not isinstance(job, dict):
+        return ["the `translation-part` job is not a mapping"]
+    if "if" in job:
+        problems.append("the `translation-part` job has an `if`, which can skip a leg")
+    if truthy_continue(job.get("continue-on-error")):
+        problems.append("the `translation-part` job has `continue-on-error`")
+    strategy = job.get("strategy")
+    matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+    if not isinstance(matrix, dict) or sorted(matrix) != ["part"]:
+        problems.append("the matrix of `translation-part` has keys "
+                        f"{sorted(matrix) if isinstance(matrix, dict) else matrix!r}, not only `part`: "
+                        "an `exclude` drops a leg and an `include` adds one the part list does not name")
+    steps = job.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return problems + ["the `translation-part` job has no steps"]
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            problems.append(f"step {index + 1} of `translation-part` is not a mapping")
+            continue
+        label = step.get("id") or step.get("name") or step.get("uses") or f"step {index + 1}"
+        if "if" in step and str(step["if"]).strip() not in ALLOWED_STEP_IF:
+            problems.append(f"step {label} of `translation-part` has the condition `{step['if']}`, which can skip "
+                            "it for a leg; only the push or pull-request conditions the job has are allowed")
+        if truthy_continue(step.get("continue-on-error")):
+            problems.append(f"step {label} of `translation-part` has `continue-on-error`")
+    return problems
+
+
 def check_workflow(lists, partitions):
     push_list, other_list, push_partition, other_partition = lists
     problems = []
@@ -243,6 +295,7 @@ def main():
                     f"{part} ({len(chosen[part])})" if chosen[part] else f"{part} (declared empty)"
                     for part in parts))
         problems += check_workflow(workflow_parts(args.workflow), partitions)
+        problems += check_part_job(args.workflow)
     except (Failed, OSError, ValueError, yaml.YAMLError) as error:
         print(f"::error::check-no-sorry-parts-coverage: {error}", file=sys.stderr)
         return 1

@@ -16,6 +16,7 @@
 #                                             with no phase yet
 #   a part named twice in the workflow's list, the two partitions swapped, a matrix or partition expression of
 #   a shape the check does not read, a job missing   refused
+#   a matrix `exclude` or `include`, a step `if` or `continue-on-error` on a part job, a job `if`   refused
 #   a workflow, a parts file or a phase table that cannot be read   refused (a gate that cannot run fails)
 #
 # A part declared with no phase (`-`) is in the files of the tree only once one has been added; the cases that
@@ -291,6 +292,46 @@ swap("'push' && 'single' || 'hosted'", "'push' && 'single' || 'elsewhere'")
 PY
 run unknown-partition --parts "$work/base.parts" --workflow "$work/yml-unknown-partition"
 refuses unknown-partition "partition elsewhere for a pull request or any other event, which the parts file does not have"
+
+# ---- a leg or a step of a part job that does not run ---------------------------------------------------------
+# The part list names every part, and the job still runs fewer: these pass a check that reads only the list.
+edit_yml excluded <<'PY'
+i = t.index("part: ${{ fromJSON(")
+j = t.index("\n", i)
+t = t[:j + 1] + "        exclude:\n          - part: preserve\n" + t[j + 1:]
+PY
+run excluded --parts "$work/base.parts" --workflow "$work/yml-excluded"
+refuses excluded "not only \`part\`"
+edit_yml included <<'PY'
+i = t.index("part: ${{ fromJSON(")
+j = t.index("\n", i)
+t = t[:j + 1] + "        include:\n          - part: elsewhere\n" + t[j + 1:]
+PY
+run included --parts "$work/base.parts" --workflow "$work/yml-included"
+refuses included "not only \`part\`"
+edit_yml step-if-false <<'PY'
+swap("          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        run:",
+     "          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        if: false\n        run:")
+PY
+run step-if-false --parts "$work/base.parts" --workflow "$work/yml-step-if-false"
+refuses step-if-false "step translation_part of \`translation-part\` has the condition \`False\`"
+edit_yml step-if-part <<'PY'
+swap("          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        run:",
+     "          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        if: matrix.part != 'preserve'\n        run:")
+PY
+run step-if-part --parts "$work/base.parts" --workflow "$work/yml-step-if-part"
+refuses step-if-part "matrix.part != 'preserve'"
+edit_yml step-continue <<'PY'
+swap("          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        run:",
+     "          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        continue-on-error: true\n        run:")
+PY
+run step-continue --parts "$work/base.parts" --workflow "$work/yml-step-continue"
+refuses step-continue "has \`continue-on-error\`"
+edit_yml job-if <<'PY'
+swap("  translation-part:\n", "  translation-part:\n    if: github.event_name == 'push'\n")
+PY
+run job-if --parts "$work/base.parts" --workflow "$work/yml-job-if"
+refuses job-if "job has an \`if\`"
 
 # ---- shapes the check does not read, and files it cannot read -----------------------------------------------
 edit_yml matrix-literal <<'PY'

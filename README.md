@@ -568,13 +568,13 @@ needs "Re-run all jobs" or a new push. A step of the `checks` job
 (`tooling/check-no-sorry-parts-coverage.py`) fails, before any hosted job runs, when a phase of
 the script is in no part of a partition or in two, when a slice of the sliced check is missing or
 repeated, or when the workflow's matrix names a part the parts file does not have or leaves one
-out; its cases are `tooling/tests/run-check-no-sorry-parts-coverage-cases.sh`. The `preserve` part
-groups the phases that prove the session invariant is kept across a send or a receive
-(`send-preservation`, `encrypt-preservation`, `receive-preservation`, `decrypt-preservation` and
-`out-of-order-receive`) by kind and not by length: in one pull-request run they took 145, 1,102,
-556, 587 and 140 s on GitHub-hosted machines, 2,530 s in all, run one after another in one job. A
-part can be declared with no phase yet (`-` in the parts file): its job runs the three package
-builds and no phase.
+out, or the part job could skip a leg or a step (a matrix `exclude`, a step `if`); its cases are
+`tooling/tests/run-check-no-sorry-parts-coverage-cases.sh`. The `preserve` part groups the phases
+that prove the session invariant is kept across a send or a receive (`send-preservation`,
+`encrypt-preservation`, `receive-preservation`, `decrypt-preservation` and `out-of-order-receive`)
+by kind and not by length: in one pull-request run they took 145, 1,102, 556, 587 and 140 s on
+GitHub-hosted machines, 2,530 s in all, run one after another in one job. A part can be declared
+with no phase yet (`-` in the parts file): its job runs the three package builds and no phase.
 The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
 fail at its first step when a part failed, rather than be skipped; the controls of the workflow checker confirm
 the shape, and none of this matrix has yet run on GitHub. The `translation` receipt records that guard and the
