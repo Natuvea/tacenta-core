@@ -121,7 +121,7 @@ adds what version 1 cannot express about the message size bound: the sender's
 `PlaintextTooLong`, the size rule's refusals, `AgreementFailed` and
 `random_draws: none`. Version 1 and its corpus are unchanged. [The supplement's
 traces](traces/session-operation-trace-supplement.json) were added by the
-maintainer account with tool assistance and are **not independently authored**; the P6 operation reader (specification-only author, related party) does not read them. The same structural check
+maintainer account with tool assistance and are **not independently authored**; the P6 operation reader (specification-only; written and run by a related party) does not read them. The same structural check
 covers them, and `runners/rust/tests/operation_trace_supplement.rs` drives each
 one through `tacenta-core`, comparing outcomes, refusals, stored bytes and
 random-source calls, and requires its control to disagree.

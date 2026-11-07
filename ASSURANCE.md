@@ -123,7 +123,7 @@ re-read: the pin and claim counts in practice 2, the Session row's clauses on th
 `encrypt` the results cover, and the unpinned-claim count in the readiness section; after a tool-assisted read made for
 the maintainer, the same day, the Session row's clause on the received maximum and the reply routes, the practice 2
 sentence on the size-bound results and the Gate 2 sentence (the AMBIGUOUS row `SIZE-BOUND-REPLY-ROUTE-GAP`). The counts
-were recomputed from that tree. The update was made by the author with tool assistance; no reader independent of the
+were recomputed from that tree. The update was made with tool assistance under the maintainer's account; no reader independent of the
 maintainer has read it.
 
 On 2026-10-28, after the owner's decision that the two size-bound register rows block the final claims, the Gate 2
@@ -138,52 +138,52 @@ On 2026-10-28, for encrypt preservation at every agreement state and the refusal
 (`UnitLifecycleEncryptPreserve`), these parts were updated against the head of that change and nothing else was
 re-read: the pin and claim counts in practice 2 and the sentence on the 47 results, the Session row's clause on
 preservation, and the unpinned-claim count in the readiness section. The counts were recomputed from that tree. The
-update was made by the author with tool assistance; no reader independent of the maintainer has read it.
+update was made with tool assistance under the maintainer's account; no reader independent of the maintainer has read it.
 
 On 2026-10-28, for decrypt preservation at every agreement state (`UnitLifecycleDecryptPreserve`), these parts were
 updated against the head of that change and nothing else was re-read: the pin and claim counts in practice 2 and the
 sentence on the 63 results, the Session row's clause on preservation, and the unpinned-claim count in the readiness
-section. The counts were recomputed from that tree. The update was made by the author with tool assistance; no reader
+section. The counts were recomputed from that tree. The update was made with tool assistance under the maintainer's account; no reader
 independent of the maintainer has read it.
 
 On 2026-10-28, when the size-bound and preservation work was replayed onto `main` after #278, #279 and #280, the two
 gate 2 sentences were recounted from the register's class column (nine rows open at BLOCKING: the seven of `main` and
 `SIZE-BOUND-REPLY-ROUTE-GAP` and `SIZE-BOUND-OPEN-LENGTH`), the Session row's preservation clause gained the gaps the
 preservation results leave and the conditional standing of their three assumed laws, and the pin and claim counts were
-recomputed from that tree; nothing else here was re-read. No level or tick changed. The update was made by the author
-with tool assistance; no reader independent of the maintainer has read it.
+recomputed from that tree; nothing else here was re-read. No level or tick changed. The update was made with tool assistance
+under the maintainer's account; no reader independent of the maintainer has read it.
 
 Later on 2026-10-28, after three tool-assisted reads of that replay made for the maintainer, and after it was replayed
 again onto `main` after #281, the Session row's preservation clauses were corrected (the only derivation of the relation
 after the call takes AEAD contracts false of the shipping AEAD by reading; the exhibiting runs show consistency in a
 toy model or derive their premises with no joint satisfiability theorem, each a single run in strict alternation; every
 session `establish_responder` returns now has budget for later steps), and the pin and claim counts were recomputed
-from that tree; nothing else here was re-read. No level or tick changed. The update was made by the author with tool
-assistance; no reader independent of the maintainer has read it.
+from that tree; nothing else here was re-read. No level or tick changed. The update was made with tool assistance under the
+maintainer's account; no reader independent of the maintainer has read it.
 
 On 2026-10-29, for the budget at an imported session (`UnitLifecycleImportBudget`) and the composition of receive
 preservation with the decrypt refinement (`UnitLifecycleDecryptCompose`), these parts were updated against the head
 of that change and nothing else was re-read: the pin and claim counts in practice 2 and the sentence on the 26
 results, the Session row's preservation clause, and the unpinned-claim count in the readiness section. No level or
-tick changed. The counts were recomputed from that tree. The update was made by the author with tool assistance; no
+tick changed. The counts were recomputed from that tree. The update was made with tool assistance under the maintainer's account; no
 reader independent of the maintainer has read it.
 
 Later on 2026-10-29, for receive preservation at every frame (`UnitLifecycleOutOfOrderReceive`), these parts were
 updated against the head of that change and nothing else was re-read: the pin and claim counts in practice 2, the
 Session row's preservation clause, and the unpinned-claim count in the readiness section. No level or tick changed. The
-counts were recomputed from that tree. The update was made by the author with tool assistance; no reader independent
+counts were recomputed from that tree. The update was made with tool assistance under the maintainer's account; no reader independent
 of the maintainer has read it.
 
 Later on 2026-10-29, for the encrypt composition at every invariant session outside the sampling state
 (`UnitLifecycleEncryptCompose`), these parts were updated against the head of that change and nothing else was re-read:
 the pin and claim counts in practice 2 and the sentence on the 13 results, the Session row's encrypt preservation
 clause, and the unpinned-claim count in the readiness section. No level or tick changed. The counts were recomputed from
-that tree. The update was made by the author with tool assistance; no reader independent of the maintainer has read it.
+that tree. The update was made with tool assistance under the maintainer's account; no reader independent of the maintainer has read it.
 
 Later on 2026-10-29, for the responder's round trip (`UnitLifecycleRestoredResponder`), these parts were updated
 against the head of that change and nothing else was re-read: the pin and claim counts in practice 2 and the sentence
 on the 33 results, the Session row's encrypt clause, and the unpinned-claim count in the readiness section. No level or
-tick changed. The counts were recomputed from that tree. The update was made by the author with tool assistance; no
+tick changed. The counts were recomputed from that tree. The update was made with tool assistance under the maintainer's account; no
 reader independent of the maintainer has read it.
 
 The conditional first-receipt responder witness in `UnitLifecycleRestoredResponderWitness` adds the complete

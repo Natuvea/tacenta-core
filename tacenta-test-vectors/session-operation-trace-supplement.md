@@ -15,10 +15,10 @@ neither draws a random value.
 and its traces
 ([`traces/session-operation-trace-supplement.json`](traces/session-operation-trace-supplement.json))
 were added by the maintainer account with tool assistance, with
-`tacenta-core`, the model and the Rust runner in view. They are a **temporary disposition**, to be accepted only as such, and only after review of the exact change that adds them, not part of the P6 operation reader's evidence (its author is a specification-only author and a related party). The supplement's traces remain **outside the specification-only reader's coverage** until a specification-only reader pass reads them.
+`tacenta-core`, the model and the Rust runner in view. They are a **temporary disposition**, to be accepted only as such, and only after review of the exact change that adds them, not part of the evidence of the P6 operation reader (specification-only; written and run by a related party). The supplement's traces remain **outside the specification-only reader's coverage** until a specification-only reader pass reads them.
 
 **Why a supplement, not an edit of version 1.** Version 1, its schema and its
-27-trace corpus are the input the P6 operation reader (specification-only author, related party) was written from and run against (`runners/independent/P6-OPERATION-READER-EVIDENCE.md`),
+27-trace corpus are the input the P6 operation reader (specification-only; written and run by a related party) was written from and run against (`runners/independent/P6-OPERATION-READER-EVIDENCE.md`),
 which records the packet's and the reader's digests and says it is evidence
 for that committed corpus only. Editing version 1 would change the files that
 record describes, and the reader would meet operations and refusals its author
