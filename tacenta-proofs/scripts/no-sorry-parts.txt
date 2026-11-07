@@ -87,6 +87,9 @@ hosted preserve:
   receive-preservation
   decrypt-preservation
   out-of-order-receive
+# `conversation` is declared with no phase yet (`-`): its job runs the three package builds and no phase of
+# its own. The first conversation-level module's negatives script replaces `-` with its phase.
+hosted conversation: -
 hosted dispatch-0: initial-dispatch@0/8
 hosted dispatch-1: initial-dispatch@1/8
 hosted dispatch-2: initial-dispatch@2/8
