@@ -3316,8 +3316,7 @@ statements name changed under the same name, a new instance or a `coe` function 
 changing the pins, and that they are the right statements is decided by reading.
 Its statement covers the nine agreement
 states whose send takes no draw; its premises, that relation and the agreement walk's included, are exhibited together
-at `NoHeaderReceived`, on the reply's run, and at `KeysSampled`, on the encoder-state witness (`UnitLifecycleRestoredResponderWitness.encoder_state_encrypt_hypotheses_jointly_satisfiable`), and at the other seven no-draw states no run exhibits them (the relation after
-the call there would come from an encrypt refinement whose leaf hypotheses are not discharged at those states). It does
+at `NoHeaderReceived`, on the reply's run, and at `KeysSampled`, on two runs: the initiator's second message (`initiator_sends_second_message`, on `first_send_second_message_reachable`) and the encoder-state witness (`UnitLifecycleRestoredResponderWitness.encoder_state_encrypt_hypotheses_jointly_satisfiable`); at the other seven no-draw states no run exhibits them (the relation after the call there would come from `encrypt_refines_keeps_invariant`, which derives the encrypt route's per-call records at every invariant session outside `HeaderReceived` and still takes the session premises (the invariant, the relation before the call, the counter budget, live encoders, the plaintext bound and the trace and draw records), the boundary records and the laws; no run here establishes those session premises at those states). It does
 not cover `KeysUnsampled` or `HeaderReceived`, whose sends draw and (at `HeaderReceived`) hand the Triple an
 agreement output; a Triple send with an output (`advance`, a new chain pair, `clearOldEpochs`) is not covered here (the
 paragraph on `encrypt` at every agreement state, below, covers both, under one further assumed law). **The

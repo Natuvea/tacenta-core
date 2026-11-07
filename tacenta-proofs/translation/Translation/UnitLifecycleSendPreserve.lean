@@ -85,15 +85,20 @@ reading.
 
 The general lemma quantifies over the nine agreement states whose send takes no draw.  Its premises, the relation after
 the call and the agreement walk's included, are exhibited together at `NoHeaderReceived`, on the reply's run (this
-module), and at `KeysSampled`, on the encoder-state witness of `UnitLifecycleRestoredResponderWitness`; at the other
-seven no-draw states no run in this tree exhibits them, and the relation after the call there would come from an
-encrypt refinement whose leaf hypotheses are not discharged at those states.
+module), and at `KeysSampled`, on two runs: the initiator's second message (`initiator_sends_second_message` in
+`UnitLifecycleInitiatorSecondMessage`, on `first_send_second_message_reachable`) and the encoder-state witness of
+`UnitLifecycleRestoredResponderWitness`; at the other seven no-draw states no run in this tree exhibits them.  The
+relation after the call there would come from `encrypt_refines_keeps_invariant` (`UnitLifecycleEncryptCompose`), which
+derives the encrypt route's per-call records at every invariant session outside `HeaderReceived` and still takes the
+session premises (the invariant, the relation before the call, the counter budget, live encoders, the plaintext bound
+and the trace and draw records), the boundary records and the laws; no run here establishes those session premises
+at those states.
 
 ## What it does not show
 
 * The general lemma on a run at any of the seven no-draw states other than `NoHeaderReceived` and `KeysSampled` (the
-  second is exhibited in `UnitLifecycleRestoredResponderWitness`, not here): no run in this tree exhibits its premises
-  there.
+  second is exhibited in `UnitLifecycleInitiatorSecondMessage` and `UnitLifecycleRestoredResponderWitness`, not here):
+  no run in this tree exhibits its premises there.
 * `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send with an
   agreement output (`advance`, a new chain pair, `clearOldEpochs`): not covered.  In particular the initiator's first
   send itself is not an instance; only its Triple leaf is re-derived.

@@ -84,9 +84,10 @@ AEAD; a frame with changed header bytes not covered, and tamper refusal on any o
 either direction not covered there; and a general step stating that a successful `encrypt`
 at an agreement state whose send takes no draw keeps `Session::invariant` and spends one unit of a counter budget whose
 zero is the four ceilings, given the relation after the call (which carries the Triple half and the budget and comes from
-the encrypt refinement) and `KemCloneAgrees`, its premises exhibited together only at the state where the
-responder's reply is sent, on that run, where it gives the invariant and the ceilings at the session the reply leaves,
-with no compiler-trust axiom; and a second general step stating that a successful `decrypt_ratchet` or `decrypt` keeps
+the encrypt refinement) and `KemCloneAgrees`, its premises exhibited together at the state where the
+responder's reply is sent (`NoHeaderReceived`), on that run, where it gives the invariant and the ceilings at the session the reply leaves,
+with no compiler-trust axiom, and at `KeysSampled`, on the initiator's second message and on the encoder-state witness, and at
+no other of the nine no-draw states; and a second general step stating that a successful `decrypt_ratchet` or `decrypt` keeps
 `Session::invariant` and spends one unit of that budget on an in-order receive (no stored key used, no message skipped, no
 agreement output) whose agreement stays at `NoHeaderReceived`, holding at most one chunk before the call, or at
 `KeysSampled`, given the relation after the call, the model step, two boundary records and one law, its premises exhibited
