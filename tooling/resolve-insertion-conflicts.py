@@ -260,8 +260,8 @@ def verify(root):
         m = re.match(r"([a-z][a-z0-9-]*) ([a-z][a-z0-9-]*):((?: \S+)*)$", line)
         if m:
             current = m.group(1)
-            parts.setdefault(current, []).extend(m.group(3).split())
-        elif current and re.fullmatch(r"  \S+", line):
+            parts.setdefault(current, []).extend(w for w in m.group(3).split() if w != "-")
+        elif current and re.fullmatch(r"  \S+", line) and line.strip() != "-":
             parts[current].append(line.strip())
         else:
             current = None

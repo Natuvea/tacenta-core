@@ -33,6 +33,12 @@ must cover each non-prelude phase of the script exactly once: one part names it,
 one S is named once. A phase the script gains and the file does not assign fails every part before it
 runs a phase, and fails the combiner.
 
+A part that has no phase yet is declared with `-` in place of its phases (`hosted conversation: -`). It is a
+part like any other: CI runs a job for it, which runs the prelude and no phase of its own, and the combiner
+requires its directory, so a job that was dropped from the matrix is refused. `-` stands alone; a part whose
+line names nothing at all is still refused, so that a part emptied by mistake is noticed rather than read as
+declared empty.
+
   resolve   --table T --parts F --part P          print the part's phases as `<id>\\t<slice or ->`
   manifest  --dir D --part P ...                  write D/part.json after a part has run
   combine   --table T --parts F --partition N --dir D   check a set of part directories
@@ -187,11 +193,13 @@ def read_parts(path, table):
         records.append([number, partition, part, rest.split(' ')[1:]])
     for number, partition, part, words in records:
         if not words:
-            refuse(f'{path}:{number}: part {part} names no phase')
+            refuse(f'{path}:{number}: part {part} names no phase (a part that has none yet is written `-`)')
         if part in owner:
             refuse(f'{path}:{number}: part {part} is named twice')
         listed = []
-        if words == ['*']:
+        if words == ['-']:
+            listed = []
+        elif words == ['*']:
             listed = [(p, None) for p in phases if kinds[p] != 'prelude']
         else:
             for word in words:

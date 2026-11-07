@@ -299,6 +299,13 @@ def edit_parts(tree, a):
                "`translation-part` matrix in .github/workflows/ci.yml; add it there and here by hand)")
     head, phases = parts[a.part]
     words = [w for _, w in phases]
+    if words == ["-"]:  # a part declared with no phase yet: the new phase takes the place of the marker
+        if phases[0][0] == head:
+            lines[head] = f"hosted {a.part}: {a.phase}"
+        else:
+            lines[phases[0][0]] = f"  {a.phase}"
+        tree.write(PARTS, "\n".join(lines))
+        return
     if "*" in words or any("@" in w for w in words):
         refuse(f"{PARTS}: part {a.part} is `*` or a slice; give the phase to another part")
     if any(k == head for k, _ in phases):  # one-line form: write the part over several lines first

@@ -125,6 +125,16 @@ run late-name 0 "${inplace[@]}" "$tool" scaffold --module UnitLifecycleZzProbe -
 says late-name "+  \`check-zz-probe-negatives.py\` (SCAFFOLD-TODO: the copies accepted"
 unchanged late-name
 
+# A part declared with no phase yet (`-`) takes the new phase in place of the marker.
+edit tacenta-proofs/scripts/no-sorry-parts.txt "t = t.replace('hosted dispatch-0:', 'hosted nothing-yet: -\nhosted dispatch-0:', 1)"
+g commit -qam fixture
+run empty-part 0 "${inplace[@]}" "$tool" scaffold --module "$M" --negatives "$N" --part nothing-yet \
+  --description d --check
+says empty-part "-hosted nothing-yet: -"
+says empty-part "+hosted nothing-yet: scaffold-probe"
+unchanged empty-part
+g reset -q --hard HEAD~1; unchanged empty-part
+
 # ---- scaffold ------------------------------------------------------------------------------------------------
 run dry-run 0 "${inplace[@]}" "$tool" "${args[@]}" --check
 says dry-run "12 file(s) would change"; unchanged dry-run
