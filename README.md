@@ -560,7 +560,7 @@ job prints the line a whole run ends with (`no-sorry: all N phases passed`) only
 exactly the parts of the partition, each made on the commit under test by the same script and parts file from a
 clean checkout, on one toolchain and one restored build cache, with every phase passed, and together run every
 phase once and every control of the initial dispatcher's check once (that check is split eight ways). A pull
-request runs fifteen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
+request runs sixteen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
 on the self-hosted runner group, as the job did before the split, and only that part saves the build outputs
 pull requests restore. If the parts of one run restored different build outputs (main saved newer ones while
 they were starting), the combiner refuses them; "Re-run failed jobs" combines the same parts again, so the run
@@ -581,8 +581,8 @@ the combiner checks the log for consistency with the manifest (one closing line 
 0, and no `::error::` or `WRONG` line), not that it is the log of that run: like a manifest, a part directory
 made to look right by something other than the script is not detected; the hosted run of the matrix
 and the combiner is not checked by any local control (`tooling/tests/run-no-sorry-parts-cases.sh` holds the
-combiner's refusals on stubbed phases). One pull-request run starts about 39 jobs at once (sixteen attestation
-slices, fifteen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
+combiner's refusals on stubbed phases). One pull-request run starts about 40 jobs at once (sixteen attestation
+slices, sixteen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
 this was written, runs 60 hosted jobs at once, so two runs at the same time queue. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.

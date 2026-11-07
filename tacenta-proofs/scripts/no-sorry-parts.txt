@@ -56,7 +56,6 @@ hosted decrypt:
   discharge-native-decide
   kdf-realisation
   out-of-order-receive
-  receive-preservation
   audit-negatives
   decrypt-compose
   decrypt-preservation
@@ -76,8 +75,15 @@ hosted reply:
   initiator-repeated-reply
   responder-reply
   responder-reply-receipt
-  send-preservation
   initiator-second-send
+# `preserve` holds the two preservation controls, send-preservation and receive-preservation, which were in
+# `reply` and `decrypt`. The receive-side one took about 300 s in a local run of the whole script and was the
+# largest single item of `decrypt`. The proof modules that keep the session invariant across a send or a
+# receive, and their negatives scripts, are meant to be given to this part rather than to `decrypt`, `braid`
+# or `responder`, so that the long inductions do not queue behind one another in a job.
+hosted preserve:
+  send-preservation
+  receive-preservation
 hosted dispatch-0: initial-dispatch@0/8
 hosted dispatch-1: initial-dispatch@1/8
 hosted dispatch-2: initial-dispatch@2/8
