@@ -84,14 +84,16 @@ reading.
 ## Where its premises are exhibited
 
 The general lemma quantifies over the nine agreement states whose send takes no draw.  Its premises, the relation after
-the call and the agreement walk's included, are exhibited together only at `NoHeaderReceived`, on the reply's run; at
-the other eight states no run in this tree exhibits them, and the relation after the call there would come from an
+the call and the agreement walk's included, are exhibited together at `NoHeaderReceived`, on the reply's run (this
+module), and at `KeysSampled`, on the encoder-state witness of `UnitLifecycleRestoredResponderWitness`; at the other
+seven no-draw states no run in this tree exhibits them, and the relation after the call there would come from an
 encrypt refinement whose leaf hypotheses are not discharged at those states.
 
 ## What it does not show
 
-* The general lemma at any of the eight no-draw states other than `NoHeaderReceived` on a run: no run here exhibits
-  its premises there.
+* The general lemma on a run at any of the seven no-draw states other than `NoHeaderReceived` and `KeysSampled` (the
+  second is exhibited in `UnitLifecycleRestoredResponderWitness`, not here): no run in this tree exhibits its premises
+  there.
 * `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send with an
   agreement output (`advance`, a new chain pair, `clearOldEpochs`): not covered.  In particular the initiator's first
   send itself is not an instance; only its Triple leaf is re-derived.

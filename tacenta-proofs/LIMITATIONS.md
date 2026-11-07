@@ -3316,7 +3316,7 @@ statements name changed under the same name, a new instance or a `coe` function 
 changing the pins, and that they are the right statements is decided by reading.
 Its statement covers the nine agreement
 states whose send takes no draw; its premises, that relation and the agreement walk's included, are exhibited together
-only at `NoHeaderReceived`, on the reply's run, and at the other eight states no run here exhibits them (the relation after
+at `NoHeaderReceived`, on the reply's run, and at `KeysSampled`, on the encoder-state witness (`UnitLifecycleRestoredResponderWitness.encoder_state_encrypt_hypotheses_jointly_satisfiable`), and at the other seven no-draw states no run exhibits them (the relation after
 the call there would come from an encrypt refinement whose leaf hypotheses are not discharged at those states). It does
 not cover `KeysUnsampled` or `HeaderReceived`, whose sends draw and (at `HeaderReceived`) hand the Triple an
 agreement output; a Triple send with an output (`advance`, a new chain pair, `clearOldEpochs`) is not covered here (the

@@ -292,9 +292,9 @@ refusal on any other route (the first frame, the second message, a restored sess
 responder's receipt of that send is not shown here (it is taken below), nor any later message in either direction. A general step states that a successful `encrypt` at an agreement state whose send takes no
 draw keeps `Session::invariant` and spends one unit of a counter budget whose zero is the four ceilings, given the relation
 after the call and one boundary record (kernel and opaque constants only); the relation after the call carries the Triple
-half and the budget and comes from the encrypt refinement. Its premises are exhibited together only at
-the state where the responder's reply is sent, on the same run, where it gives the invariant and the four ceilings at the
-session that reply leaves (no compiler-trust axiom); no run exhibits them at the other eight states. A second general step
+half and the budget and comes from the encrypt refinement. Its premises are exhibited together at the
+state where the responder's reply is sent (`NoHeaderReceived`), on the same run, where it gives the invariant and the four ceilings at the
+session that reply leaves (no compiler-trust axiom), and at `KeysSampled`, on the encoder-state witness; no run exhibits them at the other seven no-draw states. A second general step
 states that a successful `decrypt_ratchet` or `decrypt` keeps `Session::invariant` and spends one unit of that budget on an
 in-order receive (no stored key used, no message skipped, no agreement output) whose agreement stays at `NoHeaderReceived`,
 holding at most one chunk before the call, or at `KeysSampled`, given the relation after the call, the model step, two

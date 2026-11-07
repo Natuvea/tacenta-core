@@ -221,9 +221,9 @@ this section says in one place what is not proved.
   of a counter budget whose zero is the four ceilings, given the relation after the call and one boundary record
   (`KemCloneAgrees`), resting on the kernel and opaque constants only. The relation after the call carries the Triple
   half, the Triple fields the structural clauses read and the budget, and every instance gets it from the encrypt
-  refinement; the premises are exhibited together only at `NoHeaderReceived`, on the run above, where it gives
-  `Session::invariant` and the four ceilings at the session the responder's reply leaves, under the reply's hypotheses
-  and no other, with no compiler-trust axiom. At the other eight states no run exhibits them. `Triple::invariant` holds of a code Triple exactly when the model predicate `ModelTripleInv` holds of
+  refinement; the premises are exhibited together at `NoHeaderReceived`, on the run above, where it gives `Session::invariant`
+  and the four ceilings at the session the responder's reply leaves, under the reply's hypotheses and
+  no other, with no compiler-trust axiom, and at `KeysSampled`, on the encoder-state witness (`UnitLifecycleRestoredResponderWitness.encoder_state_encrypt_hypotheses_jointly_satisfiable`, below). At the other seven no-draw states no run exhibits them. `Triple::invariant` holds of a code Triple exactly when the model predicate `ModelTripleInv` holds of
   the model Triple it refines, kernel only ("Proved (tier T3, session lifecycle: `Session::encrypt` keeps
   `Session::invariant` where the agreement's send takes no draw ...)"). A successful `encrypt` at every agreement state,
   the two whose send draws included (key generation, and the first half
@@ -6998,16 +6998,16 @@ agreement states stays within them, the next section; whether any other receive 
 **Non-vacuity.** No law is added. The headline's hypotheses are those of `initiator_first_send_responder_replies`, which
 `first_send_reply_reachable` exhibits at the real constants under the laws (a toy model holds the laws together); no new
 reach is added, so no run here is exhibited in which the headline's conclusion is computed. The general step's premises
-are exhibited together only at `NoHeaderReceived`, on that run; at the other eight states no run here exhibits them, and
+are exhibited together at `NoHeaderReceived`, on that run (the reply's run), and at `KeysSampled`, on the encoder-state witness (`UnitLifecycleRestoredResponderWitness.encoder_state_encrypt_hypotheses_jointly_satisfiable`, which reaches the general step through `encrypt_refines_keeps_invariant`); at the other seven no-draw states no run exhibits them, and
 the relation after the call there would come from an encrypt refinement whose leaf hypotheses are not discharged at
 those states.
 
 **What this establishes, and what it does not.** The general step states that, at every agreement state whose send
 takes no draw, a successful `encrypt` keeps `Session::invariant` and spends one unit of the budget, given the relation
-after the call; it is used, and its premises exhibited, only at `NoHeaderReceived`, on the run of the initiator's first
-send, where the session the responder's reply leaves passes `Session::invariant` and meets the four ceilings. That use
-rests on the encrypt refinement, which supplies the relation after the call, and, like the general step, on the kernel
-and opaque constants only. **Not shown:** the general step on a run at any of the other eight states; `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send
+after the call; it is used, and its premises exhibited, at `NoHeaderReceived`, on the run of the initiator's first send,
+where the session the responder's reply leaves passes `Session::invariant` and meets the four ceilings, and at `KeysSampled`, on the encoder-state witness (the section on it,
+below). Those uses rest on the encrypt refinement, which supplies the relation after the call, and, like the general step, on the kernel
+and opaque constants only. **Not shown:** the general step on a run at any of the other seven no-draw states; `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send
 with an agreement output (`advance`, a new chain pair, `clearOldEpochs`): the initiator's first send is not an instance,
 only its Triple leaf is re-derived (both are in the section on `encrypt` at every agreement state, below, under one
 further assumed law); any statement about the session a refused `encrypt` returns (also in that section); `decrypt` or
