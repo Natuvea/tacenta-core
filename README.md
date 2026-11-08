@@ -577,8 +577,8 @@ GitHub-hosted machines, 2,530 s in all, run one after another in one job. A part
 with no phase yet (`-` in the parts file, as `conversation` is): it has no job and no directory,
 the matrix does not name it, and the combiner expects none; the check refuses a matrix that names
 it, and refuses the workflow once the part is given a phase until the matrix names it. The entry
-for `conversation` returns when its first phase exists, by reverting the commit that took it out
-of the matrix or by adding the name to the matrix.
+for `conversation` returns when its first phase exists, by adding the name to the matrix (and to the
+pinned form); reverting the deferral commit would also bring back its older check and combiner rules.
 The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
 fail at its first step when a part failed, rather than be skipped; the controls of the workflow checker confirm
 the shape, and none of this matrix has yet run on GitHub. The `translation` receipt records that guard and the
