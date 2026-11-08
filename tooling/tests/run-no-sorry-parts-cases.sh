@@ -35,10 +35,11 @@
 #   purpose: every part refuses before it runs, and so does the combiner), a phase in two parts, a slice
 #   missing or twice, a phase sliced two ways, a plain or prelude phase named or sliced, more slices than
 #   controls, a malformed line, a carriage return    refused
-#   a part declared with no phase (`-`)              runs the prelude and no phase of its own, is accepted by the
-#                                                    combiner with its own directory, and is refused when its
-#                                                    directory is missing or its manifest claims a phase; a part
-#                                                    line that names nothing, or `-` beside a phase, is refused
+#   a part declared with no phase (`-`)              runs the prelude and no phase of its own when run by hand,
+#                                                    but is no part of the combined set: the combiner expects no
+#                                                    directory for it and refuses one (as an extra directory, or
+#                                                    in the place of another part's); a part line that names
+#                                                    nothing, or `-` beside a phase, is refused
 #   the variables in the wrong combination           refused
 #
 # The fixture is a git repository holding the real `no-sorry.sh`, `no-sorry-parts.py`, `no-sorry-parts.txt`
@@ -76,7 +77,7 @@ for f in no-sorry-parts.py no-sorry-parts.txt no-sorry.sh check-translation-cove
   cp "$scripts/$f" "$proofs/scripts/$f"
 done
 # The fixture's parts file has a part with no phase (`-`), whatever the committed one has, so that the empty part is
-# run, combined and refused here as every other part is.
+# run by hand here, and its directory refused by the combiner.
 python3 - "$proofs/scripts/no-sorry-parts.txt" <<'PY'
 import sys
 path = sys.argv[1]
@@ -323,7 +324,8 @@ done
 # ---- the genuine sets ----------------------------------------------------------------------------------
 hosted_parts="$(awk '$1 == "hosted" { sub(":", "", $2); print $2 }' "$proofs/scripts/no-sorry-parts.txt")"
 [ "$(echo "$hosted_parts" | wc -l | tr -d ' ')" -ge 2 ] || { echo "control: no hosted partition" >&2; exit 2; }
-n_hosted="$(echo "$hosted_parts" | wc -l | tr -d ' ')"
+# The combiner's parts are the parts that have a phase; a part declared empty has no directory in the set.
+n_hosted="$(awk '$1 == "hosted" && $3 != "-"' "$proofs/scripts/no-sorry-parts.txt" | wc -l | tr -d ' ')"
 empty_part="$(awk '$1 == "hosted" && $3 == "-" { sub(":", "", $2); print $2; exit }' "$proofs/scripts/no-sorry-parts.txt")"
 [ -n "$empty_part" ] || { echo "control: the fixture has no part declared empty" >&2; exit 2; }
 genuine="$work/genuine"
@@ -335,6 +337,10 @@ for p in $hosted_parts; do
   grep -q "a part is not the gate" "$work/out-genuine-$p" || wrong "genuine-$p" "the part did not say it is not the gate"
   if grep -qF -- "$full_line" "$work/out-genuine-$p"; then wrong "genuine-$p" "a part printed the line of a full run"; fi
 done
+# The part declared empty ran above like the others; its directory is kept apart, out of the set the combiner takes.
+idle_parts="$work/idle-parts"
+mkdir -p "$idle_parts"
+mv "$genuine/translation-part-$empty_part" "$idle_parts/translation-part-$empty_part"
 combine genuine "$genuine"
 accepts genuine
 grep -q "initial-dispatch: 10 controls, each once" "$work/out-genuine" || wrong genuine "no count of the sliced controls"
@@ -586,21 +592,18 @@ refused_copy log-missing "holds ['part.json'], not ['part.json', 'part.log']"
 copy manifest-missing; rm -f "$work/set-manifest-missing/translation-part-kernel/part.json"
 refused_copy manifest-missing "part.json is not a regular file"
 
-# The part with no phase: a genuine one ran the prelude and nothing else, and has a directory like any other.
+# The part with no phase: run by hand it ran the prelude and nothing else, and the combiner expects no directory for it.
 cases=$((cases + 1))
-[ "$(grep -c '^no-sorry: phase ' "$genuine/translation-part-$empty_part/part.log")" -eq 3 ] \
+[ "$(grep -c '^no-sorry: phase ' "$idle_parts/translation-part-$empty_part/part.log")" -eq 3 ] \
   || wrong empty-part "the part declared empty did not run the three preludes and nothing else"
-copy empty-missing; rm -rf "$work/set-empty-missing/translation-part-$empty_part"
-refused_copy empty-missing "holds $((n_hosted - 1)) part directories, not the $n_hosted"
-copy empty-claims-phase
-python3 - "$work/set-empty-claims-phase/translation-part-$empty_part/part.json" <<'PY'
-import json, sys
-m = json.load(open(sys.argv[1]))
-m["phases"].insert(1, {"id": "repair", "slice": None, "status": 0, "seconds": 1})
-open(sys.argv[1], "w").write(json.dumps(m, indent=2) + "\n")
-PY
-refused_copy empty-claims-phase "not the prelude and its own phases"
-copy empty-relabelled; edit empty-relabelled "$empty_part" "m['part'] = 'kernel'"
+copy empty-present; cp -R "$idle_parts/translation-part-$empty_part" "$work/set-empty-present/"
+refused_copy empty-present "holds $((n_hosted + 1)) part directories, not the $n_hosted"
+copy empty-for-kernel; rm -rf "$work/set-empty-for-kernel/translation-part-kernel"
+cp -R "$idle_parts/translation-part-$empty_part" "$work/set-empty-for-kernel/"
+refused_copy empty-for-kernel "part $empty_part is declared with no phase yet, so it has no job and no directory"
+copy empty-relabelled; rm -rf "$work/set-empty-relabelled/translation-part-kernel"
+cp -R "$idle_parts/translation-part-$empty_part" "$work/set-empty-relabelled/translation-part-kernel"
+edit empty-relabelled kernel "m['part'] = 'kernel'"
 refused_copy empty-relabelled "ran the phases"
 
 # ---- the seam -------------------------------------------------------------------------------------------
@@ -819,4 +822,4 @@ for count in range(1, len(names) + 1):
     assert sorted(picked) == sorted(names) and len(picked) == len(names), count
 PY2
 
-echo "no-sorry-parts-cases: $cases cases (the genuine hosted and single sets and the whole run, what the parts called, a part with no phase run, combined and refused; a part missing, repeated, relabelled or of another partition, commit, tree, script, parts file, cache, toolchain or checkout; a failed phase, a failure line; the dispatcher's slices; the seam; the variables; the parts file; the committed parts file against the committed script, the real dispatcher's options) gave the expected result"
+echo "no-sorry-parts-cases: $cases cases (the genuine hosted and single sets and the whole run, what the parts called, a part with no phase run by hand and refused by the combiner; a part missing, repeated, relabelled or of another partition, commit, tree, script, parts file, cache, toolchain or checkout; a failed phase, a failure line; the dispatcher's slices; the seam; the variables; the parts file; the committed parts file against the committed script, the real dispatcher's options) gave the expected result"

@@ -560,7 +560,7 @@ job prints the line a whole run ends with (`no-sorry: all N phases passed`) only
 exactly the parts of the partition, each made on the commit under test by the same script and parts file from a
 clean checkout, on one toolchain and one restored build cache, with every phase passed, and together run every
 phase once and every control of the initial dispatcher's check once (that check is split eight ways). A pull
-request runs seventeen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
+request runs sixteen parts on GitHub-hosted machines; a push to main runs one part with every phase as one job
 on the self-hosted runner group, as the job did before the split, and only that part saves the build outputs
 pull requests restore. If the parts of one run restored different build outputs (main saved newer ones while
 they were starting), the combiner refuses them; "Re-run failed jobs" combines the same parts again, so the run
@@ -574,7 +574,11 @@ that prove the session invariant is kept across a send or a receive (`send-prese
 `encrypt-preservation`, `receive-preservation`, `decrypt-preservation` and `out-of-order-receive`)
 by kind and not by length: in one pull-request run they took 145, 1,102, 556, 587 and 140 s on
 GitHub-hosted machines, 2,530 s in all, run one after another in one job. A part can be declared
-with no phase yet (`-` in the parts file): its job runs the three package builds and no phase.
+with no phase yet (`-` in the parts file, as `conversation` is): it has no job and no directory,
+the matrix does not name it, and the combiner expects none; the check refuses a matrix that names
+it, and refuses the workflow once the part is given a phase until the matrix names it. The entry
+for `conversation` returns when its first phase exists, by reverting the commit that took it out
+of the matrix or by adding the name to the matrix.
 The `translation` job keeps its name and its receipt, runs whatever the matrix gave, and is designed to
 fail at its first step when a part failed, rather than be skipped; the controls of the workflow checker confirm
 the shape, and none of this matrix has yet run on GitHub. The `translation` receipt records that guard and the
@@ -585,8 +589,8 @@ the combiner checks the log for consistency with the manifest (one closing line 
 0, and no `::error::` or `WRONG` line), not that it is the log of that run: like a manifest, a part directory
 made to look right by something other than the script is not detected; the hosted run of the matrix
 and the combiner is not checked by any local control (`tooling/tests/run-no-sorry-parts-cases.sh` holds the
-combiner's refusals on stubbed phases). One pull-request run starts about 41 jobs at once (sixteen attestation
-slices, seventeen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
+combiner's refusals on stubbed phases). One pull-request run starts about 40 jobs at once (sixteen attestation
+slices, sixteen translation parts and eight other jobs), and GitHub's Team plan, the organisation's plan when
 this was written, runs 60 hosted jobs at once, so two runs at the same time queue. So a green local run is the gate above less the
 steps it printed a skip line for, and it has not run the steps only the
 workflow runs.

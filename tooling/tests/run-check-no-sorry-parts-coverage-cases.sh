@@ -12,15 +12,16 @@
 #   a phase the script lists that no part names (the script given one, made for the purpose)   refused
 #   a part that names a phase the script does not list   refused
 #   a part name in the workflow with no part in the script   refused, for the pull-request list and the push list
-#   a part of the script missing from the workflow's list   refused, for an ordinary part and for one declared
-#                                             with no phase yet
+#   a part of the script missing from the workflow's list   refused, for an ordinary part; a part declared with
+#                                             no phase yet is not in the list, and the list naming it is refused,
+#                                             as is a part that has been given a phase and is not in the list
 #   a part named twice in the workflow's list, the two partitions swapped, a matrix or partition expression of
 #   a shape the check does not read, a job missing   refused
 #   a matrix `exclude` or `include`, a step `if` or `continue-on-error` on a part job, a job `if`   refused
 #   a workflow, a parts file or a phase table that cannot be read   refused (a gate that cannot run fails)
 #
 # A part declared with no phase (`-`) is in the files of the tree only once one has been added; the cases that
-# need one give the copies a part `idle`, declared empty and named in the workflow's list, when the tree has none.
+# need one give the copies a part `idle`, declared empty and not in the workflow's list, when the tree has none.
 # The "with the parts file's own refusal taken out" cases run the check with a copy of `no-sorry-parts.py` from
 # which every `refuse(f'partition ...` of its coverage rules is removed, to show that the count the check makes
 # from what `resolve` prints does not rest on the reader's refusals.
@@ -86,7 +87,7 @@ accepts tree-files
 grep -q '^  hosted: ' "$work/out-tree-files" && grep -q '^  single: ' "$work/out-tree-files" \
   || wrong tree-files "the summary does not list both partitions"
 
-# The base the cases edit: the files of the tree, with a part declared empty (and in the workflow) if the tree has none.
+# The base the cases edit: the files of the tree, with a part declared empty (and not in the workflow) if the tree has none.
 python3 - "$work/tree.parts" "$work/tree.yml" "$work/base.parts" "$work/base.yml" <<'PY'
 import re, sys
 parts, yml, parts_out, yml_out = sys.argv[1:]
@@ -98,9 +99,7 @@ if not empty:
     l.insert(i, "hosted idle: -")
     empty = ["idle"]
 for name in empty:
-    if f'"{name}"' not in y:
-        assert y.count('"dispatch-0"') == 1
-        y = y.replace('"dispatch-0"', f'"{name}", "dispatch-0"')
+    assert f'"{name}"' not in y, f"the workflow names {name}, a part declared empty"
 open(parts_out, "w").write("\n".join(l))
 open(yml_out, "w").write(y)
 open(parts_out + ".empty", "w").write(empty[0])
@@ -108,7 +107,7 @@ PY
 empty_part="$(cat "$work/base.parts.empty")"
 run base --parts "$work/base.parts" --workflow "$work/base.yml"
 accepts base
-grep -qF "$empty_part (declared empty)" "$work/out-base" || wrong base "the part declared empty is not listed as such"
+grep -qF "$empty_part (declared empty, no job)" "$work/out-base" || wrong base "the part declared empty is not listed as such"
 
 # The edits to a copy are python programs read from the standard input of edit_parts (over the lines `l` of the base
 # parts file) and edit_yml (over the text `t` of the base workflow; `swap(old, new)` requires `old` to occur once).
@@ -263,11 +262,20 @@ swap("""'["all"]'""", """'[]'""")
 PY
 run all-missing --parts "$work/base.parts" --workflow "$work/yml-all-missing"
 refuses all-missing "does not run all, a part of partition single"
-edit_yml empty-missing <<PY
-swap('"$empty_part", ', '')
+# A part declared empty has no job: the list must not name it, in either shape of the list a pull request reads.
+edit_yml empty-named <<PY
+swap('"dispatch-0"', '"$empty_part", "dispatch-0"')
 PY
-run empty-missing --parts "$work/base.parts" --workflow "$work/yml-empty-missing"
-refuses empty-missing "does not run $empty_part, a part of partition hosted"
+run empty-named --parts "$work/base.parts" --workflow "$work/yml-empty-named"
+refuses empty-named "names $empty_part, a part of partition hosted declared with no phase yet"
+# Given a phase (send-refusal, taken from braid) and left out of the list, it is a part that is not run.
+edit_parts empty-given-phase <<PY
+l.remove('  send-refusal')
+i = l.index('hosted $empty_part: -')
+l[i] = 'hosted $empty_part: send-refusal'
+PY
+run empty-given-phase --parts "$work/parts-empty-given-phase" --workflow "$work/base.yml"
+refuses empty-given-phase "does not run $empty_part, a part of partition hosted"
 edit_yml kernel-twice <<'PY'
 swap('"kernel", ', '"kernel", "kernel", ')
 PY
@@ -366,4 +374,4 @@ refuses empty-table "the script lists no phase"
 run no-script --script "$work/no-such-no-sorry.sh" --parts "$work/base.parts" --workflow "$work/base.yml"
 refuses no-script "did not list its phases"
 
-echo "check-no-sorry-parts-coverage-cases: $cases cases (the files of the tree and of a tree with a part declared empty; a phase in no part or in two, and a slice of the dispatcher in none or two, with the parts reader's refusals in place and removed; a phase the script gains or loses; a part name in the workflow with no part, a part missing from the workflow, in the pull-request list, the push list and for the part declared empty; a list that names a part twice, the partitions swapped, an expression or a job of another shape; files that cannot be read) gave the expected result"
+echo "check-no-sorry-parts-coverage-cases: $cases cases (the files of the tree and of a tree with a part declared empty; a phase in no part or in two, and a slice of the dispatcher in none or two, with the parts reader's refusals in place and removed; a phase the script gains or loses; a part name in the workflow with no part, a part missing from the workflow, in the pull-request list and the push list; a part declared empty named in the list, and one given a phase and left out; a list that names a part twice, the partitions swapped, an expression or a job of another shape; files that cannot be read) gave the expected result"

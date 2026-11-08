@@ -299,7 +299,8 @@ def edit_parts(tree, a):
                "`translation-part` matrix in .github/workflows/ci.yml; add it there and here by hand)")
     head, phases = parts[a.part]
     words = [w for _, w in phases]
-    if words == ["-"]:  # a part declared with no phase yet: the new phase takes the place of the marker
+    if words == ["-"]:  # a part declared with no phase yet: the new phase takes the place of the marker (the part then
+        # needs its job: the workflow's matrix must name it, which the coverage check enforces)
         if phases[0][0] == head:
             lines[head] = f"hosted {a.part}: {a.phase}"
         else:

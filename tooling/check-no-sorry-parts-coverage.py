@@ -18,8 +18,9 @@ It fails when
     so a parser that stopped refusing one would still be caught;
   * a part resolves to a phase the script does not list;
   * the workflow's matrix names a part the parts file does not have (it would fail its job at `resolve`, or
-    the combiner would find a directory it does not expect), names a part twice, or omits a part of the
-    partition it feeds (the combiner would find no directory for it, but only after the run);
+    the combiner would find a directory it does not expect), names a part declared with no phase yet, names a
+    part twice, or omits a part that has a phase, of the partition it feeds (the combiner would find no
+    directory for it, but only after the run);
   * the workflow's partition is not the one its matrix feeds, or the expression that names it, or the matrix
     expression, is not one of the two shapes read here. A shape this does not read is a failure, not a pass.
 
@@ -30,7 +31,10 @@ It fails when
     with no directory or an empty one, which the combiner refuses only after the run;
   The commands of a leg's steps are held by `required-steps.json`, not here.
 
-A part declared `-` (no phase yet) is listed as such. It still has a job and a directory.
+A part declared `-` (no phase yet) is listed as such. It has no job and no directory until it has a phase: the
+matrix must not name it (the combiner would refuse a directory it does not expect), and the check refuses a matrix
+that names it. When the part is given its first phase, the check refuses the workflow until the part is named in
+the matrix, which is how the entry returns.
 
 What it does not do: run the hosted jobs, or say that the combiner refuses a missing or skipped part when it
 runs on GitHub. `tooling/tests/run-no-sorry-parts-cases.sh` holds the combiner's refusals on stubbed phases;
@@ -245,7 +249,7 @@ def check_part_job(workflow):
     return problems
 
 
-def check_workflow(lists, partitions):
+def check_workflow(lists, partitions, empty):
     push_list, other_list, push_partition, other_partition = lists
     problems = []
     for event, lst, partition in (("a push", push_list, push_partition),
@@ -256,11 +260,16 @@ def check_workflow(lists, partitions):
         repeated = sorted({x for x in lst if lst.count(x) > 1})
         if repeated:
             problems.append(f"the workflow's matrix for {event} names {', '.join(repeated)} twice")
+        idle = [x for x in lst if x in empty.get(partition, [])]
+        if idle:
+            problems.append(f"the workflow's matrix for {event} names {', '.join(idle)}, a part of partition "
+                            f"{partition} declared with no phase yet: it has no job until it has a phase, and the "
+                            f"combiner does not expect its directory")
         extra = [x for x in lst if x not in partitions[partition]]
         if extra:
             problems.append(f"the workflow's matrix for {event} names {', '.join(extra)}, which is not a part of "
                             f"partition {partition} (the parts file has {', '.join(partitions[partition])})")
-        missing = [x for x in partitions[partition] if x not in lst]
+        missing = [x for x in partitions[partition] if x not in lst and x not in empty.get(partition, [])]
         if missing:
             problems.append(f"the workflow's matrix for {event} does not run {', '.join(missing)}, a part of "
                             f"partition {partition}")
@@ -283,6 +292,7 @@ def main():
         partitions = part_names(args.parts)
         problems = []
         summary = []
+        empty = {}
         with tempfile.TemporaryDirectory() as scratch:
             table_path = Path(scratch) / "table"
             table_path.write_text(text)
@@ -291,10 +301,11 @@ def main():
                 for part in parts:
                     chosen[part] = resolve(reader, table_path, args.parts, part)
                 problems += check_cover(partition, parts, chosen, phases)
+                empty[partition] = [part for part in parts if not chosen[part]]
                 summary.append(f"{partition}: " + ", ".join(
-                    f"{part} ({len(chosen[part])})" if chosen[part] else f"{part} (declared empty)"
+                    f"{part} ({len(chosen[part])})" if chosen[part] else f"{part} (declared empty, no job)"
                     for part in parts))
-        problems += check_workflow(workflow_parts(args.workflow), partitions)
+        problems += check_workflow(workflow_parts(args.workflow), partitions, empty)
         problems += check_part_job(args.workflow)
     except (Failed, OSError, ValueError, yaml.YAMLError) as error:
         print(f"::error::check-no-sorry-parts-coverage: {error}", file=sys.stderr)

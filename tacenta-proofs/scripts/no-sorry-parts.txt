@@ -89,8 +89,11 @@ hosted preserve:
   receive-preservation
   decrypt-preservation
   out-of-order-receive
-# `conversation` is declared with no phase yet (`-`): its job runs the three package builds and no phase of
-# its own. The first conversation-level module's negatives script replaces `-` with its phase.
+# `conversation` is declared with no phase yet (`-`) and has no job: the workflow's matrix does
+# not name it and the combiner expects no directory for it, so a pull request runs sixteen hosted
+# parts. The first conversation-level module's negatives script replaces `-` with its phase; from
+# then the part needs a job, and the coverage check refuses the workflow until the matrix names
+# `conversation` (reverting the commit that took the name out of the matrix does the same).
 hosted conversation: -
 hosted dispatch-0: initial-dispatch@0/8
 hosted dispatch-1: initial-dispatch@1/8
