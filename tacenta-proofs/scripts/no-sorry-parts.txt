@@ -80,7 +80,9 @@ hosted reply:
 # run of the lifecycle proof stack (#288), in that order: 145, 1,102, 556, 587 and 140, so 2,530 s in all, run one after
 # another in the one job. On a warm build cache that makes `preserve` the longest part, about 90 s
 # longer than `braid` was (2,442 s) and about 160 s longer than `responder` (2,372 s); on a cold
-# cache `responder` (5,207 s with its build) likely stays the longest.
+# cache `responder` (5,207 s with its build) likely stays the longest. A phase that only composes the
+# invariant with another step, or restates its witnesses (`encrypt-compose`, `decrypt-compose`), stays with
+# the part of that step.
 hosted preserve:
   send-preservation
   encrypt-preservation
