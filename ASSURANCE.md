@@ -129,16 +129,19 @@ re-read, and no level, target or tick changed. The edit was made with tool assis
 reader independent of the maintainer has read it.
 
 On 2026-11-10, at the owner's instruction of 2026-10-29, `GAP-REGISTER.md` row `HL-R1-SPARSE-READER` was reopened at
-BLOCKING with its original acceptance restored as historical wording (a later clean-room reader pass that marks G12-05
-closed, or a recorded maintainer decision that accepts the wording); under the class key's rule that a BLOCKING
-technical obligation cannot be discharged by accepting it, the decision alternative cannot close the row while it is
-BLOCKING, which removes a route and is a tightening. Pass 14, which had closed it, is not a clean-room pass and keeps
-the credit for the specification-only checks it made, and no target was reduced. The two gate 2 sentences now count nine
-rows open at BLOCKING, recounted from the register, and say that the row was reopened. Two earlier notes above that
-counted rows were amended in the same edit by tense only: "now count seven" became "then counted seven" and "count
-eight" became "counted eight", each with "(nine from 2026-11-10, below)" added. Nothing else here was re-read. No level
-or tick changed. The update was made with tool assistance under the maintainer's account; no review of it by anyone
-independent of the maintainer is recorded in this repository.
+BLOCKING. Its acceptance before pass 14 closed it had a second alternative, a recorded maintainer decision accepting the
+wording; under the class key's rule that a BLOCKING technical obligation cannot be discharged by accepting it, that
+alternative is removed, which removes a route and is a tightening, and the row closes only when a later clean-room
+reader pass marks G12-05 closed, in a reviewed change whose closing review includes a read by a reader independent of the
+maintainer. Pass 14, which had closed it, keeps the credit for the specification-only checks it made; the row does not
+count it as that later pass, because the reader README's Provenance limits its clean-room statement to passes 2 to 7.
+No target was reduced. The two gate 2 sentences now count nine rows open at BLOCKING, recounted from the register, and
+say that the row was reopened. Two earlier notes above that counted rows were amended in the same edit, by tense and by
+adding "(nine from 2026-11-10, below)": "now count seven" became "then counted seven", and "name", "count eight" and
+"say" became "named", "counted eight" and "said". The stamp of the Gate 2 count in the assessment paragraph now names
+the tree this edit changed. Nothing else here was re-read. No level or tick changed. The update was made with tool
+assistance under the maintainer's account; no review of it by anyone independent of the maintainer is recorded in this
+repository.
 
 Parts of this project are written and reviewed with tool assistance. The
 README's "Development assistance" section says how, and that tool-assisted
@@ -149,7 +152,7 @@ BLOCKING in `ASSURANCE-OBLIGATIONS.md`, the ML-KEM Braid row is below its L4 tar
 and the Session row's identity-record functions do not reach its L2 target (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`); no other component has been assessed part by part as gate 1 now asks. Gate 2 is not met: nine rows are open at BLOCKING in `GAP-REGISTER.md`:
 SESSION-CONTRACT-VACUITY, DISPATCH-EVIDENCE-VACUITY, READER-INDEPENDENCE, E2E-01, AEAD-LENGTH-CONTRACTS, HL-R1-SPARSE-READER, G14-03, G14-06 and SESSION-IDENTITY-L2-SHORTFALL. READER-INDEPENDENCE is BLOCKING since 2026-10-28 while independence claims the repository does not support remain; E2E-01 stays open and BLOCKING
 until its acceptance is met, whatever the tacenta.com home page says; AEAD-LENGTH-CONTRACTS is BLOCKING since 2026-10-28; G14-03 and G14-06 are two findings of the fourteenth reader pass that vectors
-rely on, open until a later reader pass reads the text that decides them and marks them closed; HL-R1-SPARSE-READER, which had been closed on that pass, is BLOCKING again since 2026-11-10 (reopened at the owner's instruction of 2026-10-29), because its acceptance asks for a later clean-room reader pass that marks G12-05 closed, which that pass is not, and a decision accepting the wording cannot close a BLOCKING row (`GAP-REGISTER.md`, "Gate class key"); SESSION-IDENTITY-L2-SHORTFALL is BLOCKING since 2026-10-28, until its acceptance is met. The rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
+rely on, open until a later reader pass reads the text that decides them and marks them closed; HL-R1-SPARSE-READER, which had been closed on that pass, is BLOCKING again since 2026-11-10 (reopened at the owner's instruction of 2026-10-29), because its acceptance asks for a later clean-room reader pass that marks G12-05 closed, which the row does not count pass 14 as, and under the class key no decision accepting the wording can close a BLOCKING row (`GAP-REGISTER.md`, "Gate class key"); SESSION-IDENTITY-L2-SHORTFALL is BLOCKING since 2026-10-28, until its acceptance is met. The rows MU-02 to MU-05 are BLOCKING and MU-01 and the Session orchestration row are AMBIGUOUS in
 `ASSURANCE-OBLIGATIONS.md`. On 2026-10-01 the maintainer recorded two decisions: HL-IMP-01 is closed, because the
 session replay with its listed limits satisfies the row (HL-IMP-01-READER tracks the remaining step), and INV-01 is classified
 NONBLOCKING. Gates 3 and 4 have not been met either; see the readiness section.
@@ -250,7 +253,7 @@ auditing a ledger that is still moving wastes the engagement.
 
 **Where the gates stand** (assessed at `dea57eaf`; `E2E-07` was closed afterwards and `SESSION-CONTRACT-VACUITY` and `DISPATCH-EVIDENCE-VACUITY` were opened after that; `READER-INDEPENDENCE` and `AEAD-LENGTH-CONTRACTS` became BLOCKING on 2026-10-28, `SESSION-IDENTITY-L2-SHORTFALL` was opened at BLOCKING the same day, and `HL-R1-SPARSE-READER` was reopened at BLOCKING on 2026-11-10).
 - Gate 1 is not met. Practice 5 is BLOCKING in `ASSURANCE-OBLIGATIONS.md` (MU-03), the ML-KEM Braid row reads L3 against an L4 target, and the Session row's identity-record functions do not reach its L2 target (`SESSION-IDENTITY-L2-SHORTFALL`); no other component has been assessed part by part as gate 1 now asks.
-- Gate 2 is not met. `GAP-REGISTER.md` has nine rows open at BLOCKING, two of them findings of the fourteenth reader pass (`G14-03`, `G14-06`), one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28, one, `AEAD-LENGTH-CONTRACTS`, made BLOCKING on 2026-10-28, and one, `SESSION-IDENTITY-L2-SHORTFALL`, opened at BLOCKING on 2026-10-28, and one, `HL-R1-SPARSE-READER`, the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`, reopened at BLOCKING on 2026-11-10 (the row had been closed on the fourteenth pass, but its acceptance asks for a later clean-room reader pass that marks G12-05 closed, which that pass is not, and a recorded decision accepting the wording cannot close a BLOCKING row); and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence. `HL-R1-SPARSE-TRANSLATION` was closed on 2026-10-03 on one Linux x86_64 regeneration of the translation (an emulated run by the maintainer's tool-assisted session, not independent; `tacenta-proofs/REPRODUCING.md` records it).
+- Gate 2 is not met. `GAP-REGISTER.md` has nine rows open at BLOCKING, two of them findings of the fourteenth reader pass (`G14-03`, `G14-06`), one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28, one, `AEAD-LENGTH-CONTRACTS`, made BLOCKING on 2026-10-28, one, `SESSION-IDENTITY-L2-SHORTFALL`, opened at BLOCKING on 2026-10-28, and one, `HL-R1-SPARSE-READER`, the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`, reopened at BLOCKING on 2026-11-10 (the row had been closed on the fourteenth pass, but its acceptance asks for a later clean-room reader pass that marks G12-05 closed, which the row does not count pass 14 as, and under the class key no recorded decision accepting the wording can close a BLOCKING row); and `ASSURANCE-OBLIGATIONS.md` lists MU-02 to MU-05 at BLOCKING and MU-01 and the Session orchestration row at AMBIGUOUS. On 2026-10-01 the maintainer recorded that `HL-IMP-01` is closed and `INV-01` is NONBLOCKING; those are decisions, not re-runs of evidence. `HL-R1-SPARSE-TRANSLATION` was closed on 2026-10-03 on one Linux x86_64 regeneration of the translation (an emulated run by the maintainer's tool-assisted session, not independent; `tacenta-proofs/REPRODUCING.md` records it).
 - Gate 3 has not been requested ([P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md)). No recorded review by a reader who did not write the ledger exists.
 - Gate 4 is not met. "Where the negative controls run" in [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) lists which gates have a control that runs in CI, which run only locally and which have none, and names the gates whose control a single edit survived.
 
