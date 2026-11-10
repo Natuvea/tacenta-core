@@ -126,7 +126,9 @@ Alice verifies every signature in the bundle and aborts if any fails. This is no
 optional: without the prekey signature a malicious server could serve forged
 prekeys and later compromise `IKB` to recover the secret, which would defeat
 forward secrecy. She verifies them only under an `IKB` that is an identity key,
-which she checks before either signature (below).
+which she checks before either signature (below). She verifies both before she
+draws any random value for the session: a bundle refused for a signature, or by
+any check before the signatures, leaves her random source as it was.
 
 The KEM prekey's signature is over the type byte `0x08` followed by the
 key's bytes as the bundle holds them (message-format.md, Prekey bundle: a
@@ -825,7 +827,8 @@ depends on that choice.
 
   Alice refuses a bundle whose key fails either check. She has then computed no
   agreement and sent nothing. Whether she has drawn `EKA` before these checks
-  is not fixed.
+  is not fixed. She has drawn nothing before both signatures verified (Sending
+  the initial message).
 - **Encapsulation** draws 32 random bytes `m` and runs
   `ML-KEM.Encaps_internal(ek, m)` (Algorithm 17). That is `ML-KEM.Encaps`, with
   `m` taken from the caller's random source. It produces a 1,568-byte `CT` and
