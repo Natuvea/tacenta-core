@@ -7,13 +7,32 @@ Last assessed: 2026-09-30, at `dea57eaff4e516b6f56df08f7ced44d0ee87d024`, for th
 On 2026-10-28 the P6 evidence entry of the Session orchestration row was labelled related-party, and the Gate 2 row's count was updated when `READER-INDEPENDENCE` moved to BLOCKING, with tool assistance under the maintainer's account and no independent reader.
 Later on 2026-10-28 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` after `AEAD-LENGTH-CONTRACTS` was also made BLOCKING, and the Gate 2 row's closure evidence and a note after the gate classes were changed to say that no recorded decision closes or re-classes `E2E-01`, `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or, while its class condition fails, `READER-INDEPENDENCE`, with tool assistance under the maintainer's account and no independent reader; nothing else was re-read.
 Later again on 2026-10-28 the project's reader was called the specification-only, project-controlled reader where this file said "the independent reader", and the P6 decision's surface the "model/concrete/operation-reader" surface; wording only, with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
+Also on 2026-10-28, at the owner's instruction, the BLOCKING line of the gate classes, the note after them, the closure evidence of the ML-KEM Braid row, the Gate 1 deficit and closure evidence, the Gate 2 deficit and closure evidence, the SL4-01 completion trigger, the deferral list's heading and the second next P1 slice were changed for the uniform rule on BLOCKING technical obligations (`GAP-REGISTER.md`, "Gate class key"), MU-02 and MU-03 point their independent reviewer at that key's definition, the BLOCKING line says which fields of an item or row are its acceptance, the AMBIGUOUS line says what a recorded decision for an AMBIGUOUS item must state and cannot do, the Gate 1 and Gate 2 deficits name `SESSION-IDENTITY-L2-SHORTFALL`, and the Gate 2 deficit says that MU-01 and the Session orchestration row stay AMBIGUOUS until the P6 decision is reopened and its reopening work is done, where a record that its fired triggers are answered also ended it. Each change adds a condition or replaces a decision route with evidence or with a target change; no class was lowered and no target was changed. The edit was made with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 
 ## Gate classes
 
-- **BLOCKING:** must close, or be changed by a recorded decision, before the
-  second external proof-ledger engagement.
+- **BLOCKING:** must close before the second external proof-ledger engagement,
+  by its closure evidence or completion trigger, in a reviewed change that cites
+  that evidence at a commit that is an ancestor of `main`, as `GAP-REGISTER.md`'s
+  class key defines a reviewed change and its closing review. A recorded decision
+  does not discharge a BLOCKING technical obligation. A target may change only by
+  a target change as that class key defines it, every clause of which applies to
+  the items of this file: it carries the project owner's approval (the owner as
+  that class key defines it, not the item's "Owner role" below, and authenticated
+  as it says), names the unmet original target and the new one, keeps the
+  original target listed as not met at the original class (BLOCKING) unless that
+  approval records another class and why, restates in the same change every claim
+  resting on it, and is never presented as evidence that the original target was
+  met. For that class key's list of target changes, an item's Target effect,
+  Closure evidence and Revisit or completion trigger are its acceptance, and its
+  Classification is its class; for a component or gate row, its Current target
+  deficit and Closure evidence are its acceptance, and its Gate class is its class. Until a mechanism for authenticating the owner's
+  approval is recorded in that class key, no target of this file can change.
 - **AMBIGUOUS:** must become closed, BLOCKING, NONBLOCKING or a recorded
-  decision before gate 2 can be said to pass.
+  decision before gate 2 can be said to pass. Such a decision states the
+  item's target effect and the evidence it rests on; it does not answer a
+  fired reopen trigger, and it does not make a level the evidence does not
+  reach meet gate 1 (`GAP-REGISTER.md`, "Gate class key").
 - **NONBLOCKING:** disclosed work that does not block the second engagement at
   the current recorded target.
 - **DEFERRED:** outside the current completion scope only if a recorded decision
@@ -24,7 +43,8 @@ In `GAP-REGISTER.md` these routes are narrower: no recorded decision closes, acc
 `E2E-01`, `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or lowers their class, and none moves `E2E-01` to
 Historical; and while
 `READER-INDEPENDENCE`'s class condition fails, no recorded decision lowers its class, closes it, defers it or moves it to
-Historical (`GAP-REGISTER.md`, "Gate class key").
+Historical; and no recorded decision, wherever it is recorded, closes, accepts, defers, re-classes or moves to
+Historical any row open at BLOCKING whose acceptance is not yet met, and no change moves such a row to Historical (`GAP-REGISTER.md`, "Gate class key").
 
 An open row without one of these classes is itself a gate-2 failure because the
 gate cannot be assessed from prose.
@@ -93,7 +113,7 @@ than security requirements.
   `ledger-review-sections.py` writes the template and reports which sections changed since an earlier pack, receipt or `CLAIMS.md`.
   `validate-reviewed-evidence.py` binds a receipt with no finding, the pack (checked against git) and the manifest.
   `tooling/tests/run-check-ledger-review-receipt-cases.sh` holds each of these with a refusal.
-  No selected candidate, independent reviewer identity or claim dispositions exist.
+  No selected candidate, independent reviewer identity (independent of the maintainer as `GAP-REGISTER.md`'s class key defines it) or claim dispositions exist.
 
   **Revisit or completion trigger:**
   Freeze a clean candidate after the other blocking work, retain its required check receipts and obtain the separate review receipt.
@@ -112,7 +132,7 @@ than security requirements.
 
   **Current evidence and remaining work:**
   The version-2 catalogue now has checked `INV-*` records, and [the headroom target decision](tacenta-proofs/PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md) states its effect and reopen triggers. [The semantic-review brief](tacenta-spec/security-properties/INVARIANT-SEMANTIC-REVIEW-BRIEF.md) fixes the review questions and return record.
-  Practice 5 remains BLOCKING until an independent reviewer evaluates the predicates and cited coverage.
+  Practice 5 remains BLOCKING until an independent reviewer (independent of the maintainer as `GAP-REGISTER.md`'s class key defines it) evaluates the predicates and cited coverage.
 
   **Revisit or completion trigger:**
   Record the semantic review and reassess all component and gap rows against its findings.
@@ -225,7 +245,7 @@ than security requirements.
   **Revisit or completion trigger:**
   Product pin bumped with its fixture corrected and Windows green;
   the duplicate serialization module removed or pinned;
-  the coverage inventory widened or its scope recorded;
+  the coverage inventory widened, or its scope narrowed by a target change as `GAP-REGISTER.md`'s class key defines it;
   then close.
 
 <!-- End of the list. -->
@@ -262,7 +282,7 @@ than security requirements.
   Below target:
   the component reads L3 against an L4 target in the `ASSURANCE.md` Components table, because its T3 receive theorems take `ct1_bounded` as a premise and, when the row was set, no theorem showed that a send keeps it.
   Preservation theorems now exist (`CLAIMS.md`, "Proved (the ML-KEM Braid keeps the two premises its receive theorems take)"), under an assumed law about the erasure decoder (two laws on the session unit) and without an independent read, and the label has not been changed;
-  no recorded decision lowers the target.
+  no target change has lowered the target.
   The fixed-vector surface is separate and closed:
   `P7-SPARSE-BRAID-INVENTORY.md` separates stored-state coverage for tags 0 and 5--11 and `Ct2Sampled` boundaries from the delegated valid key-pair layout for tags 1--4.
   The differential harness drives an empty `NoHeaderReceived` state through transition (6) with a persisted-key header MAC and mutation control, drives transition (5)'s real ciphertext MAC control, and uses five deterministic real-ML-KEM schedules to exercise all thirteen state-machine transitions.
@@ -275,7 +295,25 @@ than security requirements.
   P7
 
   **Closure evidence:**
-  Record the level decision against the preservation theorems after they have had an independent read, or lower the target to L3 by a recorded decision.
+  Raise the component to L4 only by a reviewed change to `ASSURANCE.md` that cites the preservation theorems at a commit that is an ancestor of `main`,
+  after an independent read,
+  by a reader independent of the maintainer as `GAP-REGISTER.md`'s class key defines it and recorded in this repository (a read made by the maintainer,
+  or by a tool-assisted session for the maintainer,
+  does not meet this),
+  with the assumed erasure-decoder laws (one on the standalone Braid, two on the session unit) proved (ADR-0008, L4: the stated invariants proved),
+  or the L4 claim restated to exclude what rests on them by a target change approved by the owner as `GAP-REGISTER.md`'s class key defines it;
+  a recorded decision does not raise the level.
+  A change of target to L3 is a target change as `GAP-REGISTER.md`'s class key defines it:
+  it names L4 as the unmet original target and keeps it listed as not met in this row,
+  in `ASSURANCE.md` and in a separate open row of `GAP-REGISTER.md` at BLOCKING,
+  as that class key says,
+  restates in the same change every statement of the Braid's level or target (`ASSURANCE.md`,
+  this file's Gate 1 row,
+  `tacenta-proofs/P9-GATE-EVIDENCE.md`,
+  `CLAIMS.md`,
+  `LIMITATIONS.md` and the READMEs),
+  and is never presented as evidence that L4 was met.
+  No target change is authorised by this row.
   Revisit the fixed-vector surface if a portable KEM-state encoding, an independent producer for the delegated layout, or a new Braid transition/failure observable is introduced.
 
 - **Component or gate:**
@@ -409,9 +447,22 @@ than security requirements.
   Gate 1
 
   **Current target deficit:**
-  Every component must meet target or have a recorded target decision.
+  Every component must meet its target, every part of it having what ADR-0008's table asks for at that level (a label kept because no decision has lowered it, or kept by a decision, does not meet this);
+  a target changes only by a target change as `GAP-REGISTER.md`'s class key defines it (the three target decisions recorded before 2026-10-28,
+  `tacenta-proofs/ERASURE-CODEC-TARGET-DECISION.md`,
+  `tacenta-proofs/PROOF-BOUNDARY-HEADROOM-TARGET-DECISION.md` and `tacenta-model/P6-L2-TARGET-DECISION.md`,
+  stand as they read at `92ae6bf9`,
+  apart from neutral corrections as that class key defines them, each keeping exactly what the old text asked for whether or not `STALE-WORDING-KNOWN` lists the line, and pure tightenings;
+  any other edit to one is a target change.
+  Reopening one is a pure tightening:
+  a reviewed change that records the event that fired one of its reopen triggers, with its source (a merged pull request, a specification change or an ADR), and marks the decision reopened;
+  no decision answers a fired trigger, and a reopened decision's target is set again only by the evidence its reopening work names or by a target change;
+  none is evidence that the target it replaced was met,
+  and `READER-INDEPENDENCE`'s condition still reads what the P6 decision relies on).
   Practice 5 is BLOCKING above, and the ML-KEM Braid reads L3 against an L4 target in the `ASSURANCE.md` Components table, because its T3 receive theorems take `ct1_bounded` as a premise (preservation theorems now exist in `CLAIMS.md`, and the label has not been changed);
-  no recorded decision lowers that target.
+  no target change has lowered that target.
+  The Session row's identity-record functions do not reach its L2 target (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`);
+  no other component has been assessed part by part as this row now asks.
 
   **Gate class:**
   BLOCKING
@@ -420,7 +471,7 @@ than security requirements.
   P1/P7/P6
 
   **Closure evidence:**
-  Component obligation matrix closed or amended by recorded decisions.
+  Component obligation matrix closed by its evidence, or a component's target changed by a target change as `GAP-REGISTER.md`'s class key defines it.
 
 - **Component or gate:**
   Gate 2
@@ -429,16 +480,19 @@ than security requirements.
   Gap register must have no open BLOCKING rows and no unresolved AMBIGUOUS rows.
   After `E2E-07` was closed on the run at `75387aa9` and `HL-R1-SPARSE-TRANSLATION` on one Linux x86_64 regeneration of 2026-10-03 (an emulated run by the maintainer's tool-assisted session,
   not independent),
-  seven rows are open at BLOCKING in the register,
+  eight rows are open at BLOCKING in the register,
   two of them findings of the fourteenth reader pass (`G14-03`,
   `G14-06`),
   one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28 while independence claims the repository does not support remain,
-  and one, `AEAD-LENGTH-CONTRACTS`, made BLOCKING on 2026-10-28,
+  one, `AEAD-LENGTH-CONTRACTS`, made BLOCKING on 2026-10-28,
+  and one, `SESSION-IDENTITY-L2-SHORTFALL`, opened at BLOCKING on 2026-10-28,
   while `HL-R1-SPARSE-READER`,
   the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`,
   closed on that pass (`HL-IMP-01` was closed and `INV-01` classified NONBLOCKING by recorded decisions on 2026-10-01),
   MU-02 to MU-05 above are BLOCKING,
-  and MU-01 and the Session orchestration row above are AMBIGUOUS until the P6 decision is reopened or its fired triggers are recorded as answered.
+  and MU-01 and the Session orchestration row above are AMBIGUOUS until the P6 decision is reopened (a reviewed change that records the fired triggers above with their sources: #202, #205 and ADR-0009) and its reopening work is done in a reviewed change that cites it;
+  until then no recorded decision classes either NONBLOCKING or stands in for either, and a record that a fired trigger is answered without that work keeps the P6 level by decision, which does not meet gate 1 (`GAP-REGISTER.md`, "Gate class key");
+  either may become BLOCKING at any time by a reviewed change, which is a pure tightening.
 
   **Gate class:**
   BLOCKING
@@ -447,7 +501,10 @@ than security requirements.
   P1/P3/P6/P7
 
   **Closure evidence:**
-  `GAP-REGISTER.md` rows classified, and no row open at BLOCKING or unresolved at AMBIGUOUS, each closed as its own acceptance says; a recorded decision does not close, accept or re-class `E2E-01`, `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or, while its class condition fails, `READER-INDEPENDENCE` (`GAP-REGISTER.md`, "Gate class key").
+  `GAP-REGISTER.md` rows classified, and no row open at BLOCKING or unresolved at AMBIGUOUS, each closed as its own acceptance says;
+  a recorded decision does not close, accept or re-class `E2E-01`,
+  `SESSION-CONTRACT-VACUITY` or `AEAD-LENGTH-CONTRACTS`, or, while its class condition fails,
+  `READER-INDEPENDENCE`, or any row open at BLOCKING whose acceptance is not yet met (`GAP-REGISTER.md`, "Gate class key").
 
 - **Component or gate:**
   Gate 3
@@ -489,8 +546,8 @@ than security requirements.
 ## Deferral decisions still needed
 
 The current register has deferred rows, but a deferral only satisfies readiness
-if it states the effect on the target and a revisit trigger. These still need a
-recorded decision or a target-closing slice:
+if it states the effect on the target and a revisit trigger. These need a
+target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines it:
 
 | Item | Current risk | Package |
 | --- | --- | --- |
@@ -2118,4 +2175,4 @@ to those shapes, with cases, or classify inside against projection with Lean its
 1. Decide whether `GAP-REGISTER.md` should remain Markdown-only or gain a
    machine-readable sidecar before P2 indexes evidence against gap IDs.
 2. Add target/scope decision records for any deferred item that is intended not
-   to block gate 1.
+   to block gate 1, each as a target change as `GAP-REGISTER.md`'s class key defines it.
