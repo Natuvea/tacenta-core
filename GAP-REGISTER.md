@@ -268,9 +268,7 @@ whose closing review includes a read by a reader independent of the maintainer. 
 route (each says that no recorded decision, assumption or waiver closes the row or lifts its class), so no route was
 removed and neither row was changed; the owner's decision of 2026-10-28 that their class text cites set the class and
 is not a way to close them. Of the rows the size-bound, preservation and lifecycle work adds at NONBLOCKING, only
-`SIZE-BOUND-FOLLOW-UPS` names a recorded choice as one way to meet an item (a reviewed change to `exclusions.md`); under
-the class key that route stays in the text of a row that is not BLOCKING, and no decision is made under it except the
-owner's authenticated approval. In the paragraph of 2026-11-10 above, "nine rows are open at BLOCKING" became "nine rows
+`SIZE-BOUND-FOLLOW-UPS` names a recorded choice as one way to meet an item (a reviewed change to `exclusions.md`); under the class key that route stays in place on a row that is not BLOCKING until the row is next changed, when it is replaced by evidence or kept as a policy choice by the owner's authenticated approval; until then no decision is made under it. In the paragraph of 2026-11-10 above, "nine rows are open at BLOCKING" became "nine rows
 were open at BLOCKING (eleven from 2026-11-11, below)". The history paragraphs of both sides are kept, the paragraphs
 of the size-bound, preservation and lifecycle work standing together after the paragraph of 2026-10-28 and 2026-10-29
 because they refer to one another. No row's status, class or acceptance changed. The edit was made with tool assistance

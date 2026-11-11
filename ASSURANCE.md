@@ -233,10 +233,9 @@ On 2026-11-11, when `main` (after #286, #287 and #289) was merged into the size-
 the gate 2 counts were recomputed from the merged register's class column: eleven rows are open at BLOCKING, the nine of
 `main` and `SIZE-BOUND-REPLY-ROUTE-GAP` and `SIZE-BOUND-OPEN-LENGTH`, and none is AMBIGUOUS (of the register's 74 rows,
 30 are Closed, one is Historical, 30 are open at NONBLOCKING, two are DEFERRED and eleven are open at BLOCKING). The two
-gate 2 sentences and the Gate 2 deficit in `ASSURANCE-OBLIGATIONS.md` now say eleven and name both sets of rows, and
+gate 2 sentences and the Gate 2 deficit in `ASSURANCE-OBLIGATIONS.md` now say eleven; the readiness section's sentence names all eleven, and the "Where the gates stand" sentence and the deficit name the two size-bound rows beside the rows of `main` they already named (neither names `SESSION-CONTRACT-VACUITY`, `DISPATCH-EVIDENCE-VACUITY` or `E2E-01`, as on `main`), and
 the gate 2 row of `tacenta-proofs/P9-GATE-EVIDENCE.md` says eleven; the stamp of the Gate 2 count in the
-assessment paragraph names this merge; and in the note of 2026-11-10 above "now count nine" became "then counted nine"
-with "(eleven from 2026-11-11, below)" added. The class key's rule of 2026-10-28 covers the two size-bound rows as it
+assessment paragraph names this merge; and in the note of 2026-11-10 above "now count nine" and "say" became "then counted nine" and "said", with "(eleven from 2026-11-11, below)" added. The class key's rule of 2026-10-28 covers the two size-bound rows as it
 covers every row open at BLOCKING; neither row's acceptance holds a decision route, and neither row was changed. The
 notes above are kept from both sides of the merge, and the Session row holds both sides' clauses. Nothing else here was
 re-read. No level, tick, class or target changed. The edit was made with tool assistance under the maintainer's account;
