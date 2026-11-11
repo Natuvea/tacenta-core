@@ -489,7 +489,13 @@ than security requirements.
   one, `SESSION-IDENTITY-L2-SHORTFALL`, opened at BLOCKING on 2026-10-28,
   and one, `HL-R1-SPARSE-READER`,
   the reader finding that used to be carried by `HL-R1-SPARSE-TRANSLATION`,
-  reopened at BLOCKING on 2026-11-10: the row had been closed on the fourteenth pass, but its acceptance asks for a later clean-room reader pass that marks G12-05 closed, which the row does not count pass 14 as, and under the class key a recorded decision accepting the wording cannot close a row open at BLOCKING (separately, before that rule, `HL-IMP-01` was closed and `INV-01` classified NONBLOCKING by recorded decisions on 2026-10-01),
+  reopened at BLOCKING on 2026-11-10:
+  the row had been closed on the fourteenth pass,
+  but its acceptance asks for a later clean-room reader pass that marks G12-05 closed,
+  which the row does not count pass 14 as,
+  and under the class key a recorded decision accepting the wording cannot close a row open at BLOCKING (separately,
+  before that rule,
+  `HL-IMP-01` was closed and `INV-01` classified NONBLOCKING by recorded decisions on 2026-10-01),
   MU-02 to MU-05 above are BLOCKING,
   and MU-01 and the Session orchestration row above are AMBIGUOUS until the P6 decision is reopened (a reviewed change that records the fired triggers above with their sources: #202, #205 and ADR-0009) and its reopening work is done in a reviewed change that cites it;
   until then no recorded decision classes either NONBLOCKING or stands in for either, and a record that a fired trigger is answered without that work keeps the P6 level by decision, which does not meet gate 1 (`GAP-REGISTER.md`, "Gate class key");
