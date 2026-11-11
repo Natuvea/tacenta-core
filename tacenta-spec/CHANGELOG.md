@@ -60,8 +60,8 @@ is SemVer against the specified protocol (not the implementation).
   different kinds. `evidence-index.json` cites them for REQ-AUTH-02, -15 and
   -16. `bundle-admission.json` is unchanged: its runner establishes each
   case under *first contact* with no records. No existing vector changes.
-  Three of the initiator vectors pin orders the fourteenth independent
-  reader pass found unpinned (`GAPS-14.md`): a malformed expectation before
+  Three of the initiator vectors pin orders the fourteenth pass
+  of the specification-only, project-controlled reader found unpinned (`GAPS-14.md`): a malformed expectation before
   the presence and canonical-key checks, and, for a KEM prekey of the wrong
   length whose signature does not verify, the signatures before the KEM
   prekey's input checks.
@@ -119,7 +119,7 @@ is SemVer against the specified protocol (not the implementation).
   when a requirement row drops out of the limitations table or cites an unknown
   assumption.
 - `GAP-REGISTER.md`: a current register for assurance gate 2, preserving the
-  historical independent-reader reports while recording which findings are now
+  historical reports of the specification-only, project-controlled reader while recording which findings are now
   closed, open, or deferred.
 - `decisions/ADR-0008-assurance-expectations.md`: the practices the
   project holds itself to, the definition of done, and assurance levels per
@@ -177,7 +177,7 @@ is SemVer against the specified protocol (not the implementation).
   notes) and `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md`: the project's reader is
   called "the specification-only, project-controlled reader" where they said "the independent reader", and ADR-0008 calls its passes a second reading of sufficiency where it said an adversarial one. Its directory, `tacenta-test-vectors/runners/independent/`,
   keeps its name as a legacy identifier, which does not imply independence from
-  the project. Earlier entries in this file, in this section and in released ones, call it "the independent reader"; that name is the same legacy identifier. The Status sections of ADR-0006, ADR-0007, ADR-0008 and ADR-0010 record the amendments of 2026-10-28. `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md` said "P6 L2 decision and independent-reader evidence", which may mean the P6 operation reader's evidence or the project's reader's; it now names both: the P6 operation reader's evidence (related-party evidence) and the pass records of the specification-only, project-controlled reader. What the reader does and what L2 requires are unchanged; the
+  the project. Entries in released sections of this file call it "Independent reader"; that name is the same legacy identifier. The Status sections of ADR-0006, ADR-0007, ADR-0008 and ADR-0010 record the amendments of 2026-10-28. `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md` said "P6 L2 decision and independent-reader evidence", which may mean the P6 operation reader's evidence or the project's reader's; it now names both: the P6 operation reader's evidence (related-party evidence) and the pass records of the specification-only, project-controlled reader. What the reader does and what L2 requires are unchanged; the
   wording now matches `GAP-REGISTER.md`, which calls it project-controlled
   evidence (`READER-INDEPENDENCE`).
 - `protocol/message-format.md`, Message size (new), with
@@ -323,9 +323,9 @@ is SemVer against the specified protocol (not the implementation).
 
 - `protocol/session-establishment.md`, `protocol/identities-and-devices.md`
   and `protocol/error-handling.md`: the text settles five of the gaps the
-  fourteenth independent reader pass recorded
+  reader's fourteenth pass recorded
   (`tacenta-test-vectors/runners/independent/GAPS-14.md`); their rows stay
-  open until a later pass reads it.
+  open until a later reader pass reads it and marks them closed.
   - G14-02: decoding the bundle is not a check of Sending the initial
     message, and no order is fixed between it and a malformed expectation;
     either refusal conforms. A malformed expectation with bundle bytes that
@@ -498,7 +498,7 @@ is SemVer against the specified protocol (not the implementation).
   removal paths now allocate at their final capacity and wipe dead slots before
   release. The analogous sparse-ratchet container hardening remains a follow-up
   and is not claimed here. Sparse decoder vectors are sized from checked counts.
-  The independent reader follows the v2 agreed-secret replay identity and
+  The specification-only, project-controlled reader follows the v2 agreed-secret replay identity and
   covers fail-closed import of v4 replay records into v5.
 
 - `protocol/session-persistence.md`, Prekey store, Semantic rules: a sixth rule,
@@ -535,8 +535,8 @@ is SemVer against the specified protocol (not the implementation).
   `spqr_state` its own reader refuses is short or malformed whatever that
   reader's reason, an unrecognised inner version included. The page had stated
   the mapping for the session's two halves and not for the triple ratchet
-  state's, leaving two readings a stored state can tell apart (the independent
-  reader's `GAPS-5.md`, G5-02's neighbour G5-01).
+  state's, leaving two readings a stored state can tell apart (the specification-only,
+  project-controlled reader's `GAPS-5.md`, G5-02's neighbour G5-01).
 - `tacenta-model`, `Model.Lifecycle.sameEphemeralAgreement`: the model's
   repeated-initial comparison now does what `protocol/session-establishment.md`,
   Receiving the initial message, says. It decodes the message's `ephemeral` and
@@ -618,14 +618,19 @@ is SemVer against the specified protocol (not the implementation).
   stays open as `HL-R1-SPARSE-READER`). That
   entry, which stands in the tags `tacenta-assurance-v0.3.0` to
   `tacenta-assurance-v0.4.5`, is superseded by this one, and the page states
-  the rule as normative. The independent reader, which is project-controlled
-  evidence (`GAP-REGISTER.md`, `READER-INDEPENDENCE`), already counted the
+  the rule as normative. The specification-only, project-controlled reader
+  (`GAP-REGISTER.md`, `READER-INDEPENDENCE`) already counted the
   store after the deletion
   (`tacenta-test-vectors/runners/independent/reader/tacenta_reader/spqr.py`,
   case CR-18) and recorded the page's silence as G12-05
   (`tacenta-test-vectors/runners/independent/GAPS-12.md`). Two of its case
   titles and one cite string were edited to quote this page, and its documented
-  run tally and one note on G12-05 were updated. No reader has read the new text.
+  run tally and one note on G12-05 were updated. The reader's fourteenth pass
+  (`tacenta-test-vectors/runners/independent/GAPS-14.md`, section 1) read the
+  new sentences, and in that run its cases CR-18 and CR-21 and the two sparse
+  vectors `replacement-bound-counts-resulting-store` and
+  `replacement-range-excludes-the-chain-counter` passed; it was not a
+  clean-room pass.
   Through a session the earlier count did not lose such a message: the session
   evicted the oldest stored keys and retried. The difference a session shows
   is in eviction. Where the replaced keys were not the oldest, the earlier
@@ -669,7 +674,7 @@ is SemVer against the specified protocol (not the implementation).
   vector refuses a skip for the total bound, since the file's operation
   refusals are `counter-exhaustion` and `no-chain`. The refusal half of the
   rule is checked by the crate's tests, by the differential harness against
-  the model and by the independent reader's cases, and by no vector file.
+  the model and by the specification-only, project-controlled reader's cases, and by no vector file.
 - Double Ratchet skipped-key capacity is checked after removing entries that
   the operation will replace. `key-deletion.md` states the order explicitly:
   delete held `(DHr, n)` pairs in the re-derived range, then require the
@@ -688,12 +693,12 @@ is SemVer against the specified protocol (not the implementation).
   differential-testing note now that the model states those stored formats.
 - `ASSURANCE.md`: point assurance gate 2 at the current gap register, and replace
   stale pass-7 wording about the prekey-store and session vector files.
-- Clarify the prekey store signature rule in `protocol/session-persistence.md`: verification uses the unlabelled prekey signature input, and the signing obligation names `create_prekeys`, `replenish`, and both rotations. This resolves G7-03 and G7-04 from the independent reader without changing the stored format or implementation.
+- Clarify the prekey store signature rule in `protocol/session-persistence.md`: verification uses the unlabelled prekey signature input, and the signing obligation names `create_prekeys`, `replenish`, and both rotations. This resolves G7-03 and G7-04 from the specification-only, project-controlled reader without changing the stored format or implementation.
 - `tacenta-test-vectors/README.md`: clarify that Braid operation steps use the
   wire Braid-message fields, so an absent codeword has all-zero `chunk_index`
   and `chunk` padding, and a runner reports a vector that violates that padding
-  as malformed vector data. This resolves G6-05 from the independent reader
-  without changing any vector bytes.
+  as malformed vector data. This resolves G6-05 from the specification-only, project-controlled
+  reader without changing any vector bytes.
 - `prekey-store-state.json`: add accepted `legacy-v1`, `legacy-v2` and
   `legacy-v3` fixtures for the prekey store's older stored layouts. The new
   vectors read to the same fields as the no-record, no-retired current fixture
@@ -722,7 +727,7 @@ is SemVer against the specified protocol (not the implementation).
   scope and accepted by one outside, both conforming -- and the conformance
   manifest and the vectors README say so; the field's length, which every
   implementation applies, stays pinned by `key-pair-wrong-length`. Register
-  item G5-02 (the independent reader's `GAPS-5.md`).
+  item G5-02 (the specification-only, project-controlled reader's `GAPS-5.md`).
 - `decisions/ADR-0006-specification-is-normative.md`, new point 7, with the
   amendment recorded and dated as the `threat-model/` amendment was: a
   normative page may cite non-normative evidence for a status it states -- a
@@ -893,6 +898,40 @@ is SemVer against the specified protocol (not the implementation).
   composite header's `bv_decide` round trips and the export and import
   statements, through the length bound of a debug-assertion message in the
   generated `export`. No rule, byte or constant changes.
+- `protocol/session-establishment.md`, Sending the initial message and
+  Primitives (ML-KEM-1024): the initiator verifies both prekey signatures
+  before she draws any random value for the session, so a bundle refused for
+  a signature, or by any check before the signatures, leaves her random
+  source as it was. The page had said so only through the order of its prose
+  ("She then generates `EKA`"), and its note that whether `EKA` is drawn
+  before the KEM prekey's input checks is not fixed weakened even that. A
+  random source the caller supplies tells the readings apart: a bundle under
+  an identity key her expectation accepts, with a signature that does not
+  verify, is refused with nothing drawn, or after `EKA`'s 32 bytes.
+  - Decided from the page: the check against her expectation and the
+    identity-key rule already come before anything is drawn, so that nothing
+    is spent on a bundle she refuses, and REQ-AUTH-01 already puts both
+    signatures before encapsulation, which draws `m`. `EKA` was the one draw
+    left unordered against them.
+  - The rule stops at the KEM prekey's input checks. Those checks are part of
+    encapsulating, and the page takes generating `EKA` and encapsulating as one
+    step ("She then generates `EKA`, encapsulates"). The change puts the whole
+    of that step after both signatures, where REQ-AUTH-01 already puts
+    encapsulation. Where `EKA` is drawn within the step, against the input
+    checks, stays not fixed.
+  - Rejected: leaving the draw unordered against the signatures. Nothing
+    before the signatures needs randomness, and the page's reason for its
+    order, that nothing is spent on a bundle she refuses, holds for a bundle a
+    signature refuses as it does for one the identity-key rule refuses. The
+    vectors' pin that an authentication failure draws nothing agrees with the
+    decision; it is not the reason for it.
+  - An implementation that draws a random value for the session before both
+    signatures verify does not conform. Nothing in this repository does: the
+    model, `tacenta-core` and the project's reader draw nothing before both
+    signatures verify, and the Rust vector runner requires that.
+  - No byte, constant, stored format or vector outcome changes. Register row
+    `INIT-NO-DRAW-BEFORE-SIGNATURES` stays open until a later reader pass reads
+    the sentence.
 
 ### Fixed
 - `protocol/sparse-pq-ratchet.md`, The store also has a total bound: the
