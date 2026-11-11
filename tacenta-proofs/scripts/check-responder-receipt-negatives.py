@@ -190,6 +190,7 @@ MUTANTS = [
        '    (rest : List Model.Lifecycle.Key) (hdraws : trace rng = d1 :: d2 :: rest)\n'
        '    (bytes : alloc.vec.Vec Std.U8) (s\' : lifecycle.Session) (rng\' : R)\n'
        '    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok bytes, s\', rng\'))\n'
+       '    (hsize : Model.Lifecycle.frameTooLong (sliceOf (alloc.vec.Vec.deref bytes)) = false)\n'
        '    (rcB : rand_core_1.RngCore F) (crcB : rand_core_1.CryptoRng F)\n'
        '    (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)\n'
        '    (hpub : DhPublicValid) (hsym : DhAgreeSymmetric) (hcon : DhAgreeContributory) (haead : AeadRoundTrip)\n',
@@ -198,6 +199,7 @@ MUTANTS = [
        '    (rest : List Model.Lifecycle.Key) (hdraws : trace rng = d1 :: d2 :: rest)\n'
        '    (bytes : alloc.vec.Vec Std.U8) (s\' : lifecycle.Session) (rng\' : R)\n'
        '    (hcall : lifecycle.Session.encrypt rc crc s plaintext rng = ok (core.result.Result.Ok bytes, s\', rng\'))\n'
+       '    (hsize : Model.Lifecycle.frameTooLong (sliceOf (alloc.vec.Vec.deref bytes)) = false)\n'
        '    (rcB : rand_core_1.RngCore F) (crcB : rand_core_1.CryptoRng F)\n'
        '    (contracts : Tacenta.UnitLifecycleT1.EstablishResponderContracts rcB)\n'
        '    (hpub : DhPublicValid) (hsym : DhAgreeSymmetric) (hcon : DhAgreeContributory) (haead : AeadRoundTrip)\n'

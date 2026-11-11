@@ -251,6 +251,26 @@ phase_atomicity() {
 python3 scripts/check-atomicity-negatives.py || fail=1
 }
 
+# Session::decrypt_ratchet and Session::decrypt refine the model's step and keep Session::invariant and the
+# counter budget, from one set of hypotheses (`UnitLifecycleDecryptCompose.lean`). The control plants ten changes
+# (the in-order clause of `FrameInOrder`, the in-order scope, the unit of budget, the receive laws, the frame type, the restored scope and check, the
+# field decoder, and `FrameInOrder` with its pins kept), and each must be refused at a named declaration or pin, with
+# a message naming the change, after the unmodified copies are accepted.
+phase_decrypt_compose() {
+python3 scripts/check-decrypt-compose-negatives.py || fail=1
+}
+
+# Session::decrypt and decrypt_ratchet keep Session::invariant and spend one unit of the counter budget at every
+# agreement state, in the in-order scope with the agreement's output (`UnitLifecycleDecryptPreserve.lean`).
+# A copy with a budget claimed unspent, the relation after the call claimed to the model before it, a law of the
+# receive side dropped or swapped, the key-pair clone record swapped, a decoder, model or structural lemma
+# restated wrongly, the model step's relation shape changed, and the key-pair length law with its pins kept must
+# each be refused at a named declaration or pin, with a message naming the change, after the unmodified copies
+# are accepted.
+phase_decrypt_preservation() {
+python3 scripts/check-decrypt-preservation-negatives.py || fail=1
+}
+
 # The restated dispatch records' witnesses (`UnitLifecycleRepair.lean`): a witness for a wrong or
 # weaker statement would hold nothing, so make one change to a copy of each and require Lean to
 # refuse it, after requiring the unmodified copies to be accepted.
@@ -277,6 +297,24 @@ python3 scripts/check-responder-establish-replay-negatives.py || fail=1
 # use which handles the generated error.
 phase_send_refusal() {
 python3 scripts/check-send-refusal-negatives.py || fail=1
+}
+
+# The message size bound at the three public entries: the rule at the bytes, the refusals' exact effects and
+# precedence, the nested bound, and the received maximum under an assumed open-length law
+# (`UnitLifecycleSizeRule.lean`). After the two unmodified copies are accepted, thirteen changes must each be
+# refused at the result whose statement they change, with a message naming the change: each of the four bounds
+# one off, the nested check dropped, the span read as the whole frame, three refusals' effects changed, the
+# refusal order swapped twice, and the received maximum claimed one byte lower and without the open-length law.
+phase_size_rule() {
+python3 scripts/check-size-rule-negatives.py || fail=1
+}
+
+# A padded toy AEAD at which the received maximum's hypotheses and the reply receipt's hold together on one run
+# (`UnitLifecycleSizeWitness.lean`): the padding removed from the toy's open, the unpadded open in the joint
+# model, the open-length law dropped or replaced by `True`, and the received maximum one byte lower at the run,
+# each refused at a named declaration with a message naming the change, after the unmodified copies are accepted.
+phase_size_witness() {
+python3 scripts/check-size-witness-negatives.py || fail=1
 }
 
 # The Session unit's sparse skip refines the model's detailed skip, refusal kind included
@@ -326,6 +364,16 @@ phase_established() {
 python3 scripts/check-established-negatives.py || fail=1
 }
 
+# The counter budget at a session Session::import accepts: the ceilings acceptance enforces, the ones it does
+# not, and that acceptance gives no budget (`UnitLifecycleImportBudget.lean`). The control plants fifteen changes
+# (the field decoder, the Braid epoch's headroom, the state decoder, the epoch reader, the parked clock at the ceiling, the invariant, two laws of the round trip, the conclusion of
+# the negative result, the stored keys' times, the budget's one step, the chain step and `roomCheck` with its pins
+# kept), and each must be refused at a named declaration or pin, with a message naming the change, after the
+# unmodified copies are accepted.
+phase_import_budget() {
+python3 scripts/check-import-budget-negatives.py || fail=1
+}
+
 # `Session::decrypt` of the responder's reply delivered again, at the initiator's session after its first receipt
 # (`UnitLifecycleInitiatorRepeatedReply.lean`): a copy with the refusal claimed to take no draw, to be
 # `NoReceivingChain` or to clear the pending initial message, the model's step claimed to keep the draw, the agreement
@@ -368,6 +416,17 @@ python3 scripts/check-restored-negatives.py || fail=1
 # kept, must each be refused at a named declaration or pin, after the unmodified copies are accepted.
 phase_encrypt() {
 python3 scripts/check-encrypt-negatives.py || fail=1
+}
+
+# Session::encrypt keeps Session::invariant and spends one unit of the counter budget at every agreement state,
+# and every refused encrypt, decrypt or decrypt_ratchet keeps both (`UnitLifecycleEncryptPreserve.lean`).
+# A copy with a budget claimed unspent, the relation after the call claimed to the model before it, the size law
+# of encapsulation or the key-pair clone record swapped, a step's scope dropped, a model lemma or an agreement
+# walk restated wrongly, the composed relation's shape changed, and the size law with its pins kept must each be
+# refused at a named declaration or pin, with a message naming the change, after the unmodified copies are
+# accepted.
+phase_encrypt_preservation() {
+python3 scripts/check-encrypt-preservation-negatives.py || fail=1
 }
 
 # `establish_responder` over every input (`UnitLifecycleEstablishResponder.lean`): a copy with a law or a
@@ -427,6 +486,18 @@ phase_discharge_native_decide() {
 python3 scripts/check-discharge-native-decide-negatives.py || fail=1
 }
 
+# Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every
+# invariant session outside the sampling state (`UnitLifecycleEncryptCompose.lean`). The control accepts the two
+# unmodified copies, then plants seventeen changes (the composed budget, the sampling state and the unit of budget
+# of the composition, the sending counter, the agreement's epoch and the draws of the effects, the joint witness's
+# budget, the record's live-encoder field, the failed send's source, the draw record's encoder and sampling
+# premises, the sparse output's scope, a chain's epoch window, the pending ciphertext's length, the headroom's
+# plaintext bound, the model's success arm, and the record with its pins kept), each of which must be refused at
+# its named declaration or pin, with a message naming the change.
+phase_encrypt_compose() {
+python3 scripts/check-encrypt-compose-negatives.py || fail=1
+}
+
 # `Session::invariant` and the four ceilings at the session `establish_responder` returns on the initiator's first
 # frame (`UnitLifecycleResponderSuccessor.lean`): a copy with the received Triple's counters, the clock, the sending
 # key's canonicity, the ratchet key's bytes or the agreement's epoch changed, the decoder lemma widened to two chunks
@@ -469,6 +540,27 @@ python3 scripts/check-responder-reply-negatives.py || fail=1
 # guidance).
 phase_responder_reply_receipt() {
 python3 scripts/check-responder-reply-receipt-negatives.py || fail=1
+}
+
+# the responder's session after its first receipt survives Session::export then Session::import as itself, and
+# The responder's session after its first receipt survives Session::export then Session::import as itself, and the
+# restored copy continues with encrypt (`UnitLifecycleRestoredResponder.lean`). The control accepts the two unmodified
+# copies, then plants fourteen changes (the restored encrypt's budget and its oracle's KEM, the round trip's codec law,
+# the shape round trip's invariant, the reach's zeroizing law, the decoder's encoding length, the size cast, the
+# decoder read back at two chunks, the header-wait tag, the ephemeral's length, the received decoder's chunk, the
+# decoder's size cap, the received budget, and the shape with its pins kept), each of which must be refused at its
+# named declaration or pin, with a message naming the change.
+phase_responder_restored() {
+python3 scripts/check-responder-restored-negatives.py || fail=1
+}
+
+# The conditional restored-responder witness's proof-level composition: wrong saved bytes,
+# a reset RNG and an omitted continuation must be typed and rejected at the named equality goal.
+# Six statement changes to the two witnesses (a state, the source or the encoder's position, a budget) must be
+# refused where the proof places that conjunct. Complete baselines and an equivalent body must pass. This is not
+# Rust mutation evidence.
+phase_responder_restored_witness() {
+python3 scripts/check-responder-restored-witness-negatives.py || fail=1
 }
 
 # The responder's decrypt of the initiator's second message at its session after the reply, with Session::invariant
@@ -543,6 +635,17 @@ python3 scripts/check-initiator-second-send-negatives.py || fail=1
 # given a field with its pins kept), each of which must be refused at its named declaration or pin.
 phase_kdf_realisation() {
 python3 scripts/check-kdf-realisation-negatives.py || fail=1
+}
+
+# Receive preservation at every frame (a stored key, a skip, an eviction) composed with the decrypt refinement
+# (`UnitLifecycleOutOfOrderReceive.lean`). The control accepts the two unmodified copies, then plants eighteen
+# changes (the unit of budget of the step and of the ratchet composition, the receive laws, an initial-type frame,
+# the restored scope and check, the store effect's decoded header and number, the classical clock, the sparse
+# counter's bound, the classical skip's upper end, the used key's number, both evictions, the eviction in the model's
+# step, the sparse skip's lower end, the step's budget, and the step's definition with its pins kept), each of which
+# must be refused at its named declaration or pin, with a message naming the change.
+phase_out_of_order_receive() {
+python3 scripts/check-out-of-order-receive-negatives.py || fail=1
 }
 
 # Session::decrypt keeps Session::invariant on an in-order receive at NoHeaderReceived or KeysSampled, and the two
@@ -732,31 +835,41 @@ phases() {
   run_phase braid-agreement plain "Braid agreement witnesses control" phase_braid_agreement
   run_phase initial-dispatch sliceable "initial dispatcher proof-dependency controls" phase_initial_dispatch units_initial_dispatch
   run_phase atomicity plain "lifecycle frame-proof controls" phase_atomicity
+  run_phase decrypt-compose plain "decrypt-compose proof-dependency control" phase_decrypt_compose
+  run_phase decrypt-preservation plain "decrypt-preservation proof-dependency control" phase_decrypt_preservation
   run_phase repair plain "restated dispatch record controls" phase_repair
   run_phase responder-establish-replay plain "responder-establish-replay proof-dependency control" phase_responder_establish_replay
   run_phase send-refusal plain "send refusal proof-dependency control" phase_send_refusal
+  run_phase size-rule plain "size rule proof-dependency control" phase_size_rule
+  run_phase size-witness plain "size-witness proof-dependency control" phase_size_witness
   run_phase sparse-skip-kind plain "sparse skip refusal-kind proof-dependency control" phase_sparse_skip_kind
   run_phase sparse-store-full plain "sparse store-full proof-dependency control" phase_sparse_store_full
   run_phase tampered-reply plain "tampered-reply proof-dependency control" phase_tampered_reply
   run_phase decrypt-ratchet plain "decrypt_ratchet refinement proof-dependency control" phase_decrypt_ratchet
   run_phase established plain "established initiator proof-dependency control" phase_established
+  run_phase import-budget plain "import-budget proof-dependency control" phase_import_budget
   run_phase initiator-repeated-reply plain "initiator-repeated-reply proof-dependency control" phase_initiator_repeated_reply
   run_phase initiator-second-message plain "initiator-second-message proof-dependency control" phase_initiator_second_message
   run_phase restored plain "restored session proof-dependency control" phase_restored
   run_phase encrypt plain "established encrypt proof-dependency control" phase_encrypt
+  run_phase encrypt-preservation plain "encrypt-preservation" phase_encrypt_preservation
   run_phase responder plain "establish_responder proof-dependency control" phase_responder
   run_phase responder-frame plain "first-frame responder proof-dependency control" phase_responder_frame
   run_phase responder-receipt plain "first-receipt responder proof-dependency control" phase_responder_receipt
   run_phase responder-repeated-frame plain "responder-repeated-frame proof-dependency control" phase_responder_repeated_frame
   run_phase discharge-native-decide plain "refinement constants proof-dependency control" phase_discharge_native_decide
+  run_phase encrypt-compose plain "encrypt-compose proof-dependency control" phase_encrypt_compose
   run_phase responder-successor plain "responder successor proof-dependency control" phase_responder_successor
   run_phase responder-reply plain "responder reply proof-dependency control" phase_responder_reply
   run_phase responder-reply-receipt plain "responder reply receipt proof-dependency control" phase_responder_reply_receipt
+  run_phase responder-restored plain "responder-restored proof-dependency control" phase_responder_restored
+  run_phase responder-restored-witness plain "responder-restored-witness proof-dependency control" phase_responder_restored_witness
   run_phase responder-second-receipt plain "responder-second-receipt proof-dependency control" phase_responder_second_receipt
   run_phase responder-second-send plain "responder-second-send proof-dependency control" phase_responder_second_send
   run_phase send-preservation plain "send preservation proof-dependency control" phase_send_preservation
   run_phase initiator-second-send plain "initiator second send proof-dependency control" phase_initiator_second_send
   run_phase kdf-realisation plain "kdf-realisation proof-dependency control" phase_kdf_realisation
+  run_phase out-of-order-receive plain "out-of-order-receive proof-dependency control" phase_out_of_order_receive
   run_phase receive-preservation plain "receive-preservation proof-dependency control" phase_receive_preservation
   run_phase axiom-comparison plain "axiom comparison" phase_axiom_comparison
   run_phase build-proofs prelude "build and scan: proofs package" phase_build_proofs

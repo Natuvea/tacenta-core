@@ -9,6 +9,7 @@ Later on 2026-10-28 the Gate 2 row's count of BLOCKING rows was recounted from `
 Later again on 2026-10-28 the project's reader was called the specification-only, project-controlled reader where this file said "the independent reader", and the P6 decision's surface the "model/concrete/operation-reader" surface; wording only, with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 Also on 2026-10-28, at the owner's instruction, the BLOCKING line of the gate classes, the note after them, the closure evidence of the ML-KEM Braid row, the Gate 1 deficit and closure evidence, the Gate 2 deficit and closure evidence, the SL4-01 completion trigger, the deferral list's heading and the second next P1 slice were changed for the uniform rule on BLOCKING technical obligations (`GAP-REGISTER.md`, "Gate class key"), MU-02 and MU-03 point their independent reviewer at that key's definition, the BLOCKING line says which fields of an item or row are its acceptance, the AMBIGUOUS line says what a recorded decision for an AMBIGUOUS item must state and cannot do, the Gate 1 and Gate 2 deficits name `SESSION-IDENTITY-L2-SHORTFALL`, and the Gate 2 deficit says that MU-01 and the Session orchestration row stay AMBIGUOUS until the P6 decision is reopened and its reopening work is done, where a record that its fired triggers are answered also ended it. Each change adds a condition or replaces a decision route with evidence or with a target change; no class was lowered and no target was changed. The edit was made with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 On 2026-11-10 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` after `HL-R1-SPARSE-READER` was reopened at BLOCKING, at the owner's instruction of 2026-10-29, with its original acceptance restored as historical wording (a later clean-room reader pass, which the row does not count pass 14 as; the decision alternative that the acceptance had before pass 14 closed it is removed under the class key's rule that a BLOCKING technical obligation cannot be discharged by accepting it, which removes a route and is a tightening), and the row's clause on it was changed to say so; with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
+On 2026-11-11 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` when `main` (after #286, #287 and #289) was merged into the size-bound, preservation and lifecycle work: eleven rows are open at BLOCKING, the nine of `main` and `SIZE-BOUND-REPLY-ROUTE-GAP` and `SIZE-BOUND-OPEN-LENGTH`, and the row names the two size-bound rows beside the rows of `main` it already named (as on `main`, it does not name `SESSION-CONTRACT-VACUITY`, `DISPATCH-EVIDENCE-VACUITY` or `E2E-01`); with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 
 ## Gate classes
 
@@ -481,9 +482,10 @@ than security requirements.
   Gap register must have no open BLOCKING rows and no unresolved AMBIGUOUS rows.
   After `E2E-07` was closed on the run at `75387aa9` and `HL-R1-SPARSE-TRANSLATION` on one Linux x86_64 regeneration of 2026-10-03 (an emulated run by the maintainer's tool-assisted session,
   not independent),
-  nine rows are open at BLOCKING in the register,
+  eleven rows are open at BLOCKING in the register,
   two of them findings of the fourteenth reader pass (`G14-03`,
-  `G14-06`),
+  `G14-06`), two the message size bound's (`SIZE-BOUND-REPLY-ROUTE-GAP`, `SIZE-BOUND-OPEN-LENGTH`,
+  set BLOCKING for the final claims by the owner's decision of 2026-10-28),
   one, `READER-INDEPENDENCE`, moved to BLOCKING on 2026-10-28 while independence claims the repository does not support remain,
   one, `AEAD-LENGTH-CONTRACTS`, made BLOCKING on 2026-10-28,
   one, `SESSION-IDENTITY-L2-SHORTFALL`, opened at BLOCKING on 2026-10-28,
@@ -637,6 +639,11 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   and for the hosted-inventory group files a valid baseline and four refusals (an unread field in a case,
   in its policy object and in a binding,
   and a refusal class the vectors do not name).
+  For the size rule's `frame-size.json` it runs a valid baseline and nine refusals: `fields.decodes` missing,
+  a number, outside `00`/`01`, beside an extra field, and declared the wrong way for an initial frame that
+  decodes, a ratchet frame with an unknown version and an initial frame without its curve byte, a wrong
+  `ratchet_message_length`, and a `result` the size rule contradicts; the Rust runner's
+  `a_wrong_or_missing_decodes_is_refused_by_the_runner` refuses the same kind of vector on its own.
 
   **Missing evidence:**
   Retain its command, environment and diagnostic-free candidate result.
@@ -902,10 +909,10 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
 
   **Protected property:**
   The set of opaque primitive calls reachable from the five Session roots stays classified;
-  the committed operation-trace corpus keeps its required families and controls.
+  the committed operation-trace corpus keeps its required families and controls, and so does the size-bound supplement (`traces/session-operation-trace-supplement.json`, not independently authored), which `runners/rust/tests/operation_trace_supplement.rs` drives through `tacenta-core`.
 
   **Current negative-control evidence:**
-  `tooling/tests/run-check-lifecycle-boundary-surface-cases.sh` (9 refusals and 2 acceptances, and since 2026-10-01 a refusal of a missing Session root, which the guard-removal run showed no case needed) and `tooling/tests/run-check-session-operation-traces-cases.sh` (a pass case and 3 refusals), in the `checks` job.
+  `tooling/tests/run-check-lifecycle-boundary-surface-cases.sh` (9 refusals and 2 acceptances, and since 2026-10-01 a refusal of a missing Session root, which the guard-removal run showed no case needed) and `tooling/tests/run-check-session-operation-traces-cases.sh` (a pass case and 7 refusals, four of them for the size-bound supplement), in the `checks` job.
 
   **Missing evidence:**
   The first pins the set of operations, not their call sites (its docstring says so).
@@ -1093,16 +1100,22 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   `check-initiator-repeated-reply-negatives.py`,
   `check-initiator-second-message-negatives.py`,
   `check-atomicity-negatives.py`,
+  `check-decrypt-compose-negatives.py`,
+  `check-decrypt-preservation-negatives.py`,
   `check-repair-negatives.py`,
   `check-responder-establish-replay-negatives.py`,
   `check-send-refusal-negatives.py`,
+  `check-size-rule-negatives.py`,
+  `check-size-witness-negatives.py`,
   `check-sparse-skip-kind-negatives.py`,
   `check-sparse-store-full-negatives.py`,
   `check-tampered-reply-negatives.py`,
   `check-decrypt-ratchet-negatives.py`,
   `check-established-negatives.py`,
+  `check-import-budget-negatives.py`,
   `check-restored-negatives.py`,
   `check-encrypt-negatives.py`,
+  `check-encrypt-preservation-negatives.py`,
   `check-responder-negatives.py`,
   `check-responder-frame-negatives.py`,
   `check-responder-receipt-negatives.py`,
@@ -1110,12 +1123,16 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   `check-responder-successor-negatives.py`,
   `check-responder-reply-negatives.py`,
   `check-responder-reply-receipt-negatives.py`,
+  `check-responder-restored-negatives.py`,
+  `check-responder-restored-witness-negatives.py`,
   `check-responder-second-receipt-negatives.py`,
   `check-responder-second-send-negatives.py`,
   `check-send-preservation-negatives.py`,
   `check-discharge-native-decide-negatives.py`,
+  `check-encrypt-compose-negatives.py`,
   `check-initiator-second-send-negatives.py`,
   `check-kdf-realisation-negatives.py`,
+  `check-out-of-order-receive-negatives.py`,
   `check-receive-preservation-negatives.py`,
   `check-port-negatives.sh` (the `translation-part` jobs through `no-sorry.sh`, combined by the `translation` job)
 
@@ -1187,6 +1204,39 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   the session it is called at, the Triple-only write, the frame's ratchet key and sending chain, the relation after the send, the budget after it and the send-preservation step's ceilings,
   and its reach keeps the responder's further bytes, the law that chooses the initiator's further bytes and the plaintext bound (the receipt's plaintext, the invariant after the send and the run's call are conjuncts of called theorems,
   placed unchanged);
+  `check-size-rule-negatives.py` keeps the size rule's bounds exact (each of the four one off), the nested check
+  (dropped, and the span read as the whole frame), the size refusals' effects (a session write, a store write, a draw
+  from the model's oracle, another random source returned by each of the three refusals), the refusal order (all five
+  swapped), the nested refusal (claimed as the decoder's overrun at both entries) and the received maximum (one byte
+  lower, the open-length law dropped, and the responder's composition fed a bound one under the nested limit);
+  `check-size-witness-negatives.py` keeps the joint padded witness's padding (the open-length law fails without it),
+  its model's open, the reach's use of the law and the received maximum at the run;
+  `check-encrypt-preservation-negatives.py` keeps the encrypt step at every agreement state (the budget at both
+  drawing states, the relation after the call, the encapsulation size law, the key-pair clone record, the scope of
+  the step without that law, the composed budget), the refusals' budget, the established run's budget, the model's
+  advance, chain counters, budget and outcomes, the two drawing sends, the fresh encoder's cap, the failed commit's
+  and the folded step's clauses, the composed relation's shape, and the size law's definition;
+  `check-decrypt-preservation-negatives.py` keeps the receive step at every agreement state (the budget, the relation
+  after the call, the `Option<u64>` comparison shape, the key-pair length law, the key-pair clone record, the public
+  call's budget, the prepared receive's erasure agreement, the responder's step), the reply and first-frame runs'
+  budget and laws, the decoder's distinct indices, `needed` and message length, the model
+  receive's role, budget, clause (b) and epoch, the structural clause (b), the sparse epoch's room, the two length
+  laws at their states, the model step's relation shape, and the key-pair length law's definition;
+  `check-import-budget-negatives.py`: the budget at an accepted `Session::import` (the field decoder, the three ceilings,
+  the epoch reader,
+  the budget check's chain step) and the parked-clock and exhausted-chain copies (the clock at the ceiling, the
+  invariant, the stored keys' times, two laws of the round trip, the negative result's conclusion);
+  `check-decrypt-compose-negatives.py`: the composition of the decrypt refinement with receive preservation (the
+  in-order scope, the unit of budget, the receive laws, the frame type, the restored scope, check and field decoder,
+  and `FrameInOrder`'s definition);
+  `check-out-of-order-receive-negatives.py`: receive preservation at every frame and its composition with the decrypt
+  refinement (the unit of budget of the step and the ratchet composition, the receive laws, the frame type, the restored
+  scope and check, the decoded header of the store effect and its number, the classical clock, the sparse counter's
+  `maxSkip + 1`, the classical skip's upper end, the used key's number, both evictions, the eviction in the model's
+  step, the sparse skip's lower end, the step's budget, and `ReceiveStepAny`'s definition);
+  `check-encrypt-compose-negatives.py`: Session::encrypt refines the model's step and keeps Session::invariant and the counter budget at every invariant session outside the sampling state (the composed budget, the sampling-state and budget premises, the effects, the joint witness's budget, the record, and the route's derived records and headroom);
+  `check-responder-restored-negatives.py`: the responder's session after its first receipt survives the export/import round trip as itself and its restored copy continues with `encrypt` (the restored encrypt's budget and KEM, the round trip's laws and invariant, the decoder's and the agreement's codec, the ephemeral's length, the received decoder, the budget, and `CodecShapeR`);
+  `check-responder-restored-witness-negatives.py`: the proof-level restore/encrypt composition reads the same saved bytes, preserves its RNG input and performs the next encrypt; the two witnesses' state, source, encoder and budget conjuncts; the conditional witnesses remain conditional on existing reach and codec laws;
   the Session Braid port scripts refuse a source whose anchor moved.
 
   **Current negative-control evidence:**
@@ -1252,18 +1302,53 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   the chunk altered in one byte or given another index,
   and the held-value predicate without its held bytes (refused by its `#print` pin alone),
   each refused),
+  `check-import-budget-negatives.py` (two unmodified copies accepted and fifteen changes refused, each at a named
+  declaration or pin: the ceilings read off the field decoder, the Braid epoch claimed with a step of headroom, the
+  parked clock claimed at `u32::MAX`, the exhausted
+  copy without the invariant, the established copies without the ciphertext length bound and without the
+  `Option<u64>` comparison shape, and acceptance claimed not to give the invariant, each in the composing proof and
+  accepted there with that proof emptied; the Braid state decoder and the epoch reader claimed to refuse `u64::MAX - 1`, an accepted session
+  claimed to have every budget, the clock moved before a
+  stored key, a clock two below the ceiling claimed without budget, `roomCheck`'s chain step short by one, the
+  exhausted shape at the old counter, and `roomCheck` held by its `#print` pin),
   `check-initial-dispatch-negatives.py` (47 proof mutations, each refused by Lean for its stated premise),
   `check-atomicity-negatives.py` (four unmodified bodies accepted and twelve planted changes refused, each on a refused goal that shows the planted field),
   `check-kdf-realisation-negatives.py` (two unmodified copies accepted and 8 changes refused, each at its named place: HKDF's bound, HMAC's output direction, the model's argument order for each, the Session leaf's totality bound, the record's field type and the corollary's trace premise at their named declarations, and the record held by its `#print` pin;
   each control the script labels inside one of the three composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
+  `check-out-of-order-receive-negatives.py` (two unmodified copies accepted and 18 changes refused, each at a named
+  declaration or pin: seven inside the composing proofs (the unit of budget of the step and of the ratchet composition,
+  the receive laws, the initial-type frame, the restored scope and check, the store effect's decoded header), one
+  projection (the store effect at the number below), nine on the model lemmas, six refused by their own content (the
+  classical clock, the sparse counter's bound, the classical skip's upper end, the used key's number, the sparse skip's
+  lower end, the step's budget) and three as a type the lemma's proof cannot meet (both evictions, the eviction in the
+  model's step), and `ReceiveStepAny` held by its
+  pin; each control the script labels inside one of the six composing proofs also run with that proof replaced by
+  `sorry` and required to be accepted there, which verifies attribution only; the controls it labels projections are
+  not probed; the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and
+  guidance, not a claim),
   `check-receive-preservation-negatives.py` (two unmodified copies accepted and 23 changes refused, each at its named place;
   each control the script labels inside one of the four composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;
   the script's labels and its per-class counts in `negatives-control-counts.json` are its own labelling and guidance, not a claim (the helper that tells inside from projection reads Lean's error text; see the decision below)),
   `check-repair-negatives.py` (two unmodified inputs accepted, five changes refused),
   `check-send-refusal-negatives.py` (one unmodified proof accepted, two changes refused),
+  `check-size-rule-negatives.py` (two unmodified copies accepted and 22 changes refused, each a change to a statement:
+  21 refused at that result and one inside the composing `establish_responder_ok_plaintext_le_max`, accepted there with
+  that proof emptied: the outer, ratchet, nested and sender's bounds each one off, the nested check dropped from
+  `decoded_initial_limit`, the span read as the whole frame in `decoded_span`, the decrypt refusal claimed to clear the
+  pending initial message, the responder refusal claimed to empty the last-resort record, the sender's refusal claimed
+  to take a draw from the model's oracle, each refusal claimed to return another random source, the order swapped at
+  all five order results, the nested refusal claimed as the decoder's overrun at both entries, the received maximum claimed one byte lower and without the open-length
+  law, and the inner receive's bound claimed one under the nested limit),
+  `check-size-witness-negatives.py` (two unmodified copies accepted and five changes refused:
+  the toy's open made to drop only the tag (refused at `padOpen_length`),
+  the joint model given the unpadded toy open of the earlier reaches (refused at `modelPadded_aeadRoundTrip`),
+  the open-length law dropped from the encrypt witness's premises (refused at `established_encrypt_hypotheses_open`),
+  that witness made to return `True` in place of the law (refused inside `size_witness_reachable`,
+  accepted with that proof emptied),
+  and the received maximum claimed one byte lower at the run (refused where `size_witness_reachable` places `decrypt_ok_plaintext_le_max`'s conclusion)),
   `check-sparse-skip-kind-negatives.py` (two unmodified copies accepted and four changes refused:
   the refusal's kind under a mapping that swaps `TooManySkipped` and `SkippedStoreFull`,
   every refusal claimed `skippedStoreFull`,
@@ -1271,6 +1356,29 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   each in the composing proof and accepted there with that proof emptied,
   and the mapping claimed injective with `TooManySkipped` sent to `skippedStoreFull`),
   `check-sparse-store-full-negatives.py` (one unmodified proof accepted, two changes refused; a harmless rewrite of the branch that moves one of its anchors makes it fail closed, naming the anchor),
+  `check-decrypt-compose-negatives.py` (two unmodified copies accepted and ten changes refused, each at a named
+  declaration or pin: `FrameInOrder` without its in-order clause, the ratchet composition without the in-order scope, without a unit of budget and without the
+  receive laws, the public composition at an initial-type frame and without the in-order scope, the restored route
+  with a check leaving no unit, outside the restored scope and read off the field decoder, each in the composing proof
+  and accepted there with that proof emptied, and `FrameInOrder` held by its `#print` pin),
+  `check-decrypt-preservation-negatives.py` (two unmodified copies accepted and twenty-four changes refused, each at a
+  named declaration or pin:
+  the receive step's budget claimed unspent and its relation after the call claimed to the model before it,
+  the laws' `Option<u64>` comparison shape dropped and their key-pair length law swapped for the encapsulation one,
+  the key-pair clone record swapped for the erasure one in the agreement's receive,
+  the public call's budget claimed kept with no unit to spend,
+  the reply run's budget claimed one operation past the clock,
+  the prepared receive's erasure agreement swapped for the key-pair clone record,
+  the responder's step claimed from the session after the call,
+  the first frame's run without the `ct2` length law (ten inside composing proofs, each accepted with that
+  proof emptied);
+  `Decoder::invariant` without its distinct-indices clause, `add_chunk` claimed to grow `needed`, a completed message
+  claimed one byte longer, the model receive's role claimed kept through a failure, the model's budget claimed kept
+  with no unit to spend, clause (b) after a step claimed at the old sparse epoch, the structural clauses with clause
+  (b) read at the Triple before the call, clause (b) read without the sparse epoch's room, the finished encapsulation
+  without the `ct2` length law, the `KeysSampled` receive without the `ek_vector` length law, the responder's prepared budget claimed one operation past the clock, the model receive claimed to keep the epoch;
+  the model step's relation claimed to the model before the call (statement-shape, still refused with the projected
+  proof emptied); and `KeyPairEkVectorLen` with its bound vector renamed, its pins kept),
   `check-decrypt-ratchet-negatives.py` (fourteen unmodified copies accepted and forty-two changes refused,
   each at a named declaration or pin:
   four in the loop correspondence,
@@ -1293,6 +1401,21 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   three in the public `decrypt` join (its target without the dispatch,
   its scope premise deleted,
   its inner step on the first form) and one that drops the `draws` conjunct from the join's recorded statement with its pins kept),
+  `check-encrypt-preservation-negatives.py` (two unmodified copies accepted and twenty changes refused, each at a
+  named declaration or pin:
+  the key-generation step's budget claimed unspent and its relation after the call claimed to the model before it,
+  the sampling step without `Encaps1SizesOf` and its budget claimed unspent,
+  the key-pair clone record swapped for the erasure one where the no-draw step is applied,
+  the scope of the step without the size law dropped,
+  the composed budget claimed unspent, a refusal's budget claimed to grow,
+  the established run's budget claimed one operation past the clock (nine inside composing proofs, each accepted
+  with that proof emptied);
+  `advance` claimed to keep the sparse epoch, the chains a send leaves claimed never stepped, the model's budget
+  claimed kept with no unit to spend, the model's failed commit claimed to clear the pending initial message, key generation's send claimed
+  to have an output, the sampling output claimed for epoch 0, the fresh encoder without its cap, the failed-commit
+  clauses claimed of a live agreement, the folded step claimed from tag 6;
+  the composed theorem's relation claimed to the model before the call (statement-shape, still refused with the
+  projected proof emptied); and `Encaps1SizesOf` with its binders reordered, its pins kept),
   `check-established-negatives.py` (three unmodified copies accepted and thirteen changes refused,
   each at a named declaration or pin:
   the walk's Triple with a clock other than the generated zero,
@@ -1315,6 +1438,19 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   the joint model at an interpretation whose public-key reader drops the key,
   that bound's law weakened with its pins kept,
   and the joint model of the composed premise list at two interpretations with its pins kept),
+  `check-encrypt-compose-negatives.py` (two unmodified copies accepted and seventeen changes refused,
+  each at a named declaration or pin with a message naming the change:
+  seven inside the composing proofs, accepted there with that proof emptied
+  (the composed budget claimed unspent, the composition at the sampling state and without a unit of budget,
+  the sending counter claimed unmoved, the agreement's epoch claimed to move, the draws claimed kept at key generation,
+  the record without its live-encoder field),
+  one projection (the joint witness claimed with a budget past the clock),
+  eight on the lemmas the composition calls (the failed agreement's send claimed to move the source,
+  the draw record without a live encoder and at the sampling state, the sparse output claimed at the sampling state,
+  a chain's epoch claimed a step past the window, a pending ciphertext claimed shorter than `kem::ciphertext_len`,
+  the headroom claimed for every plaintext, the model's success arm claimed at a failed agreement),
+  and the record with its plaintext bound moved and its pins kept;
+  seven of them weaken a premise and are refused where it is handed on, a dependency check),
   `check-encrypt-negatives.py` (two unmodified copies accepted and sixteen changes refused,
   each change refused at a named declaration or pin,
   eleven with a message that names the fact removed (an omega counterexample,
@@ -1425,6 +1561,26 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   the other-key control sits on the model step the composition rests on,
   no control covers the chain's own key step,
   and none shows that the responder refuses other inputs),
+  `check-responder-restored-negatives.py` (two unmodified copies accepted and fourteen changes refused,
+  each at a named declaration or pin with a message naming the change:
+  five inside the composing proofs, accepted there with that proof emptied
+  (the restored encrypt's budget claimed unspent and its oracle's KEM left unrelated, the round trip without
+  `check-responder-restored-witness-negatives.py` (two complete baselines and one equivalent body accepted;
+  three changed definitions typechecked separately,
+  then refused at the unchanged composition lemma for other saved bytes,
+  reset RNG and omitted encrypt;
+  six statement changes refused where the two witnesses place the conjunct (the restored responder's state,
+  source and budget;
+  the encoder-state witness's state,
+  encoder position and budget);
+  thirteen failure-classifier cases;
+  not Rust mutation evidence),
+  `DhCodecTotal`, the shape round trip without the invariant, the reach without `ZeroizingVecRoundTrip`),
+  eight on the lemmas (the decoder's encoding a byte shorter per chunk, the size cast through `u16`, the decoder read
+  back at two chunks, the header-wait tag 6, the ephemeral 32 bytes, the received decoder empty, the decoder's size one
+  below the cap, the received budget past the clock),
+  and `CodecShapeR` with its ephemeral bound moved and its pins kept;
+  five of them weaken a premise and are refused where it is handed on, a dependency check),
   `check-responder-second-receipt-negatives.py` (two unmodified copies accepted and nineteen changes refused, each at its named place;
   each control the script labels inside one of the five composing proofs also run with that proof replaced by `sorry` and required to be accepted there,
   which verifies attribution only; the controls it labels projections are not probed;

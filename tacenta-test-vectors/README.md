@@ -32,8 +32,12 @@ Two kinds live here:
     and Triple Ratchet derivations, and the erasure code above the field
     (`erasure-encode.json`, `erasure-decode.json`, from `Model.Erasure`),
     checked by `runners/rust/tests/post_quantum.rs`.
-  - `vectors/serialization/`: message and initial-message encodings, checked
-    by `runners/rust/tests/serialization.rs`.
+  - `vectors/serialization/`: message and initial-message encodings, and the
+    size rule's table (`frame-size.json`, generated from
+    `Model.Lifecycle.frameTooLong` at the protocol constants; message-format.md,
+    Message size), checked by `runners/rust/tests/serialization.rs`, which
+    hands each frame-size vector to `Session::decrypt` and
+    `establish_responder`. Layout: Vector layouts, below.
   - `vectors/protobuf/`: the bounded protobuf profile's two readers, accepted
     regions with the `fields` they decode to and refused regions, checked by
     `runners/rust/tests/protobuf.rs`.
@@ -111,6 +115,16 @@ lifecycle, establishment, replay, repeated-initial, restore and control traces;
 structural effects present. The operation reader, not this structural check,
 must evaluate the cases and controls before any runner claims coverage for
 them.
+
+A separately versioned supplement, [version 2](session-operation-trace-supplement.md),
+adds what version 1 cannot express about the message size bound: the sender's
+`PlaintextTooLong`, the size rule's refusals, `AgreementFailed` and
+`random_draws: none`. Version 1 and its corpus are unchanged. [The supplement's
+traces](traces/session-operation-trace-supplement.json) were added by the
+maintainer account with tool assistance and are **not independently authored**; the P6 operation reader (specification-only; written and run by a related party) does not read them. The same structural check
+covers them, and `runners/rust/tests/operation_trace_supplement.rs` drives each
+one through `tacenta-core`, comparing outcomes, refusals, stored bytes and
+random-source calls, and requires its control to disagree.
 
 `conformance-manifest.md` records exactly which specifications, revisions, and
 components the vectors cover, and what is excluded. Peer interoperability is
@@ -216,6 +230,103 @@ expected bytes were produced by the project runner, so this is a byte-level
 regression and composition check rather than an external oracle. What the
 specification-only, project-controlled reader derives from the same inputs, and what it takes from the
 vector as a boundary, is listed in its README.
+
+### The size rule: `vectors/serialization/frame-size.json`
+
+The page is message-format.md, Message size. A frame near the bounds is a
+megabyte, about two megabytes of hex, so a vector describes it rather than
+holding it. **The vector pins the rule at the boundary, not the bytes of a
+message**: the frames are mostly zeros and none of them authenticates.
+
+- **`length`** is the frame's length, four bytes big-endian.
+- **`prefix`** is the frame's first bytes. The frame is `prefix` followed by
+  zero bytes up to `length`. The prefix of an initial frame is its first 72
+  bytes: version, type, `identity` and `ephemeral` (each a curve byte, `05`,
+  or `00` where the vector says the wrapper is malformed, followed by 32 zero
+  bytes), and `kem_ciphertext_len`. One vector's prefix is shorter than 72
+  bytes on purpose, to give an initial frame too short to hold that field.
+  The four `initial-unknown-prekeys-*` vectors carry the whole wrapper in
+  their prefix: after `kem_ciphertext_len`, that many zero bytes of
+  `kem_ciphertext` and the three identifiers, each `deadbeef`.
+- **A valid vector** is a frame the size rule admits. Its `fields` hold
+  `ratchet_message_length`, four bytes big-endian: the length of the ratchet
+  message the rule located, the whole frame for a frame that is not an initial
+  frame, and `length - 84 - kem_ciphertext_len` for an initial frame. The field
+  is left out when the rule located no ratchet message (an initial frame too
+  short to hold `kem_ciphertext_len`, or whose `kem_ciphertext_len` runs past
+  its end). They also hold `decodes`, required, `01` or `00`: whether the
+  decoder a session's decrypt applies to the frame once the size rule admits
+  it accepts it (`01`) or refuses it as a decode failure (`00`). Which decoder,
+  and what it accepts:
+  - **an initial frame** (at least two bytes, `01 02`): the initial-message
+    decoder (message-format.md, Initial message). It accepts exactly when the
+    frame holds the version and type bytes, `identity` and `ephemeral` each as
+    the curve byte `05` followed by a canonical 32-byte curve public key (Curve
+    public keys: read little-endian, every bit included, below 2^255 − 19),
+    `kem_ciphertext_len` `k`, `k` bytes of `kem_ciphertext` and the three
+    4-byte identifiers, that is when `72 + k + 12 <= length`. It does not
+    decode the ratchet message after them, so `01` says nothing about it;
+  - **every other frame**: the ratchet-message decoder (message-format.md,
+    Ratchet message). It accepts exactly when the frame holds the 102-byte
+    composite header with version `01`, type `01`, a canonical 32-byte ratchet
+    key, an agreement type byte from `00` to `05` and a presence byte `01`, or
+    `00` with the 2-byte index and 32-byte chunk all zero. The ciphertext after
+    the header is not checked.
+
+  `decodes` says nothing about prekey lookups, the repeat check,
+  authentication or the session's state. `schema/frame-size-fields.schema.json`
+  states the same, and `tooling/check-vectors.py` validates every admitted
+  vector's `fields` against it and recomputes both fields from `length` and
+  `prefix`, refusing a vector whose `decodes` is missing, is not `00` or `01`,
+  or is not the value the frame gives (its case runner plants each); the Rust
+  runner refuses the same vectors by comparing with tacenta-core's decoders.
+  Every admitted frame in this file is then refused for the reason it
+  had without the rule (message-format.md, Message size, Precedence), and the
+  refusal changes nothing. The Rust runner checks, on a live responder
+  session: with `decodes` `00`, the decoder's own refusal; with `01`, an
+  initial frame refused as `NotARepeatedInitial` (it is not that session's
+  repeat), and a ratchet frame refused for something other than a decode
+  failure. On `establish_responder`: the initial-message decoder's own refusal
+  for every frame it refuses (each frame that is not an initial frame among
+  them), and for an initial frame that decodes, `UnknownPrekeyId` at the
+  signed-prekey lookup, since the runner's store holds no prekey these frames
+  name (`0` or `deadbeef`). The session and the store are unchanged, and no
+  operation refuses the frame as too long. The siblings named `*-at-the-bound`
+  beside each `*-one-over` vector are the same inputs one byte within the
+  bound.
+- **An invalid vector** is a frame the size rule refuses. It carries
+  `refusal: decode-failure`: the rule's refusal is a decode failure. A runner
+  checks that every operation that receives a frame refuses it as too long
+  before anything else, and with no effect, whatever else is wrong with the
+  frame (an unknown version byte, a wrong or unknown type byte, a malformed
+  wrapper, identifiers no store holds) and whatever state the receiver is in:
+  the session, the prekey store with its one-time prekeys and replay record,
+  and the random source are untouched. The Rust runner gives each frame to
+  `Session::decrypt` on a live responder session and on a responder session
+  whose agreement has failed, and to `establish_responder` on a prekey store,
+  and requires `Decode(DecodeError::TooLong)` from all three, the stored
+  sessions and store unchanged, and no call to the random source. The layout
+  names no session state, so the terminal session is the runner's fixture,
+  not part of the vector.
+- **On the terminal session**, every admitted vector must meet the order
+  mlkem-braid.md, Failure, states for a failed session within the bounds: a
+  frame that is not an initial frame is refused with `AgreementFailed` before
+  it is decoded, whatever `decodes` says; an initial frame is refused by its
+  decoder when `decodes` is `00`, and as `NotARepeatedInitial` when it is
+  `01` (none of these frames is that session's repeat); no call to the random
+  source and no change. The same order on real frames, the repeat included,
+  is in `tacenta-core/tests/message_size.rs` and in the operation-trace
+  supplement's `receive-on-failed-session-in-order`.
+- **What no vector here pins:** acceptance of a real message at exactly
+  `MAX_PLAINTEXT_LEN`, and the sender's rule. A plaintext of that length is a
+  megabyte and a real frame carries a tag the model cannot compute, so both
+  are tested in `tacenta-core/tests/message_size.rs` instead, at the real
+  constants: the frame of exactly `MAX_RATCHET_FRAME_LEN` and
+  `MAX_INITIAL_FRAME_LEN` bytes, its decryption, and the refusal of one byte
+  more. The specification-only, project-controlled reader has not been taught this file: its vectors
+  are on the reader's skip allowlist as pending a specification-only reader
+  pass (`GAP-REGISTER.md`, `SIZE-BOUND-READER`), the run names them among its
+  skips, and they are not covered by a specification-only reader pass.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
 

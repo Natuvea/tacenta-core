@@ -344,6 +344,7 @@ def lifecycleRefusalName : Model.Lifecycle.Refusal → String
   | .decode .wrongType => "decode-wrong-type"
   | .decode .tooShort => "decode-too-short"
   | .decode .lengthOverrun => "decode-length-overrun"
+  | .decode .tooLong => "decode-too-long"
   | .badEncoding => "bad-encoding"
   | .inconsistentBundle => "inconsistent-bundle"
   | .unexpectedIdentity => "unexpected-identity"
@@ -354,6 +355,7 @@ def lifecycleRefusalName : Model.Lifecycle.Refusal → String
   | .legacyLastResortRecord => "legacy-last-resort-record"
   | .lastResortRecordFull => "last-resort-record-full"
   | .agreementFailed => "agreement-failed"
+  | .plaintextTooLong => "plaintext-too-long"
   | .ceiling => "ceiling"
 
 example : lifecycleRefusalName

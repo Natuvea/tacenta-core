@@ -53,7 +53,13 @@ implementation.
     of a known contact whose record is empty (`MalformedRecord`), which
     reports the caller's own record, never a peer's bytes
     (session-establishment.md, Records, expectations and attribution);
-  - an agreement that has failed (mlkem-braid.md).
+  - an agreement that has failed (mlkem-braid.md);
+  - a plaintext longer than `MAX_PLAINTEXT_LEN` (`PlaintextTooLong`), which the
+    session refused to encrypt and which the caller must shorten or carry
+    some other way (message-format.md, Message size).
+- **A frame the size rule refuses is a decode failure** (message-format.md,
+  Message size). A receiver reports it as a decode failure, and may say that
+  it was too long; a peer learns no more than from any decode failure.
 
 ## What is left to an implementation
 
@@ -64,6 +70,28 @@ implementation.
 - **The order of checks.** When an input fails more than one check, which
   refusal is reported, unless a page fixes an order because the order is
   observable in a way that matters. Some pages fix one; among them:
+  - message-format.md, Message size, fixes the size checks first. A send
+    checks the plaintext's length before every other check, the refusal of
+    a failed agreement included. A receive, on a session or in responder
+    establishment, applies the size rule before every other check: before
+    the frame is decoded or copied, before `NotARepeatedInitial`, the
+    refusal of a failed agreement, any prekey lookup, decapsulation,
+    agreement or random draw. The order is observable: an input that is
+    too long is refused as too long, with no random value drawn and the
+    session, the prekey store and its replay record unchanged, even when
+    it also has an unknown version byte or a wrong or unknown type byte,
+    is otherwise malformed, names prekeys the store does not hold, is not
+    the session's repeat, or arrives at a session whose agreement has
+    failed (message-format.md, Message size, Precedence). The same input
+    within the bounds keeps the refusal it had without the rule.
+  - mlkem-braid.md, Failure, fixes the order of a failed session's receive
+    refusals within the size bounds: a frame that is not an initial frame
+    is refused with `AgreementFailed` before it is decoded; an initial
+    frame is decoded and compared with the session's own initial message
+    first, so it meets a decode failure or `NotARepeatedInitial` before
+    `AgreementFailed`, which only a genuine repeat reaches. The order is
+    observable in the refusal reported; none of these refusals changes the
+    session or draws a random value.
   - session-establishment.md fixes the initiator's, and says why. She
     refuses a malformed expectation before any check of Sending the initial
     message. She checks the bundle's identity key against her expectation

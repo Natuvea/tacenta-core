@@ -295,31 +295,31 @@ MUTANTS = [
     # The public `decrypt` on frames that are not initial messages.  Plants in the renamed copy of the
     # generated body; each refused in the copied step lemma that unfolds it.
     ('decryptcopy', 'passthrough-success-keeps-pending-initial',
-     [(r'\n      ok \(core\.result\.Result\.Ok val, \{ self1 with pending_initial := none \},\n        rng1\)',
-       '\n      ok (core.result.Result.Ok val, self1,\n        rng1)')], PROOF,
+     [(r'\n        ok \(core\.result\.Result\.Ok val, \{ self1 with pending_initial := none \},\n          rng1\)',
+       '\n        ok (core.result.Result.Ok val, self1,\n          rng1)')], PROOF,
      ['decrypt_passthrough_step_refines_ctl']),
     ('decryptcopy', 'passthrough-refusal-clears-pending-initial',
-     [(r'\n      ok \(r1, self1, rng1\)\n  \| some mt =>',
-       '\n      ok (r1, { self1 with pending_initial := none }, rng1)\n  | some mt =>')], PROOF,
+     [(r'\n        ok \(r2, self1, rng1\)\n    \| some mt =>',
+       '\n        ok (r2, { self1 with pending_initial := none }, rng1)\n    | some mt =>')], PROOF,
      ['decrypt_passthrough_step_refines_ctl']),
     ('decryptcopy', 'none-arm-refuses-without-the-inner-step',
-     [(r'\n  \| none =>\n(?:    [^\n]*\n)+(?=  \| some mt =>)',
-       '\n  | none =>\n    ok (core.result.Result.Err lifecycle.Error.NotARepeatedInitial, self, rng)\n')],
+     [(r'\n    \| none =>\n(?:      [^\n]*\n)+(?=    \| some mt =>)',
+       '\n    | none =>\n      ok (core.result.Result.Err lifecycle.Error.NotARepeatedInitial, self, rng)\n')],
      PROOF, ['decrypt_passthrough_step_refines_ctl']),
     ('decryptcopy', 'passthrough-refusal-returns-the-input-source',
-     [(r'\n      ok \(r1, self1, rng1\)\n  \| some mt =>',
-       '\n      ok (r1, self1, rng)\n  | some mt =>')], PROOF,
+     [(r'\n        ok \(r2, self1, rng1\)\n    \| some mt =>',
+       '\n        ok (r2, self1, rng)\n    | some mt =>')], PROOF,
      ['decrypt_passthrough_step_refines_ctl']),
     ('decryptcopy', 'inner-call-without-the-first-byte',
-     [(r'\n    let inner ← alloc\.slice\.Slice\.to_vec core\.clone\.CloneU8 message\n',
-       '\n    let inner ← alloc.slice.Slice.to_vec core.clone.CloneU8 (Aeneas.Std.Slice.drop message 1#usize)\n')],
+     [(r'\n      let inner ← alloc\.slice\.Slice\.to_vec core\.clone\.CloneU8 message\n',
+       '\n      let inner ← alloc.slice.Slice.to_vec core.clone.CloneU8 (Aeneas.Std.Slice.drop message 1#usize)\n')],
      PROOF, ['decrypt_passthrough_step_refines_ctl']),
     # On a copy of the module, without its pins.
     ('decrypt', 'join-target-without-the-dispatch',
      [(r'        \(Model\.Lifecycle\.decrypt view oracle model \(sliceOf message\)\) := by\n'
-       r'  obtain ⟨innerOutput',
+       r'  by_cases hlong',
        '        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by\n'
-       '  obtain ⟨innerOutput')], PROOF, ['decrypt_refines_ratchet_frame']),
+       '  by_cases hlong')], PROOF, ['decrypt_refines_ratchet_frame']),
     # `hframe` deleted from the join, and the one step that used it left open: the refusal must be an
     # unsolved goal in the initial-message case, not an unknown identifier.
     ('decrypt', 'join-without-the-scope-premise',

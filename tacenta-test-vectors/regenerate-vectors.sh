@@ -5,8 +5,9 @@
 # commit the result; `tooling/ci.sh` and the public `proofs` CI job run this
 # and fail on a difference between the model and the committed files.
 #
-# Thirty-five files from the model, all under vectors/: the Double Ratchet scenarios, the
-# PQXDH shared secrets, the message and initial-message encodings, the nine
+# Thirty-six files from the model, all under vectors/: the Double Ratchet scenarios, the
+# PQXDH shared secrets, the message and initial-message encodings, the size
+# rule's frame-size table, the nine
 # post-quantum derivation files and the two erasure-code files beside them, the
 # erasure coders' two persisted formats and the six persisted states (the two
 # ratchets', the Triple Ratchet's, the Braid's, the prekey store's and the
@@ -58,6 +59,7 @@ generate ""            "$here/vectors/ratchet/double-ratchet.json"
 generate pqxdh         "$here/vectors/session-establishment/pqxdh-sk.json"
 generate serialization "$here/vectors/serialization/message-encoding.json"
 generate initial       "$here/vectors/serialization/initial-message.json"
+generate frame-size    "$here/vectors/serialization/frame-size.json"
 
 # The post-quantum derivations. The five crates below them were transcribed by
 # hand from these Lean models, and these vectors are what pin the transcription.

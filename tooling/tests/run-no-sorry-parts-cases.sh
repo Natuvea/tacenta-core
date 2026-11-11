@@ -114,18 +114,24 @@ py_stubs=(
   check-lifecycle-translation-coverage.py
   check-receive-preservation-negatives.py
   check-atomicity-negatives.py
+  check-decrypt-compose-negatives.py
+  check-decrypt-preservation-negatives.py
   check-repair-negatives.py
   check-responder-establish-replay-negatives.py
   check-send-refusal-negatives.py
+  check-size-rule-negatives.py
+  check-size-witness-negatives.py
   check-sparse-skip-kind-negatives.py
   check-sparse-store-full-negatives.py
   check-tampered-reply-negatives.py
   check-decrypt-ratchet-negatives.py
   check-established-negatives.py
+  check-import-budget-negatives.py
   check-initiator-repeated-reply-negatives.py
   check-initiator-second-message-negatives.py
   check-restored-negatives.py
   check-encrypt-negatives.py
+  check-encrypt-preservation-negatives.py
   check-responder-negatives.py
   check-responder-frame-negatives.py
   check-responder-receipt-negatives.py
@@ -133,12 +139,16 @@ py_stubs=(
   check-responder-successor-negatives.py
   check-responder-reply-negatives.py
   check-responder-reply-receipt-negatives.py
+  check-responder-restored-negatives.py
+  check-responder-restored-witness-negatives.py
   check-responder-second-receipt-negatives.py
   check-responder-second-send-negatives.py
   check-send-preservation-negatives.py
   check-discharge-native-decide-negatives.py
+  check-encrypt-compose-negatives.py
   check-initiator-second-send-negatives.py
   check-kdf-realisation-negatives.py
+  check-out-of-order-receive-negatives.py
   attest.py
 )
 for s in "${py_stubs[@]}"; do

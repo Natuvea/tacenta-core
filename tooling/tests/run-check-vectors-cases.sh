@@ -13,6 +13,11 @@
 # The identity-record cases add those files: an invalid vector that names no
 # refusal, `acceptable_refusals` beside a `refusal`, on a valid vector, with a
 # refusal repeated or with one refusal, and a refusal the schema does not name.
+# The frame-size cases add the size rule's file, whose admitted vectors carry
+# `fields.decodes` (schema/frame-size-fields.schema.json): the field missing,
+# mistyped, out of its enum, beside an extra field, or declaring a value the
+# frame does not give (both directions), a wrong `ratchet_message_length`, and a
+# `result` the size rule contradicts.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -29,6 +34,7 @@ make_case() {
   cp "$root/tooling/check-vectors.py" "$dst/tooling/check-vectors.py"
   cp "$root/tacenta-test-vectors/schema/vector.schema.json" \
     "$root/tacenta-test-vectors/schema/ratchet-vector.schema.json" \
+    "$root/tacenta-test-vectors/schema/frame-size-fields.schema.json" \
     "$dst/tacenta-test-vectors/schema/"
   cp "$root/tacenta-test-vectors/runners/rust/src/lib.rs" \
     "$dst/tacenta-test-vectors/runners/rust/src/lib.rs"
@@ -226,4 +232,59 @@ make_identity_case identity-unknown-refusal
 edit_identity_file identity-unknown-refusal identity-lookup.json 'named["refusal"] = "unlucky"'
 expect_fail identity-unknown-refusal "'unlucky' is not one of"
 
-echo 'check-vectors-cases: pass cases and 17 refusal cases gave the expected result'
+make_frame_size_case() {
+  local name="$1" edit="$2"
+  make_case "$name"
+  mkdir -p "$work/$name/tacenta-test-vectors/vectors/serialization"
+  cp "$root/tacenta-test-vectors/vectors/serialization/frame-size.json" \
+    "$work/$name/tacenta-test-vectors/vectors/serialization/"
+  python3 - "$work/$name/tacenta-test-vectors/vectors/serialization/frame-size.json" "$edit" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+by_id = {v["id"]: v for v in data["vectors"]}
+exec(sys.argv[2])
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+}
+
+make_frame_size_case frame-size-pass 'pass'
+python3 "$work/frame-size-pass/tooling/check-vectors.py"
+
+make_frame_size_case frame-size-extra-field \
+  'by_id["empty-frame"]["fields"]["refused_next_by"] = "00"'
+expect_fail frame-size-extra-field "(empty-frame).fields: unexpected field 'refused_next_by'"
+
+make_frame_size_case frame-size-decodes-missing \
+  'del by_id["initial-unknown-prekeys-at-the-bound"]["fields"]["decodes"]'
+expect_fail frame-size-decodes-missing "(initial-unknown-prekeys-at-the-bound).fields: missing required field 'decodes'"
+
+make_frame_size_case frame-size-decodes-number \
+  'by_id["ratchet-at-the-bound"]["fields"]["decodes"] = 1'
+expect_fail frame-size-decodes-number "(ratchet-at-the-bound).fields.decodes: 1 is not one of"
+
+make_frame_size_case frame-size-decodes-out-of-enum \
+  'by_id["ratchet-at-the-bound"]["fields"]["decodes"] = "02"'
+expect_fail frame-size-decodes-out-of-enum "(ratchet-at-the-bound).fields.decodes: '02' is not one of"
+
+make_frame_size_case frame-size-decodes-wrong-initial \
+  'by_id["initial-unknown-prekeys-at-the-bound"]["fields"]["decodes"] = "00"'
+expect_fail frame-size-decodes-wrong-initial "(initial-unknown-prekeys-at-the-bound).fields.decodes: declared '00', but the frame's next decoder accepts it (01)"
+
+make_frame_size_case frame-size-decodes-wrong-ratchet \
+  'by_id["unknown-version-ratchet-type-at-the-bound"]["fields"]["decodes"] = "01"'
+expect_fail frame-size-decodes-wrong-ratchet "(unknown-version-ratchet-type-at-the-bound).fields.decodes: declared '01', but the frame's next decoder refuses it (00)"
+
+make_frame_size_case frame-size-decodes-wrong-malformed-key \
+  'by_id["initial-malformed-curve-byte-nested-at-the-bound"]["fields"]["decodes"] = "01"'
+expect_fail frame-size-decodes-wrong-malformed-key "(initial-malformed-curve-byte-nested-at-the-bound).fields.decodes: declared '01'"
+
+make_frame_size_case frame-size-span-wrong \
+  'by_id["initial-at-the-bound"]["fields"]["ratchet_message_length"] = "00100087"'
+expect_fail frame-size-span-wrong "(initial-at-the-bound).fields.ratchet_message_length: declared '00100087', the frame gives '00100086'"
+
+make_frame_size_case frame-size-result-wrong \
+  'v = by_id["ratchet-one-over"]; v.pop("result"); v.pop("refusal"); v["fields"] = {"ratchet_message_length": "00100087", "decodes": "01"}'
+expect_fail frame-size-result-wrong "(ratchet-one-over): result 'valid', but the size rule refuses this frame"
+
+echo 'check-vectors-cases: pass cases and 26 refusal cases gave the expected result'

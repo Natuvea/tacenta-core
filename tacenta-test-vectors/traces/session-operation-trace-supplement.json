@@ -1,0 +1,428 @@
+{
+  "schema_version": 2,
+  "algorithm": "session-operation-trace-supplement",
+  "source": "tacenta-spec/protocol/message-format.md (Message size: the sender's rule, the receiver's rule (the size rule), Precedence, and the effects of both refusals); tacenta-spec/protocol/error-handling.md (Conditions a caller must act on are named: PlaintextTooLong; A frame the size rule refuses is a decode failure; The order of checks); tacenta-spec/protocol/session-establishment.md (Sending the initial message; Receiving the initial message); tacenta-spec/protocol/mlkem-braid.md (Failure: 'it refuses encrypt and decrypt with AgreementFailed', and a plaintext or frame too long is refused as too long first)",
+  "provenance": "Supplement version 2 to session-operation-trace.json, added by the maintainer account with tool assistance, with tacenta-core, the model and the Rust runner in view. Not independently authored, and not read by the P6 operation reader (specification-only; written and run by a related party); a temporary disposition, to be accepted only after review of the exact change, and outside the specification-only reader's coverage until a specification-only reader pass (session-operation-trace-supplement.md, Provenance).",
+  "traces": [
+    {
+      "id": "send-plaintext-too-long-pending-and-established",
+      "comment": "Supplement trace 1: the sender's rule on a pending initiator's first initial message and on an established session; the refusal changes nothing and draws nothing, and a send of exactly MAX_PLAINTEXT_LEN bytes on the established session is accepted (message-format.md, Message size, the sender's rule; session-establishment.md, Sending the initial message).",
+      "fixtures": {
+        "alice-pending": "Alice's session, pending, just returned by establish-initiator against Bob's published bundle, before any send",
+        "alice-established": "Alice's session after Bob's reply to her first initial message has decrypted, so established"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "send",
+          "inputs": {
+            "session": "alice-pending",
+            "plaintext_length": "1048576"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "PlaintextTooLong"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "initiator",
+          "op": "send",
+          "inputs": {
+            "session": "alice-established",
+            "plaintext_length": "1048576"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "PlaintextTooLong"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "initiator",
+          "op": "send",
+          "inputs": {
+            "session": "alice-established",
+            "plaintext_length": "1048575"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "send-plaintext-too-long-before-agreement-failed",
+      "comment": "Supplement trace 2: on a session whose agreement has failed, a plaintext over MAX_PLAINTEXT_LEN is refused as PlaintextTooLong, the sender's rule being the send's first check, and a short one is then refused as AgreementFailed; neither changes the session (message-format.md, Message size, the sender's rule; mlkem-braid.md, Failure).",
+      "fixtures": {
+        "bob-failed": "Bob's responder session after an authenticated receive moved its Braid to Failed (as in version 1's braid-terminal-failure-persists-and-refuses)"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "send",
+          "inputs": {
+            "session": "bob-failed",
+            "plaintext_length": "1048576"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "PlaintextTooLong"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "send",
+          "inputs": {
+            "session": "bob-failed",
+            "plaintext_length": "1"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-responder-frame-too-long",
+      "comment": "Supplement trace 3: responder establishment refuses an initial message one byte over MAX_INITIAL_FRAME_LEN as too long, a decode failure, before any lookup; the store, its one-time prekeys and its replay record are unchanged and nothing is drawn, so the genuine message then establishes and consumes the one-time prekeys it names (message-format.md, Message size; session-establishment.md, Receiving the initial message).",
+      "fixtures": {
+        "bob-store": "Bob's prekey store, holding the one-time curve and KEM prekeys Alice's initial message names",
+        "alice-initial": "Alice's first initial message, whose ciphertext authenticates",
+        "alice-initial-oversized": "alice-initial followed by zero bytes up to MAX_INITIAL_FRAME_LEN + 1 = 1050363 bytes"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store",
+            "message": "alice-initial-oversized"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none",
+            "one_time_curve": "unchanged",
+            "one_time_kem": "unchanged",
+            "last_resort_record": "unchanged"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store",
+            "message": "alice-initial"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "one-time-keys-deleted",
+            "session": "responder-established",
+            "one_time_curve": "deleted",
+            "one_time_kem": "deleted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "receive-ratchet-frame-too-long",
+      "comment": "Supplement trace 4: an established session refuses a ratchet frame one byte over MAX_RATCHET_FRAME_LEN as too long, with no change and no draw, and then accepts the genuine message (message-format.md, Message size).",
+      "fixtures": {
+        "bob-established": "Bob's responder session, established from Alice's first initial message",
+        "alice-next": "Alice's next message to Bob, sent after his reply, whose ciphertext authenticates",
+        "alice-next-oversized": "alice-next followed by zero bytes up to MAX_RATCHET_FRAME_LEN + 1 = 1048711 bytes"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "bob-established",
+            "message": "alice-next-oversized"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "bob-established",
+            "message": "alice-next"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "receive-repeated-initial-nested-too-long",
+      "comment": "Supplement trace 5: a repeated initial message re-wrapped with an empty kem_ciphertext around a ratchet message one byte over MAX_RATCHET_FRAME_LEN is refused as too long by rule 2, although the whole frame is within MAX_INITIAL_FRAME_LEN and the session never reads kem_ciphertext; then the genuine repeat is accepted (message-format.md, Message size; session-establishment.md, Receiving the initial message).",
+      "fixtures": {
+        "bob-established": "Bob's responder session, established from Alice's first initial message",
+        "alice-repeat": "Alice's second initial message, a repeat of the first, sent while her session is still pending",
+        "alice-repeat-nested-oversized": "alice-repeat with its kem_ciphertext emptied (kem_ciphertext_len 0) and its ratchet message followed by zero bytes up to MAX_RATCHET_FRAME_LEN + 1 = 1048711 bytes, so a frame of 1048795 bytes"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-established",
+            "message": "alice-repeat-nested-oversized"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-established",
+            "message": "alice-repeat"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "receive-frame-too-long-before-agreement-failed",
+      "comment": "Supplement trace 6: a session whose agreement has failed refuses an oversized frame as too long, a decode failure, not as AgreementFailed, and draws nothing; a frame within the bounds is then refused as AgreementFailed (message-format.md, Message size; mlkem-braid.md, Failure).",
+      "fixtures": {
+        "bob-failed": "Bob's responder session after an authenticated receive moved its Braid to Failed",
+        "alice-repeat": "Alice's initial message for that session, a repeat of the one that established it, sent while her session is still pending",
+        "alice-repeat-oversized": "alice-repeat followed by zero bytes up to MAX_INITIAL_FRAME_LEN + 1 = 1050363 bytes"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat-oversized"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "receive-on-failed-session-in-order",
+      "comment": "Supplement trace 7: within the size bounds, a session whose agreement has failed refuses in the specified order (mlkem-braid.md, Failure, the order of a failed session's receive refusals): a frame that is not an initial frame meets AgreementFailed before any decode, even when it is malformed; an initial frame meets its decode failure or NotARepeatedInitial first, prekey identifiers named or not; only a repeat meets AgreementFailed. Every refusal leaves the session and Bob's prekey store unchanged and draws nothing.",
+      "fixtures": {
+        "bob-failed": "Bob's responder session after an authenticated receive moved its Braid to Failed; Bob's prekey store beside it",
+        "short-ratchet-frame": "a 50-byte frame with the version byte and the ratchet type byte and zeros after: too short to decode",
+        "alice-repeat-inner": "the ratchet message inside alice-repeat, given as a frame of its own: a well-formed ratchet message",
+        "alice-repeat-no-curve": "alice-repeat with the curve byte of its identity cleared, which the initial-message decoder refuses",
+        "other-initial-unknown-prekeys": "another handshake's first initial message to Bob, re-wrapped to name prekey identifiers 0xdeadbeef that no store holds",
+        "alice-repeat-unknown-prekeys": "alice-repeat re-wrapped to name prekey identifiers 0xdeadbeef: still a repeat, since a session compares only identity and ephemeral",
+        "alice-repeat": "Alice's initial message for that session, a repeat of the one that established it"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "short-ratchet-frame"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat-inner"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat-no-curve"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "other-initial-unknown-prekeys"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "NotARepeatedInitial"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat-unknown-prekeys"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-failed",
+            "message": "alice-repeat"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "AgreementFailed"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "random_draws": "none"
+          }
+        }
+      ]
+    },
+    {
+      "id": "control-plaintext-too-long-wrongly-accepted",
+      "comment": "Control: declares that a send of MAX_PLAINTEXT_LEN + 1 bytes on an established session is accepted. Every consumer must report this trace as failing.",
+      "fixtures": {
+        "alice-established": "Alice's session after Bob's reply to her first initial message has decrypted, so established"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "send",
+          "inputs": {
+            "session": "alice-established",
+            "plaintext_length": "1048576"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    }
+  ]
+}

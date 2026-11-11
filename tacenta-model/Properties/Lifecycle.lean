@@ -277,26 +277,84 @@ theorem decrypt_identity_frame (view : CodewordView) (oracle : Oracle)
       | mk next result remaining =>
           cases result <;> simpa [decrypt, hd, hr, identityFrame] using hf
 
-/-- The exact repeated-initial recognition rule: both stored key fields must
-    match by agreement class and identity; the ciphertext and three identifiers
-    are ignored. -/
+/-- The exact repeated-initial recognition rule: the size rule admits the
+    frame, and both stored key fields must match by agreement class and
+    identity; the ciphertext and three identifiers are ignored (the size rule
+    reads `kem_ciphertext_len` only to locate the ratchet message). -/
 theorem repeated_initial_accepted_iff (oracle : Oracle) (session : Session) (message inner : Bytes)
     (hInitial : messageType message = some .initial) :
     dispatchDecrypt oracle session message = .ok inner ↔
-      ∃ initial,
-        Model.Messages.decodeInitialDetailed message = .ok initial
-          ∧ repeatedInitial oracle session initial = true
-          ∧ initial.ratchetMessage = inner :=
+      frameTooLong message = false
+        ∧ ∃ initial,
+          Model.Messages.decodeInitialDetailed message = .ok initial
+            ∧ repeatedInitial oracle session initial = true
+            ∧ initial.ratchetMessage = inner :=
   dispatchDecrypt_initial_ok_iff oracle session message inner hInitial
 
 /-- A terminal agreement state makes encryption refuse without another state
-    transition or random draw. -/
+    transition or random draw.
+Since the message size bound the plaintext is at most `maxPlaintextLen` bytes (`hLen`); a longer one is refused
+`plaintextTooLong` first, also without a transition or a draw (`Model.Lifecycle.encrypt_plaintext_too_long`). -/
 theorem agreement_failed_encrypt_sticky (view : CodewordView) (oracle : Oracle)
     (session : Session) (plaintext : Bytes)
+    (hLen : plaintext.length ≤ maxPlaintextLen)
     (hFailed : agreementFailed session = true) :
     encrypt view oracle session plaintext =
       { session, result := .error .agreementFailed, oracle } :=
-  encrypt_terminal_guard view oracle session plaintext hFailed
+  encrypt_terminal_guard view oracle session plaintext hLen hFailed
+
+/-- The complement of the terminal guard's restriction: above the bound a
+    terminal session refuses as plaintext too long, still without a state
+    change or a draw. Together the two cover every plaintext. -/
+theorem agreement_failed_encrypt_too_long (view : CodewordView) (oracle : Oracle)
+    (session : Session) (plaintext : Bytes)
+    (hLen : maxPlaintextLen < plaintext.length) :
+    encrypt view oracle session plaintext =
+      { session, result := .error .plaintextTooLong, oracle } :=
+  encrypt_plaintext_too_long view oracle session plaintext hLen
+
+/-- A terminal session is unchanged by every encrypt, whichever refusal the
+    plaintext's length selects. -/
+theorem agreement_failed_encrypt_keeps_session (view : CodewordView) (oracle : Oracle)
+    (session : Session) (plaintext : Bytes)
+    (hFailed : agreementFailed session = true) :
+    (encrypt view oracle session plaintext).session = session := by
+  by_cases h : maxPlaintextLen < plaintext.length
+  · simp [encrypt_plaintext_too_long view oracle session plaintext h]
+  · simp [encrypt_terminal_guard view oracle session plaintext (by omega) hFailed]
+
+/-! ## Message size (message-format.md, Message size) -/
+
+/-- Every size refusal is a no-op on the session and the oracle: the sender's
+    rule on encrypt, and the size rule on decrypt. -/
+theorem size_refusals_are_no_ops (view : CodewordView) (oracle : Oracle)
+    (session : Session) (plaintext message : Bytes) :
+    (maxPlaintextLen < plaintext.length →
+      encrypt view oracle session plaintext =
+        { session, result := .error .plaintextTooLong, oracle })
+    ∧ (frameTooLong message = true →
+      decrypt view oracle session message =
+        { session, result := .error (.decode .tooLong), oracle }) :=
+  ⟨encrypt_plaintext_too_long view oracle session plaintext,
+    decrypt_frame_too_long view oracle session message⟩
+
+/-- The responder's size refusal is a no-op on the whole prekey store and the
+    oracle. -/
+theorem responder_size_refusal_is_no_op (view : CodewordView) (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes)
+    (hs : frameTooLong message = true) :
+    establishResponder view oracle identity store message =
+      { store, result := .error (.decode .tooLong), oracle } :=
+  establishResponder_frame_too_long view oracle identity store message hs
+
+/-- Conforming senders are never refused by the size rule's ratchet bound: an
+    admitted plaintext gives a ratchet frame within `maxRatchetFrameLen`, and
+    with the 1,652-byte wrapper an initial frame within `maxInitialFrameLen`. -/
+theorem admitted_plaintext_fits (n : Nat) (h : n ≤ maxPlaintextLen) :
+    ratchetFrameLenOf n ≤ maxRatchetFrameLen
+      ∧ ratchetFrameLenOf n + initialWrapperLen ≤ maxInitialFrameLen := by
+  have := ratchetFrameLenOf_le n h
+  exact ⟨this, by simp only [maxInitialFrameLen]; omega⟩
 
 /-- Once dispatch has accepted the outer framing, a terminal agreement state
     makes decryption refuse without another state transition or random draw. -/

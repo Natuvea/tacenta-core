@@ -301,7 +301,9 @@ the frame with the reply's header (ratchet key `newPub`, 32 canonical bytes) and
 session's first agreement with `newPub` returns `dSend`, the oracle's next draw `c` agrees with `newPub`, `newPub`
 is not the peer key the session holds, and the oracle's open of `cT` under the AEAD keys of the message key the
 receive derives and the reply's associated data is refused, the step refuses `aead`, consumes the draw and leaves the
-session as it was. -/
+session as it was.
+The tampered frame passes the size rule (`hsizeT`), so the dispatch reaches the passthrough. A
+frame the rule refuses is refused `decode tooLong` first, with no effect (`Model.Lifecycle.decrypt_frame_too_long`). -/
 theorem tampered_reply_model_refusal (view : Model.Lifecycle.CodewordView) (oracleA : Model.Lifecycle.Oracle)
     (mA : Model.Lifecycle.Session) (a4 peer rkA cksA prk k1 k2 : Key) (e : Nat) (auth : Model.Braid.Auth)
     (dk ekVector : Model.Braid.Bytes) (enc : Model.Braid.Encoder)
@@ -316,11 +318,13 @@ theorem tampered_reply_model_refusal (view : Model.Lifecycle.CodewordView) (orac
         (Model.State.messageKeys (firstKey (Model.State.kdfRk rkA dSend .tacenta).2 k2) .tacenta).1
         (Model.State.messageKeys (firstKey (Model.State.kdfRk rkA dSend .tacenta).2 k2) .tacenta).2.1
         (Model.State.messageKeys (firstKey (Model.State.kdfRk rkA dSend .tacenta).2 k2) .tacenta).2.2
-        cT (replyAd mA.identityAd newPub) = none) :
+        cT (replyAd mA.identityAd newPub) = none)
+    (hsizeT : Model.Lifecycle.frameTooLong
+      (Model.CompositeHeader.encodeMessage (replyComposite newPub) cT) = false) :
     Model.Lifecycle.decrypt view oracleA mA (Model.CompositeHeader.encodeMessage (replyComposite newPub) cT) =
       { session := mA, result := .error .aead, oracle := { oracleA with draws := rest } } := by
   have hdisp := Model.Lifecycle.dispatchDecrypt_passthrough oracleA mA
-    (Model.CompositeHeader.encodeMessage (replyComposite newPub) cT)
+    (Model.CompositeHeader.encodeMessage (replyComposite newPub) cT) hsizeT
     (by simp [Model.CompositeHeader.encodeMessage, Model.CompositeHeader.encode, Model.Lifecycle.messageType])
   have hdec : Model.CompositeHeader.decodeDetailed
       (Model.CompositeHeader.encodeMessage (replyComposite newPub) cT) = .ok (replyComposite newPub, cT) := by
@@ -384,13 +388,19 @@ open Tacenta.UnitLifecycleResponderReplyReceipt (fresh_public_of_draw initiator_
 receiving chain derives, and the initiator's public `decrypt` of `bytesR` at `s'` from `rng'` returns `Ok ptA` with
 `ptA` the bytes of `ptR`, taking exactly the draw `dA`; the reply's own ciphertext, the bytes of `bytesR` after its
 first 102, carries its tag under the reply's MAC key and associated data, so `NotTagged` excludes it; and for every
-slice `frame` whose bytes are the first 102 bytes of `bytesR` (the reply's header) followed by bytes `cT` that are
+slice `frame` that passes the size rule and whose bytes are the first 102 bytes of `bytesR` (the reply's header)
+followed by bytes `cT` that are
 `NotTagged` under that MAC key and that associated data (the per-run premise), the same call on `frame` at `s'` from
 `rng'` returns `Err(Aead)`, returns the session `s'` as it was, and leaves a source holding exactly the draws after
 `dA`.  A frame whose header bytes differ is not covered.  Conditional, like every encrypt result, on `AeadSealBounded`,
 which has no length premise and is false of the shipping seal at the top of the length range, and on the decrypt oracle
 record's open clause (`AeadOpenTotal`), used at the tampered ciphertext's length, which is false, by reading, from about
-`2^61` bytes on a 64-bit target built with overflow checks.  No compiler-trust axiom (the pin). -/
+`2^61` bytes on a 64-bit target built with overflow checks.  No compiler-trust axiom (the pin).
+Since the message size bound the reply plaintext `ptR` is at most `MAX_RATCHET_FRAME_LEN - 150` (1,048,560) bytes
+(`hfitR`), so that the frame carrying it passes the size rule. That is 15 lengths short of `MAX_PLAINTEXT_LEN`: for
+plaintexts of 1,048,561 to 1,048,575 bytes, which the code sends and the size rule admits, no theorem here states the
+outcome, because `AeadSealBounded` bounds the sealed output by the plaintext plus 48 bytes and not by its padded
+length. -/
 theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (hu : AeadOpenChecksTag) (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -442,7 +452,8 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
     (ptB : alloc.vec.Vec U8) (sB' : lifecycle.Session) (storeB' : lifecycle.PrekeyStore) (rngB' : F)
     (hcallB : lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =
       ok (core.result.Result.Ok (sB', ptB), storeB', rngB'))
-    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max) (rngR : F)
+    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max)
+    (hfitR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length + 150 ≤ Model.Lifecycle.maxRatchetFrameLen) (rngR : F)
     (hfreshB : oracleB.dhPublic dB ≠ arrayOf q.peerRatchetBytes) :
     ∃ (dSend : Model.Lifecycle.Key) (bytesR : alloc.vec.Vec Std.U8) (sB'' : lifecycle.Session)
       (ptA : alloc.vec.Vec Std.U8) (s'' : lifecycle.Session) (rngA' : R),
@@ -458,6 +469,7 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
         (replyAd (vecOf q.identityAd) (oracleB.dhPublic dB)) ((vecOf bytesR).drop 102) ∧
       ∀ (frame : Slice Std.U8) (cT : Model.Lifecycle.Bytes),
         sliceOf frame = (vecOf bytesR).take 102 ++ cT →
+        Model.Lifecycle.frameTooLong (sliceOf frame) = false →
         NotTagged
           (Model.State.messageKeys (firstKey (Model.State.kdfRk (arrayOf q.rootKey) dSend .tacenta).2
             (arrayOf q.sparseReceive)) .tacenta).2.1
@@ -465,20 +477,23 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
         ∃ rngT : R,
           lifecycle.Session.decrypt rc crc s' frame rng' =
             ok (core.result.Result.Err lifecycle.Error.Aead, s', rngT) ∧ trace rngT = restA := by
+  have hlenR : (UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen := by
+    rw [Model.Lifecycle.maxRatchetFrameLen_value] at hfitR
+    simp only [Model.Lifecycle.maxPlaintextLen]; omega
   -- the honest reply, accepted
   obtain ⟨dSend, -, bytesR, sB'', ptA, s'', rngA', hagreeB, -, hcallR, hbytesR, hcallA, hpt, hdr, -⟩ :=
     initiator_receives_reply rc crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec
       codewordView hz80 hz32 hzKeys hgen hsizes hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h q hq
       plaintext hroom rng htrace d1 d2 rest hdraws bytes s' rng' hcall contractsA agreementsA dA restA hdrawA rcB
       crcB contracts hpub hsym hcon haead hrt hoeq traceB oracleB oracleOfB braidB agreements ourB storeB hpublish
-      hidentity hdistinct hkem rngB htraceB dB restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR rngR hfreshB
+      hidentity hdistinct hkem rngB htraceB dB restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR hfitR rngR hfreshB
   -- the same run: the key generation of the first send, and the responder's agreement
   obtain ⟨-, -, dSend', dk, ekSeed, ekVector, -, -, hkg, -, hagreeB', -⟩ :=
     initiator_first_send_responder_replies rc crc trace dh kem view oracle braid triple aead dhCodec oracleOf
       codec codewordView hz80 hz32 hzKeys hgen hsizes hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h q hq
       plaintext hroom rng htrace d1 d2 rest hdraws bytes s' rng' hcall rcB crcB contracts hpub hsym hcon haead hrt
       hoeq traceB oracleB oracleOfB braidB agreements ourB storeB hpublish hidentity hdistinct hkem rngB htraceB dB
-      restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR rngR
+      restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR hlenR rngR
   rw [hagreeB] at hagreeB'
   cases hagreeB'
   -- the session the first send left: invariant, relation, ceilings, honest chunks
@@ -488,7 +503,9 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
       agreementsA.kemLen agreementsA.validateEk hsizes contracts.divCeilValue rcE crcE ourA bundleA expected rng0
       rng1 s h plaintext hroom rng htrace ⟨d1, d2, rest, hdraws⟩ bytes s' rng' hcall
   subst hq
-  obtain ⟨encoder, hmA⟩ := first_send_model_session dh view oracle q (sliceOf plaintext) d1 d2 rest
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc q.session plaintext rng bytes s' rng'
+    hcall
+  obtain ⟨encoder, hmA⟩ := first_send_model_session dh view oracle q (sliceOf plaintext) hfits d1 d2 rest
     (htrace.symm.trans hdraws) dk ekSeed ekVector hkg
   -- the reply's ratchet key, the initiator's first agreement with it, and its draw's agreement with it
   obtain ⟨-, k, pk, b, -, -, hkd, hpk, -, hcan, hpkb, hnew⟩ :=
@@ -520,7 +537,7 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
   · rw [hbytesR, replyFrame_drop _ _ _ _ _ hlen]
     exact not_notTagged_of_seal hu haead oracleOfB _ _ _ hk1 hk2 hiv ptR (by omega) _ had
   -- a frame with the reply's header and a ciphertext that carries no tag
-  intro frame cT hframeT hns
+  intro frame cT hframeT hsizeF hns
   rw [hbytesR, replyFrame_take _ _ _ _ _ hlen] at hframeT
   have hmsg : sliceOf frame = Model.CompositeHeader.encodeMessage (replyComposite (oracleB.dhPublic dB)) cT :=
     hframeT
@@ -560,6 +577,7 @@ theorem initiator_refuses_tampered_reply [Tacenta.SessionUnitT1.DerivedKeysModel
     (arrayOf q.sparseSend) (arrayOf q.sparseReceive) 1 (Tacenta.SessionUnitBraidT3.AuthOf q.auth) dk ekVector
     encoder (by simp only [mA, hmA]) (by simp only [mA, hmA]) (oracleB.dhPublic dB) dSend cT hlen hkey
     (by simp only [mA, hmA]; exact hagreeA) dA restA x hdrA hx hfreshB (by rw [hadA]; exact hopen)
+    (by rw [← hmsg]; exact hsizeF)
   obtain ⟨res, sT, rngT⟩ := output
   have hres := hstep.result
   have hdrT := hstep.draws
@@ -1539,17 +1557,21 @@ info: Tacenta.UnitLifecycleTamperedReply.tampered_reply_model_refusal : ∀ (vie
                                   Model.State.LabelSet.tacenta).2.2
                             cT (Tacenta.UnitLifecycleResponderReplyReceipt.replyAd mA.identityAd newPub) =
                           none →
-                        Model.Lifecycle.decrypt view oracleA mA
-                            (Model.CompositeHeader.encodeMessage
-                              (Tacenta.UnitLifecycleResponderReply.replyComposite newPub) cT) =
-                          { session := mA, result := Except.error Model.Lifecycle.Refusal.aead,
-                            oracle :=
-                              { draws := rest, braidKem := oracleA.braidKem, dhPublic := oracleA.dhPublic,
-                                dhAgree := oracleA.dhAgree, identityValid := oracleA.identityValid,
-                                aeadSeal := oracleA.aeadSeal, aeadOpen := oracleA.aeadOpen,
-                                kemValid := oracleA.kemValid, kemEncaps := oracleA.kemEncaps,
-                                kemDecaps := oracleA.kemDecaps, sigVerify := oracleA.sigVerify,
-                                sigSign := oracleA.sigSign } }
+                        Model.Lifecycle.frameTooLong
+                              (Model.CompositeHeader.encodeMessage
+                                (Tacenta.UnitLifecycleResponderReply.replyComposite newPub) cT) =
+                            false →
+                          Model.Lifecycle.decrypt view oracleA mA
+                              (Model.CompositeHeader.encodeMessage
+                                (Tacenta.UnitLifecycleResponderReply.replyComposite newPub) cT) =
+                            { session := mA, result := Except.error Model.Lifecycle.Refusal.aead,
+                              oracle :=
+                                { draws := rest, braidKem := oracleA.braidKem, dhPublic := oracleA.dhPublic,
+                                  dhAgree := oracleA.dhAgree, identityValid := oracleA.identityValid,
+                                  aeadSeal := oracleA.aeadSeal, aeadOpen := oracleA.aeadOpen,
+                                  kemValid := oracleA.kemValid, kemEncaps := oracleA.kemEncaps,
+                                  kemDecaps := oracleA.kemDecaps, sigVerify := oracleA.sigVerify,
+                                  sigSign := oracleA.sigSign } }
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleTamperedReply.tampered_reply_model_refusal
@@ -1680,137 +1702,146 @@ info: @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply : ∀
                                                                                                                       ((↑ptR).length +
                                                                                                                         48) ≤
                                                                                                                     Usize.max →
-                                                                                                                  ∀
-                                                                                                                    (rngR :
-                                                                                                                      F),
-                                                                                                                    oracleB.dhPublic
-                                                                                                                          dB ≠
-                                                                                                                        Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                          q.peerRatchetBytes →
-                                                                                                                      ∃
-                                                                                                                        dSend
-                                                                                                                        bytesR
-                                                                                                                        sB''
-                                                                                                                        ptA
-                                                                                                                        s''
-                                                                                                                        rngA',
-                                                                                                                        oracleB.dhAgree
-                                                                                                                              dB
-                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                q.ratchetBytes) =
-                                                                                                                            some
-                                                                                                                              dSend ∧
-                                                                                                                          lifecycle.Session.encrypt
-                                                                                                                                rcB
-                                                                                                                                crcB
-                                                                                                                                sB'
-                                                                                                                                ptR
-                                                                                                                                rngR =
-                                                                                                                              ok
-                                                                                                                                (core.result.Result.Ok
-                                                                                                                                    bytesR,
-                                                                                                                                  sB'',
-                                                                                                                                  rngR) ∧
-                                                                                                                            Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                  bytesR =
-                                                                                                                                Tacenta.UnitLifecycleResponderReply.replyFrame
-                                                                                                                                  oracleB
-                                                                                                                                  (Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                    q.identityAd)
-                                                                                                                                  (oracleB.dhPublic
-                                                                                                                                    dB)
-                                                                                                                                  (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
-                                                                                                                                    (Model.State.kdfRk
-                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                          q.rootKey)
-                                                                                                                                        dSend
-                                                                                                                                        Model.State.LabelSet.tacenta).2
-                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                      q.sparseReceive))
-                                                                                                                                  (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                    ptR) ∧
-                                                                                                                              lifecycle.Session.decrypt
-                                                                                                                                    rc
-                                                                                                                                    crc
-                                                                                                                                    s'
-                                                                                                                                    bytesR.deref
-                                                                                                                                    rng' =
-                                                                                                                                  ok
-                                                                                                                                    (core.result.Result.Ok
-                                                                                                                                        ptA,
-                                                                                                                                      s'',
-                                                                                                                                      rngA') ∧
-                                                                                                                                ↑ptA =
-                                                                                                                                    ↑ptR ∧
-                                                                                                                                  trace
-                                                                                                                                        rngA' =
-                                                                                                                                      restA ∧
-                                                                                                                                    ¬Tacenta.UnitLifecycleTamperedReply.NotTagged
-                                                                                                                                          (Model.State.messageKeys
-                                                                                                                                                (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
-                                                                                                                                                  (Model.State.kdfRk
-                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                        q.rootKey)
-                                                                                                                                                      dSend
-                                                                                                                                                      Model.State.LabelSet.tacenta).2
-                                                                                                                                                  (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                    q.sparseReceive))
-                                                                                                                                                Model.State.LabelSet.tacenta).2.1
-                                                                                                                                          (Tacenta.UnitLifecycleResponderReplyReceipt.replyAd
-                                                                                                                                            (Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                              q.identityAd)
-                                                                                                                                            (oracleB.dhPublic
-                                                                                                                                              dB))
-                                                                                                                                          (List.drop
-                                                                                                                                            102
-                                                                                                                                            (Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                              bytesR)) ∧
-                                                                                                                                      ∀
-                                                                                                                                        (frame :
-                                                                                                                                          Slice
-                                                                                                                                            U8)
-                                                                                                                                        (cT :
-                                                                                                                                          Model.Lifecycle.Bytes),
-                                                                                                                                        Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                                              frame =
-                                                                                                                                            List.take
-                                                                                                                                                102
-                                                                                                                                                (Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                                  bytesR) ++
-                                                                                                                                              cT →
-                                                                                                                                          Tacenta.UnitLifecycleTamperedReply.NotTagged
-                                                                                                                                              (Model.State.messageKeys
-                                                                                                                                                    (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
-                                                                                                                                                      (Model.State.kdfRk
+                                                                                                                  List.length
+                                                                                                                          (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                            ptR) +
+                                                                                                                        150 ≤
+                                                                                                                      Model.Lifecycle.maxRatchetFrameLen →
+                                                                                                                    ∀
+                                                                                                                      (rngR :
+                                                                                                                        F),
+                                                                                                                      oracleB.dhPublic
+                                                                                                                            dB ≠
+                                                                                                                          Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                            q.peerRatchetBytes →
+                                                                                                                        ∃
+                                                                                                                          dSend
+                                                                                                                          bytesR
+                                                                                                                          sB''
+                                                                                                                          ptA
+                                                                                                                          s''
+                                                                                                                          rngA',
+                                                                                                                          oracleB.dhAgree
+                                                                                                                                dB
+                                                                                                                                (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                  q.ratchetBytes) =
+                                                                                                                              some
+                                                                                                                                dSend ∧
+                                                                                                                            lifecycle.Session.encrypt
+                                                                                                                                  rcB
+                                                                                                                                  crcB
+                                                                                                                                  sB'
+                                                                                                                                  ptR
+                                                                                                                                  rngR =
+                                                                                                                                ok
+                                                                                                                                  (core.result.Result.Ok
+                                                                                                                                      bytesR,
+                                                                                                                                    sB'',
+                                                                                                                                    rngR) ∧
+                                                                                                                              Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                    bytesR =
+                                                                                                                                  Tacenta.UnitLifecycleResponderReply.replyFrame
+                                                                                                                                    oracleB
+                                                                                                                                    (Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                      q.identityAd)
+                                                                                                                                    (oracleB.dhPublic
+                                                                                                                                      dB)
+                                                                                                                                    (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                                                                                                                      (Model.State.kdfRk
+                                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                            q.rootKey)
+                                                                                                                                          dSend
+                                                                                                                                          Model.State.LabelSet.tacenta).2
+                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                        q.sparseReceive))
+                                                                                                                                    (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                      ptR) ∧
+                                                                                                                                lifecycle.Session.decrypt
+                                                                                                                                      rc
+                                                                                                                                      crc
+                                                                                                                                      s'
+                                                                                                                                      bytesR.deref
+                                                                                                                                      rng' =
+                                                                                                                                    ok
+                                                                                                                                      (core.result.Result.Ok
+                                                                                                                                          ptA,
+                                                                                                                                        s'',
+                                                                                                                                        rngA') ∧
+                                                                                                                                  ↑ptA =
+                                                                                                                                      ↑ptR ∧
+                                                                                                                                    trace
+                                                                                                                                          rngA' =
+                                                                                                                                        restA ∧
+                                                                                                                                      ¬Tacenta.UnitLifecycleTamperedReply.NotTagged
+                                                                                                                                            (Model.State.messageKeys
+                                                                                                                                                  (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                                                                                                                                    (Model.State.kdfRk
+                                                                                                                                                        (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                          q.rootKey)
+                                                                                                                                                        dSend
+                                                                                                                                                        Model.State.LabelSet.tacenta).2
+                                                                                                                                                    (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                      q.sparseReceive))
+                                                                                                                                                  Model.State.LabelSet.tacenta).2.1
+                                                                                                                                            (Tacenta.UnitLifecycleResponderReplyReceipt.replyAd
+                                                                                                                                              (Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                                q.identityAd)
+                                                                                                                                              (oracleB.dhPublic
+                                                                                                                                                dB))
+                                                                                                                                            (List.drop
+                                                                                                                                              102
+                                                                                                                                              (Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                                bytesR)) ∧
+                                                                                                                                        ∀
+                                                                                                                                          (frame :
+                                                                                                                                            Slice
+                                                                                                                                              U8)
+                                                                                                                                          (cT :
+                                                                                                                                            Model.Lifecycle.Bytes),
+                                                                                                                                          Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                frame =
+                                                                                                                                              List.take
+                                                                                                                                                  102
+                                                                                                                                                  (Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                                    bytesR) ++
+                                                                                                                                                cT →
+                                                                                                                                            Model.Lifecycle.frameTooLong
+                                                                                                                                                  (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                                                    frame) =
+                                                                                                                                                false →
+                                                                                                                                              Tacenta.UnitLifecycleTamperedReply.NotTagged
+                                                                                                                                                  (Model.State.messageKeys
+                                                                                                                                                        (Tacenta.UnitLifecycleResponderFirstReceipt.firstKey
+                                                                                                                                                          (Model.State.kdfRk
+                                                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                                                q.rootKey)
+                                                                                                                                                              dSend
+                                                                                                                                                              Model.State.LabelSet.tacenta).2
                                                                                                                                                           (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                            q.rootKey)
-                                                                                                                                                          dSend
-                                                                                                                                                          Model.State.LabelSet.tacenta).2
-                                                                                                                                                      (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                                                        q.sparseReceive))
-                                                                                                                                                    Model.State.LabelSet.tacenta).2.1
-                                                                                                                                              (Tacenta.UnitLifecycleResponderReplyReceipt.replyAd
-                                                                                                                                                (Tacenta.UnitLifecycleT3.vecOf
-                                                                                                                                                  q.identityAd)
-                                                                                                                                                (oracleB.dhPublic
-                                                                                                                                                  dB))
-                                                                                                                                              cT →
-                                                                                                                                            ∃
-                                                                                                                                              rngT,
-                                                                                                                                              lifecycle.Session.decrypt
-                                                                                                                                                    rc
-                                                                                                                                                    crc
-                                                                                                                                                    s'
-                                                                                                                                                    frame
-                                                                                                                                                    rng' =
-                                                                                                                                                  ok
-                                                                                                                                                    (core.result.Result.Err
-                                                                                                                                                        lifecycle.Error.Aead,
-                                                                                                                                                      s',
-                                                                                                                                                      rngT) ∧
-                                                                                                                                                trace
-                                                                                                                                                    rngT =
-                                                                                                                                                  restA
+                                                                                                                                                            q.sparseReceive))
+                                                                                                                                                        Model.State.LabelSet.tacenta).2.1
+                                                                                                                                                  (Tacenta.UnitLifecycleResponderReplyReceipt.replyAd
+                                                                                                                                                    (Tacenta.UnitLifecycleT3.vecOf
+                                                                                                                                                      q.identityAd)
+                                                                                                                                                    (oracleB.dhPublic
+                                                                                                                                                      dB))
+                                                                                                                                                  cT →
+                                                                                                                                                ∃
+                                                                                                                                                  rngT,
+                                                                                                                                                  lifecycle.Session.decrypt
+                                                                                                                                                        rc
+                                                                                                                                                        crc
+                                                                                                                                                        s'
+                                                                                                                                                        frame
+                                                                                                                                                        rng' =
+                                                                                                                                                      ok
+                                                                                                                                                        (core.result.Result.Err
+                                                                                                                                                            lifecycle.Error.Aead,
+                                                                                                                                                          s',
+                                                                                                                                                          rngT) ∧
+                                                                                                                                                    trace
+                                                                                                                                                        rngT =
+                                                                                                                                                      restA
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleTamperedReply.initiator_refuses_tampered_reply

@@ -171,10 +171,10 @@ MUTANTS = [
     ('module', 'composed-invariant-claimed-of-the-initiator-session',
      [("      lifecycle.Session.invariant sB' = ok true ∧\n"
        "      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by\n"
-       "  obtain ⟨output, hcall', hdr, hcases⟩",
+       "  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng\n",
        "      lifecycle.Session.invariant s' = ok true ∧\n"
        "      Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB' := by\n"
-       "  obtain ⟨output, hcall', hdr, hcases⟩")],
+       "  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng\n")],
      r"hinv\nhas type\n  sB'\.invariant = ok true\nbut is expected to have type\n  s'\.invariant = ok true\nin the application\n  And\.intro hinv",
      ['initiator_first_send_responder_successor_hypotheses']),
     ('module', 'relation-claimed-to-the-prepared-model',

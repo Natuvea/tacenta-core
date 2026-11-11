@@ -328,6 +328,9 @@ inductive Refusal where
   | legacyLastResortRecord
   | lastResortRecordFull
   | agreementFailed
+  /-- The sender's rule (message-format.md, Message size): a plaintext longer
+      than `maxPlaintextLen`. -/
+  | plaintextTooLong
   | ceiling
   deriving Repr, DecidableEq, Inhabited
 
@@ -460,6 +463,299 @@ theorem messageType_initial_iff (bytes : Bytes) :
             by_cases hr : second = 0x01 <;>
             by_cases hi : second = 0x02 <;>
             simp [hv, hr, hi, Model.Messages.typeRatchet, Model.Messages.typeInitial]
+
+/-! ## Message size (message-format.md, Message size)
+
+One chosen constant, `maxPlaintextLen`, and two bounds derived from it and
+from the formats. The sender's rule refuses a longer plaintext as the first
+step of `encrypt`; the size rule (`frameTooLong`) refuses a received frame as
+the first step of `decrypt` (through `dispatchDecrypt`) and of responder
+establishment (through `prepareResponder`). Both refusals return the session,
+the store and the oracle unchanged. -/
+
+/-- `MAX_PLAINTEXT_LEN` (CONSTANTS.md, Bounds): 2^20 − 1 bytes. -/
+def maxPlaintextLen : Nat := 1048575
+
+/-- The initial message's wrapper with ML-KEM-1024's 1,568-byte ciphertext:
+    version, type, `identity`, `ephemeral`, `kem_ciphertext_len`,
+    `kem_ciphertext` and the three identifiers (message-format.md, Initial
+    message). -/
+def initialWrapperLen : Nat := 2 + 33 + 33 + 4 + 1568 + 4 + 4 + 4
+
+/-- `MAX_RATCHET_FRAME_LEN`, derived: the 102-byte composite header, the
+    padded AES-CBC ciphertext of the longest plaintext, and the 32-byte tag. -/
+def maxRatchetFrameLen : Nat := 150 + 16 * (maxPlaintextLen / 16)
+
+/-- `MAX_INITIAL_FRAME_LEN`, derived. -/
+def maxInitialFrameLen : Nat := maxRatchetFrameLen + initialWrapperLen
+
+theorem maxPlaintextLen_value : maxPlaintextLen = 2 ^ 20 - 1 := by rfl
+theorem initialWrapperLen_value : initialWrapperLen = 1652 := by rfl
+theorem maxRatchetFrameLen_value : maxRatchetFrameLen = 1048710 := by rfl
+theorem maxInitialFrameLen_value : maxInitialFrameLen = 1050362 := by rfl
+
+/-- The ratchet frame a plaintext of `n` bytes gives: header 102, ciphertext
+    `16 * (n / 16 + 1)`, tag 32 (message-format.md, Message size). -/
+def ratchetFrameLenOf (n : Nat) : Nat := 102 + 16 * (n / 16 + 1) + 32
+
+/-- Every plaintext the sender's rule admits gives a ratchet frame within
+    `maxRatchetFrameLen`, and an initial frame within `maxInitialFrameLen`. -/
+theorem ratchetFrameLenOf_le (n : Nat) (h : n ≤ maxPlaintextLen) :
+    ratchetFrameLenOf n ≤ maxRatchetFrameLen := by
+  have hd : n / 16 ≤ maxPlaintextLen / 16 := Nat.div_le_div_right h
+  simp only [ratchetFrameLenOf, maxRatchetFrameLen]
+  omega
+
+/-- The ratchet bound is attained by `maxPlaintextLen` itself, and the next
+    plaintext length gives a longer frame: the bound is tight. -/
+theorem ratchetFrameLenOf_max :
+    ratchetFrameLenOf maxPlaintextLen = maxRatchetFrameLen
+      ∧ maxRatchetFrameLen < ratchetFrameLenOf (maxPlaintextLen + 1) := by
+  constructor
+  · rfl
+  · decide
+
+/-- Bytes 68 to 71 of a frame, big-endian (`kem_ciphertext_len` in an
+    initial frame), when the frame holds them. -/
+def initialKemLen? (frame : Bytes) : Option Nat :=
+  match Model.Messages.readBe32 (frame.drop 68) with
+  | some (k, _) => some k.toNat
+  | none => none
+
+/-- The length of the ratchet message a received frame carries, read from its
+    framing alone. For an initial frame it is located through the frame's own
+    `kem_ciphertext_len`, whatever value that declares; `none` when the frame
+    is too short to hold the field or the field runs past the end, which the
+    initial-message decoder refuses. Every other frame is its own ratchet
+    message. -/
+def ratchetSpan (frame : Bytes) : Option Nat :=
+  match messageType frame with
+  | some .initial =>
+      match initialKemLen? frame with
+      | none => none
+      | some k => if 84 + k ≤ frame.length then some (frame.length - (84 + k)) else none
+  | _ => some frame.length
+
+/-- The size rule (message-format.md, Message size): rule 1, the whole frame;
+    rules 2 and 3, the ratchet message it carries. -/
+def frameTooLong (frame : Bytes) : Bool :=
+  decide (maxInitialFrameLen < frame.length) ||
+    match ratchetSpan frame with
+    | some span => decide (maxRatchetFrameLen < span)
+    | none => false
+
+/-- Rule 1: a frame longer than `maxInitialFrameLen` is refused whatever it
+    is. -/
+theorem frameTooLong_of_long (frame : Bytes)
+    (h : maxInitialFrameLen < frame.length) : frameTooLong frame = true := by
+  simp [frameTooLong, h]
+
+/-- A frame the rule admits is at most `maxInitialFrameLen` bytes. -/
+theorem length_le_of_not_frameTooLong (frame : Bytes)
+    (h : frameTooLong frame = false) : frame.length ≤ maxInitialFrameLen := by
+  simp only [frameTooLong, Bool.or_eq_false_iff, decide_eq_false_iff_not] at h
+  omega
+
+/-- Rule 3: a frame the rule admits that is not an initial frame is at most
+    `maxRatchetFrameLen` bytes. -/
+theorem length_le_of_not_frameTooLong_not_initial (frame : Bytes)
+    (h : frameTooLong frame = false) (hi : messageType frame ≠ some .initial) :
+    frame.length ≤ maxRatchetFrameLen := by
+  have hs : ratchetSpan frame = some frame.length := by
+    cases ht : messageType frame with
+    | none => simp [ratchetSpan, ht]
+    | some kind =>
+        cases kind with
+        | ratchet => simp [ratchetSpan, ht]
+        | initial => exact (hi ht).elim
+  simp only [frameTooLong, hs, Bool.or_eq_false_iff, decide_eq_false_iff_not] at h
+  omega
+
+/-! ### What the decoders' successes say about lengths -/
+
+/-- A successful four-byte read consumes exactly four bytes. -/
+theorem readBe32_some_shape (xs rest : List UInt8) (k : UInt32)
+    (h : Model.Messages.readBe32 xs = some (k, rest)) :
+    xs.length = rest.length + 4 := by
+  match xs, h with
+  | b0 :: b1 :: b2 :: b3 :: tail, h =>
+      simp only [Model.Messages.readBe32, Option.some.injEq, Prod.mk.injEq] at h
+      rw [← h.2]; simp
+
+/-- A successful initial-message decode locates its ratchet message exactly
+    where the size rule does: `ratchetSpan` is the decoded ratchet message's
+    length. -/
+theorem decodeInitial_span (frame : Bytes) (initial : Initial)
+    (h : Model.Messages.decodeInitial frame = some initial) :
+    ratchetSpan frame = some initial.ratchetMessage.length := by
+  match frame, h with
+  | v :: t :: rest, h =>
+    simp only [Model.Messages.decodeInitial] at h
+    split at h
+    · simp at h
+    · rename_i hvt
+      simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, not_or, Decidable.not_not] at hvt
+      obtain ⟨hv, ht⟩ := hvt
+      simp only [Model.Messages.take?, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
+      obtain ⟨a, h1, a1, h2, _, _, _, _, _, _, _, _, a6, h6, a7, h7, a8, h8, a9, h9, a10, h10,
+        hp⟩ := h
+      have e1 : ¬ rest.length < 33 ∧ a = (rest.take 33, rest.drop 33) := by
+        split at h1 <;> simp_all
+      have e2 : ¬ a.snd.length < 33 ∧ a1 = (a.snd.take 33, a.snd.drop 33) := by
+        split at h2 <;> simp_all
+      have e7 : ¬ a6.snd.length < a6.fst.toNat
+          ∧ a7 = (a6.snd.take a6.fst.toNat, a6.snd.drop a6.fst.toNat) := by
+        split at h7 <;> simp_all
+      have hr : initial.ratchetMessage = a10.snd := by
+        simp only [pure, Option.some.injEq] at hp
+        rw [← hp]
+      have l6 := readBe32_some_shape _ _ _ h6
+      have l8 := readBe32_some_shape _ _ _ h8
+      have l9 := readBe32_some_shape _ _ _ h9
+      have l10 := readBe32_some_shape _ _ _ h10
+      obtain ⟨n1, rfl⟩ := e1
+      obtain ⟨n2, rfl⟩ := e2
+      obtain ⟨n7, rfl⟩ := e7
+      simp only [List.drop_drop, List.length_drop] at h6 l6 n2 l8 n7
+      have hk : Model.Messages.readBe32 (List.drop 66 rest) = some a6 := by
+        simpa [List.drop_drop] using h6
+      have hmt : messageType (v :: t :: rest) = some .initial := by
+        subst hv; subst ht
+        simp [messageType, Model.Messages.typeInitial, Model.Messages.typeRatchet]
+      have hkl : initialKemLen? (v :: t :: rest) = some a6.fst.toNat := by
+        simp [initialKemLen?, hk]
+      simp only [ratchetSpan, hmt, hkl, List.length_cons, hr]
+      rw [if_pos (by omega)]
+      congr 1
+      omega
+
+/-- A successful eight-byte read consumes exactly eight bytes. -/
+theorem readBe64_some_shape (xs rest : List UInt8) (k : UInt64)
+    (h : Model.CompositeHeader.readBe64 xs = some (k, rest)) :
+    xs.length = rest.length + 8 := by
+  match xs, h with
+  | b0 :: b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: tail, h =>
+      simp only [Model.CompositeHeader.readBe64, Option.some.injEq, Prod.mk.injEq] at h
+      rw [← h.2]; simp
+
+/-- A successful two-byte read consumes exactly two bytes. -/
+theorem readBe16_some_shape (xs rest : List UInt8) (k : UInt16)
+    (h : Model.CompositeHeader.readBe16 xs = some (k, rest)) :
+    xs.length = rest.length + 2 := by
+  match xs, h with
+  | b0 :: b1 :: tail, h =>
+      simp only [Model.CompositeHeader.readBe16, Option.some.injEq, Prod.mk.injEq] at h
+      rw [← h.2]; simp
+
+/-- A successful composite-header decode consumes exactly the 102-byte header;
+    what follows is the ciphertext. -/
+theorem composite_decode_rest_length (bs rest : Bytes)
+    (header : Model.CompositeHeader.Composite)
+    (h : Model.CompositeHeader.decode bs = some (header, rest)) :
+    bs.length = rest.length + 102 := by
+  match bs, h with
+  | v :: t :: tail, h =>
+    simp only [Model.CompositeHeader.decode] at h
+    split at h
+    · simp at h
+    split at h
+    · simp at h
+    simp only [Model.Messages.take?, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
+    obtain ⟨a, h1, _, _, a2, h2, a3, h3, a4, h4, a5, h5, a6, h6, h7⟩ := h
+    have e1 : ¬ tail.length < 32 ∧ a = (tail.take 32, tail.drop 32) := by
+      split at h1 <;> simp_all
+    obtain ⟨n1, rfl⟩ := e1
+    have l2 := readBe32_some_shape _ _ _ h2
+    have l3 := readBe32_some_shape _ _ _ h3
+    have l4 := readBe64_some_shape _ _ _ h4
+    have l5 := readBe64_some_shape _ _ _ h5
+    have l6 := readBe64_some_shape _ _ _ h6
+    split at h7
+    · rename_i ty present r7 hsplit
+      simp only [Option.bind_eq_some_iff] at h7
+      obtain ⟨agType, _, b, hb, c, hc, hfin⟩ := h7
+      have lb := readBe16_some_shape _ _ _ hb
+      have ec : ¬ b.snd.length < 32 ∧ c = (b.snd.take 32, b.snd.drop 32) := by
+        split at hc <;> simp_all [Model.CompositeHeader.chunkBytes]
+      have hrest : rest = c.snd := by
+        split at hfin
+        · simp_all
+        · split at hfin
+          · split at hfin
+            · simp_all
+            · simp at hfin
+          · simp at hfin
+      obtain ⟨nc, rfl⟩ := ec
+      subst hrest
+      rw [hsplit] at l6
+      simp only [List.length_drop, List.length_cons] at l2 l6 ⊢
+      omega
+    · simp at h7
+
+/-- Rule 2, the nested bound: an initial frame the size rule admits and the
+    decoder accepts carries a ratchet message of at most
+    `maxRatchetFrameLen` bytes, whatever its `kem_ciphertext_len` declared. -/
+theorem ratchetMessage_le_of_not_frameTooLong (frame : Bytes) (initial : Initial)
+    (h : frameTooLong frame = false)
+    (hd : Model.Messages.decodeInitial frame = some initial) :
+    initial.ratchetMessage.length ≤ maxRatchetFrameLen := by
+  have hs := decodeInitial_span frame initial hd
+  simp only [frameTooLong, hs, Bool.or_eq_false_iff, decide_eq_false_iff_not] at h
+  omega
+
+/-- Rule 2 refuses: an initial frame whose own `kem_ciphertext_len` locates a
+    ratchet message longer than `maxRatchetFrameLen` is too long, even when
+    the whole frame is within `maxInitialFrameLen`. -/
+theorem frameTooLong_of_nested (frame : Bytes) (k : Nat)
+    (hi : messageType frame = some .initial) (hk : initialKemLen? frame = some k)
+    (hfit : 84 + k ≤ frame.length)
+    (hlong : maxRatchetFrameLen < frame.length - (84 + k)) :
+    frameTooLong frame = true := by
+  simp [frameTooLong, ratchetSpan, hi, hk, hfit, hlong]
+
+/-- Rule 3 refuses, whatever the first two bytes are (message-format.md,
+    Message size, Precedence): a frame that is not an initial frame, an
+    unknown version byte or a type byte other than the initial message's
+    included, is too long once it is longer than `maxRatchetFrameLen`. -/
+theorem frameTooLong_of_not_initial (frame : Bytes)
+    (hi : messageType frame ≠ some .initial)
+    (hlong : maxRatchetFrameLen < frame.length) : frameTooLong frame = true := by
+  have hs : ratchetSpan frame = some frame.length := by
+    cases ht : messageType frame with
+    | none => simp [ratchetSpan, ht]
+    | some kind =>
+        cases kind with
+        | ratchet => simp [ratchetSpan, ht]
+        | initial => exact (hi ht).elim
+  simp [frameTooLong, hs, hlong]
+
+/-- An unknown version byte makes a frame not an initial frame. -/
+theorem messageType_ne_initial_of_version (v t : UInt8) (rest : Bytes)
+    (hv : v ≠ Model.Messages.version) : messageType (v :: t :: rest) ≠ some .initial := by
+  simp [messageType, hv]
+
+/-- A type byte other than the initial message's makes a frame not an initial
+    frame, whatever the version byte. -/
+theorem messageType_ne_initial_of_type (v t : UInt8) (rest : Bytes)
+    (ht : t ≠ Model.Messages.typeInitial) : messageType (v :: t :: rest) ≠ some .initial := by
+  simp only [messageType]
+  by_cases hv : v = Model.Messages.version <;>
+    by_cases hr : t = Model.Messages.typeRatchet <;> simp [hv, hr, ht]
+
+/-- An unknown version byte does not escape the size rule: such a frame
+    longer than `maxRatchetFrameLen` is too long. -/
+theorem frameTooLong_of_unknown_version (v t : UInt8) (rest : Bytes)
+    (hv : v ≠ Model.Messages.version)
+    (hlong : maxRatchetFrameLen < (v :: t :: rest).length) :
+    frameTooLong (v :: t :: rest) = true :=
+  frameTooLong_of_not_initial _ (messageType_ne_initial_of_version v t rest hv) hlong
+
+/-- Nor does a wrong or unknown type byte. -/
+theorem frameTooLong_of_non_initial_type (v t : UInt8) (rest : Bytes)
+    (ht : t ≠ Model.Messages.typeInitial)
+    (hlong : maxRatchetFrameLen < (v :: t :: rest).length) :
+    frameTooLong (v :: t :: rest) = true :=
+  frameTooLong_of_not_initial _ (messageType_ne_initial_of_type v t rest ht) hlong
 
 /-! ## Composite-header adapters
 
@@ -1355,12 +1651,17 @@ theorem receiveWithEviction_classical_outOfOrder (state : Model.Triple.State)
   simp [receiveWithEviction, ht, fullStore]
 
 /-- `Session::encrypt`, through the executable leaf models and the primitive
-    oracle. The Braid runs first, a terminal Braid is committed on refusal, the
-    Triple candidate commits only on success, and the initial wrapper remains
-    present until a successful receive clears it. -/
+    oracle. The sender's rule runs first (message-format.md, Message size): a
+    plaintext longer than `maxPlaintextLen` is refused with the session and the
+    oracle unchanged, before the terminal guard. Then the Braid runs, a
+    terminal Braid is committed on refusal, the Triple candidate commits only
+    on success, and the initial wrapper remains present until a successful
+    receive clears it. -/
 def encrypt (view : CodewordView) (oracle : Oracle) (session : Session)
     (plaintext : Bytes) : Step Bytes :=
-  if agreementFailed session then
+  if maxPlaintextLen < plaintext.length then
+    { session, result := .error .plaintextTooLong, oracle }
+  else if agreementFailed session then
     { session, result := .error .agreementFailed, oracle }
   else
     match sendAgreement oracle session.braid with
@@ -1409,17 +1710,51 @@ def encrypt (view : CodewordView) (oracle : Oracle) (session : Session)
                         result := .ok wireMessage
                         oracle := oracleNext }
 
+/-- The sender's rule: a plaintext longer than `maxPlaintextLen` is refused as
+    the first step, whatever the session's state, with the session and the
+    oracle unchanged (no random draw). -/
+theorem encrypt_plaintext_too_long (view : CodewordView) (oracle : Oracle)
+    (session : Session) (plaintext : Bytes)
+    (hlen : maxPlaintextLen < plaintext.length) :
+    encrypt view oracle session plaintext =
+      { session, result := .error .plaintextTooLong, oracle } := by
+  simp [encrypt, hlen]
+
+/-- The sender's refusal happens exactly above the bound. -/
+theorem encrypt_plaintextTooLong_iff (view : CodewordView) (oracle : Oracle)
+    (session : Session) (plaintext : Bytes) :
+    (encrypt view oracle session plaintext).result = .error .plaintextTooLong ↔
+      maxPlaintextLen < plaintext.length := by
+  constructor
+  · intro h
+    rcases Nat.lt_or_ge maxPlaintextLen plaintext.length with hlen | hlen
+    · exact hlen
+    · exfalso
+      have hle : ¬ maxPlaintextLen < plaintext.length := by omega
+      revert h
+      simp only [encrypt, hle, if_false]
+      repeat' split
+      all_goals simp [tripleSendRefusalOf]
+      all_goals
+        rename_i reason _
+        cases reason <;> simp
+  · intro hlen
+    simp [encrypt, hlen]
+
 theorem encrypt_terminal_guard (view : CodewordView) (oracle : Oracle)
     (session : Session) (plaintext : Bytes)
+    (hlen : plaintext.length ≤ maxPlaintextLen)
     (h : agreementFailed session = true) :
     encrypt view oracle session plaintext =
       { session, result := .error .agreementFailed, oracle } := by
-  simp [encrypt, h]
+  have hlen' : ¬ maxPlaintextLen < plaintext.length := by omega
+  simp [encrypt, hlen', h]
 
 theorem encrypt_braid_failure_commits (view : CodewordView) (oracle oracleNext : Oracle)
     (session : Session) (plaintext : Bytes)
     (message : Option Model.Braid.Msg) (sendingEpoch : Nat)
     (output : Option Model.Braid.Output) (braidNext : Model.Braid.BraidState)
+    (hlen : plaintext.length ≤ maxPlaintextLen)
     (hg : agreementFailed session = false)
     (hs : sendAgreement oracle session.braid =
       some ((message, sendingEpoch, output, braidNext), oracleNext))
@@ -1428,13 +1763,15 @@ theorem encrypt_braid_failure_commits (view : CodewordView) (oracle oracleNext :
       { session := { session with braid := braidNext }
         result := .error .agreementFailed
         oracle := oracleNext } := by
-  simp [encrypt, hg, hs, hf]
+  have hlen' : ¬ maxPlaintextLen < plaintext.length := by omega
+  simp [encrypt, hlen', hg, hs, hf]
 
 theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
     (oracle oracleNext : Oracle) (session : Session) (plaintext : Bytes)
     (message : Model.Braid.Msg) (sendingEpoch : Nat)
     (output : Option Model.Braid.Output) (braidNext : Model.Braid.BraidState)
     (reason : Model.Triple.SendRefusal)
+    (hlen : plaintext.length ≤ maxPlaintextLen)
     (hg : agreementFailed session = false)
     (hs : sendAgreement oracle session.braid =
       some ((some message, sendingEpoch, output, braidNext), oracleNext))
@@ -1445,7 +1782,8 @@ theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
       { session
         result := .error (tripleSendRefusalOf reason)
         oracle := oracleNext } := by
-  simp [encrypt, hg, hs, hf, ht]
+  have hlen' : ¬ maxPlaintextLen < plaintext.length := by omega
+  simp [encrypt, hlen', hg, hs, hf, ht]
 
 /-- `DecodeEC` (session-establishment.md, Parameters and Sending the initial
     message): the thirty-two key bytes of a 33-byte `EncodeEC` string whose first
@@ -1513,10 +1851,13 @@ receive transition is introduced.
 -/
 
 /-- Select the bytes that an established session gives to its ratchet
-    receiver. An initial frame must decode canonically and name this exact
+    receiver. The size rule runs first (message-format.md, Message size): a
+    frame it refuses is a decode failure, `tooLong`, before anything else.
+    Then an initial frame must decode canonically and name this exact
     established session; ratchet and unrecognised framing is passed through so
     the ratchet decoder supplies the final public decode refusal. -/
 def dispatchDecrypt (oracle : Oracle) (session : Session) (message : Bytes) : Except Refusal Bytes :=
+  if frameTooLong message then .error (.decode .tooLong) else
   match messageType message with
   | some .initial =>
       match Model.Messages.decodeInitialDetailed message with
@@ -1526,50 +1867,64 @@ def dispatchDecrypt (oracle : Oracle) (session : Session) (message : Bytes) : Ex
           else .error .notARepeatedInitial
   | _ => .ok message
 
+/-- The size rule refuses first, whatever else the frame is. -/
+theorem dispatchDecrypt_too_long (oracle : Oracle) (session : Session) (message : Bytes)
+    (hs : frameTooLong message = true) :
+    dispatchDecrypt oracle session message = .error (.decode .tooLong) := by
+  simp [dispatchDecrypt, hs]
+
 theorem dispatchDecrypt_passthrough (oracle : Oracle) (session : Session) (message : Bytes)
+    (hs : frameTooLong message = false)
     (h : messageType message ≠ some .initial) :
     dispatchDecrypt oracle session message = .ok message := by
   cases ht : messageType message with
-  | none => simp [dispatchDecrypt, ht]
+  | none => simp [dispatchDecrypt, hs, ht]
   | some kind =>
       cases kind with
-      | ratchet => simp [dispatchDecrypt, ht]
+      | ratchet => simp [dispatchDecrypt, hs, ht]
       | initial => exact (h ht).elim
 
 theorem dispatchDecrypt_decode_refusal (oracle : Oracle) (session : Session) (message : Bytes)
-    (reason : DecodeRefusal) (ht : messageType message = some .initial)
+    (reason : DecodeRefusal) (hs : frameTooLong message = false)
+    (ht : messageType message = some .initial)
     (hd : Model.Messages.decodeInitialDetailed message = .error reason) :
     dispatchDecrypt oracle session message = .error (.decode reason) := by
-  simp [dispatchDecrypt, ht, hd]
+  simp [dispatchDecrypt, hs, ht, hd]
 
 theorem dispatchDecrypt_repeat (oracle : Oracle) (session : Session) (message : Bytes) (initial : Initial)
+    (hs : frameTooLong message = false)
     (ht : messageType message = some .initial)
     (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
     (hr : repeatedInitial oracle session initial = true) :
     dispatchDecrypt oracle session message = .ok initial.ratchetMessage := by
-  simp [dispatchDecrypt, ht, hd, hr]
+  simp [dispatchDecrypt, hs, ht, hd, hr]
 
 theorem dispatchDecrypt_not_repeat (oracle : Oracle) (session : Session) (message : Bytes) (initial : Initial)
+    (hs : frameTooLong message = false)
     (ht : messageType message = some .initial)
     (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
     (hr : repeatedInitial oracle session initial = false) :
     dispatchDecrypt oracle session message = .error .notARepeatedInitial := by
-  simp [dispatchDecrypt, ht, hd, hr]
+  simp [dispatchDecrypt, hs, ht, hd, hr]
 
-/-- Complete success condition for an initial frame: it has one canonical
-    decode, belongs to this established session, and contributes exactly its
-    embedded ratchet bytes. -/
+/-- Complete success condition for an initial frame: the size rule admits it,
+    it has one canonical decode, belongs to this established session, and
+    contributes exactly its embedded ratchet bytes. -/
 theorem dispatchDecrypt_initial_ok_iff (oracle : Oracle) (session : Session) (message inner : Bytes)
     (ht : messageType message = some .initial) :
     dispatchDecrypt oracle session message = .ok inner ↔
-      ∃ initial, Model.Messages.decodeInitialDetailed message = .ok initial
-        ∧ repeatedInitial oracle session initial = true
-        ∧ initial.ratchetMessage = inner := by
-  cases hd : Model.Messages.decodeInitialDetailed message with
-  | error reason => simp [dispatchDecrypt, ht, hd]
-  | ok initial =>
-      cases hr : repeatedInitial oracle session initial <;>
-        simp [dispatchDecrypt, ht, hd, hr]
+      frameTooLong message = false
+        ∧ ∃ initial, Model.Messages.decodeInitialDetailed message = .ok initial
+          ∧ repeatedInitial oracle session initial = true
+          ∧ initial.ratchetMessage = inner := by
+  cases hs : frameTooLong message with
+  | true => simp [dispatchDecrypt, hs]
+  | false =>
+      cases hd : Model.Messages.decodeInitialDetailed message with
+      | error reason => simp [dispatchDecrypt, hs, ht, hd]
+      | ok initial =>
+          cases hr : repeatedInitial oracle session initial <;>
+            simp [dispatchDecrypt, hs, ht, hd, hr]
 
 /-! ## Receive preparation
 
@@ -1873,6 +2228,9 @@ structure PreparedResponder where
     deliberately separate operations below. -/
 def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStore)
     (initialMessage : Bytes) : Except Refusal PreparedResponder :=
+  -- The size rule first (message-format.md, Message size), before the decoder
+  -- and every lookup.
+  if frameTooLong initialMessage then .error (.decode .tooLong) else
   match Model.Messages.decodeInitialDetailed initialMessage with
   | .error reason => .error (.decode reason)
   | .ok initial =>
@@ -1945,11 +2303,14 @@ def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStor
 
 /-- An initial message whose decoded identity the oracle refuses is rejected as
     an invalid identity key once the signed-prekey and KEM lookups have
-    succeeded, before the one-time lookup, any decapsulation or agreement. -/
+    succeeded, before the one-time lookup, any decapsulation or agreement.
+Since the message size bound the message passes the size rule (`hz`); one it refuses is refused `decode tooLong` first
+(`establishResponder_frame_too_long`). -/
 theorem prepareResponder_invalid_identity (oracle : Oracle) (identity : Identity)
     (store : PrekeyStore) (initialMessage : Bytes)
     (initial : Model.Messages.Initial) (signedSecret : Key) (kemPair : Bytes)
     (lastResort : Bool)
+    (hz : frameTooLong initialMessage = false)
     (hd : Model.Messages.decodeInitialDetailed initialMessage = .ok initial)
     (hs : responderSignedPrekeySecret store initial.signedPrekeyId.toNat =
       some signedSecret)
@@ -1960,7 +2321,7 @@ theorem prepareResponder_invalid_identity (oracle : Oracle) (identity : Identity
       .error (.handshake .invalidIdentityKey) := by
   -- `simp` writes `drop 1` as `tail`, so give it the hypothesis in that form.
   have hv' : oracle.identityValid initial.identity.tail = false := by simpa using hv
-  simp [prepareResponder, hd, hs, hk, hv']
+  simp [prepareResponder, hz, hd, hs, hk, hv']
 
 /-- Responder establishment keeps the prekey store unchanged through the
     complete authenticated Session receive. Only its success branch consumes
@@ -1990,6 +2351,286 @@ theorem establishResponder_refusal_keeps_store (view : CodewordView)
         (decryptRatchet view oracle prepared.session prepared.ratchetMessage) reason
         (by simpa [establishResponder, hp] using h)
       simpa [establishResponder, hp] using hs
+
+/-! ## Size refusals and the received plaintext (message-format.md, Message size) -/
+
+/-- The size rule on an established session: a frame it refuses is a decode
+    failure, `tooLong`, and the session and the oracle are returned unchanged
+    (no random draw), whatever the frame and the session otherwise are, a
+    malformed frame and a session whose agreement has failed included. -/
+theorem decrypt_frame_too_long (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (hs : frameTooLong message = true) :
+    decrypt view oracle session message =
+      { session, result := .error (.decode .tooLong), oracle } := by
+  simp [decrypt, dispatchDecrypt, hs]
+
+/-- The size rule on responder establishment: the prekey store and the oracle
+    are returned unchanged. -/
+theorem establishResponder_frame_too_long (view : CodewordView) (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes)
+    (hs : frameTooLong message = true) :
+    establishResponder view oracle identity store message =
+      { store, result := .error (.decode .tooLong), oracle } := by
+  simp [establishResponder, prepareResponder, hs]
+
+/-! ### Precedence (message-format.md, Message size, Precedence)
+
+The two theorems above hold whatever else the frame and the receiver are. The
+ones below name the cases the page lists: a frame that is not an initial frame
+(an unknown version byte, an unknown type byte, the ratchet message's type at
+establishment) is too long above `maxRatchetFrameLen` on both operations; and
+below the bounds the rule is transparent, so the refusals the decoders and the
+prekey lookup gave are the ones given. Each refusal returns the session, or
+the store, and the oracle unchanged, so no random value is drawn. -/
+
+/-- A frame that is not an initial frame and is longer than
+    `maxRatchetFrameLen`, on any session (one whose agreement has failed
+    included): refused as too long, the session and the oracle unchanged. -/
+theorem decrypt_not_initial_too_long (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (hi : messageType message ≠ some .initial)
+    (hlong : maxRatchetFrameLen < message.length) :
+    decrypt view oracle session message =
+      { session, result := .error (.decode .tooLong), oracle } :=
+  decrypt_frame_too_long view oracle session message
+    (frameTooLong_of_not_initial message hi hlong)
+
+/-- The same on responder establishment: the store and the oracle unchanged. -/
+theorem establishResponder_not_initial_too_long (view : CodewordView) (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes)
+    (hi : messageType message ≠ some .initial)
+    (hlong : maxRatchetFrameLen < message.length) :
+    establishResponder view oracle identity store message =
+      { store, result := .error (.decode .tooLong), oracle } :=
+  establishResponder_frame_too_long view oracle identity store message
+    (frameTooLong_of_not_initial message hi hlong)
+
+/-- Within the bounds, a frame the initial-message decoder refuses meets that
+    refusal on establishment, as it did without the rule. -/
+theorem prepareResponder_admitted_decode_refusal (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (message : Bytes) (reason : DecodeRefusal)
+    (hs : frameTooLong message = false)
+    (hd : Model.Messages.decodeInitialDetailed message = .error reason) :
+    prepareResponder oracle identity store message = .error (.decode reason) := by
+  simp [prepareResponder, hs, hd]
+
+/-- Within the bounds, an initial frame that decodes and names a signed prekey
+    the store does not hold meets the lookup's refusal, as it did without the
+    rule. Above them (`establishResponder_frame_too_long`) the same frame is
+    refused as too long before the lookup. -/
+theorem prepareResponder_admitted_unknown_signed_prekey (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes) (initial : Initial)
+    (hs : frameTooLong message = false)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hk : responderSignedPrekeySecret store initial.signedPrekeyId.toNat = none) :
+    prepareResponder oracle identity store message = .error .unknownPrekeyId := by
+  simp [prepareResponder, hs, hd, hk]
+
+/-! ### A failed session's receive refusals, in order (mlkem-braid.md, Failure)
+
+Within the size bounds, a session whose agreement has failed refuses a frame
+that is not an initial frame with `agreementFailed` before decoding it; an
+initial frame is decoded and compared with the session's own initial message
+first, so it meets a decode refusal or `notARepeatedInitial` before
+`agreementFailed`, which only a genuine repeat reaches. Each returns the
+session and the oracle unchanged, so no random value is drawn. -/
+
+/-- A frame that is not an initial frame, within the bounds, on a failed
+    session: `agreementFailed`, whatever its bytes (a malformed or unrecognised
+    frame included), before any decode. -/
+theorem decrypt_failed_not_initial (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (hs : frameTooLong message = false)
+    (hi : messageType message ≠ some .initial) (hf : agreementFailed session = true) :
+    decrypt view oracle session message =
+      { session, result := .error .agreementFailed, oracle } := by
+  simp [decrypt, dispatchDecrypt_passthrough oracle session message hs hi, decryptRatchet, hf]
+
+/-- An initial frame the initial-message decoder refuses, within the bounds:
+    that decode refusal, whether or not the agreement has failed. -/
+theorem decrypt_initial_decode_refusal_any (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (reason : DecodeRefusal)
+    (hs : frameTooLong message = false) (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .error reason) :
+    decrypt view oracle session message =
+      { session, result := .error (.decode reason), oracle } :=
+  decrypt_dispatch_refusal_keeps_state view oracle session message _
+    (dispatchDecrypt_decode_refusal oracle session message reason hs ht hd)
+
+/-- An initial frame that decodes and is not the session's repeat, within the
+    bounds: `notARepeatedInitial`, whether or not the agreement has failed. -/
+theorem decrypt_initial_not_repeat_any (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (initial : Model.Messages.Initial)
+    (hs : frameTooLong message = false) (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hr : repeatedInitial oracle session initial = false) :
+    decrypt view oracle session message =
+      { session, result := .error .notARepeatedInitial, oracle } :=
+  decrypt_dispatch_refusal_keeps_state view oracle session message _
+    (dispatchDecrypt_not_repeat oracle session message initial hs ht hd hr)
+
+/-- A genuine repeat on a failed session, within the bounds: `agreementFailed`,
+    before its inner ratchet message is decoded. -/
+theorem decrypt_failed_repeat (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) (initial : Model.Messages.Initial)
+    (hs : frameTooLong message = false) (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hr : repeatedInitial oracle session initial = true)
+    (hf : agreementFailed session = true) :
+    decrypt view oracle session message =
+      { session, result := .error .agreementFailed, oracle } := by
+  simp [decrypt, dispatchDecrypt_repeat oracle session message initial hs ht hd hr,
+    decryptRatchet, hf]
+
+/-! ### Precedence on the send (message-format.md, Message size, the sender's rule)
+
+`encrypt_plaintext_too_long` holds for every session, a terminal one included;
+`encrypt_plaintextTooLong_iff` says the size refusal is given exactly for the
+plaintexts over the maximum. -/
+
+/-- **The AEAD's successful-open length property, upper half** (message-format.md,
+    Message size, where it is stated as a property the bound relies on): an
+    `input` (ciphertext followed by the 32-byte tag) that opens yields at most
+    `input.length - 33` bytes, that is at most `C - 1` for a ciphertext of
+    `C = input.length - 32` bytes. A premise on the oracle; no theorem here
+    shows the shipping AEAD has it. -/
+def AeadOpenLength (oracle : Oracle) : Prop :=
+  ∀ (enc mac : Key) (iv : Iv) (input ad plaintext : Bytes),
+    oracle.aeadOpen enc mac iv input ad = some plaintext →
+      plaintext.length + 33 ≤ input.length
+
+/-- What the ratchet transaction returns is at most the ratchet message's length
+    less the 102-byte header and 33 bytes, under the open-length property. -/
+theorem decryptRatchet_ok_length (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message plaintext : Bytes) (hopen : AeadOpenLength oracle)
+    (h : (decryptRatchet view oracle session message).result = .ok plaintext) :
+    plaintext.length + 135 ≤ message.length := by
+  by_cases hf : agreementFailed session = true
+  · simp [decryptRatchet, hf] at h
+  · cases hd : Model.CompositeHeader.decodeDetailed message with
+    | error decodeReason => simp [decryptRatchet, hf, hd] at h
+    | ok decoded =>
+        obtain ⟨composite, ciphertext⟩ := decoded
+        have hlen := composite_decode_rest_length message ciphertext composite
+          ((Model.CompositeHeader.decodeDetailed_ok_iff _ _).mp hd)
+        cases hr : oracle.dhAgree session.ratchetPrivate composite.dh with
+        | none => simp [decryptRatchet, hf, hd, hr] at h
+        | some dhOutRecv =>
+            cases hdraw : random32 oracle with
+            | none => simp [decryptRatchet, hf, hd, hr, hdraw] at h
+            | some drawn =>
+                obtain ⟨candidatePrivate, oracleNext⟩ := drawn
+                cases hs : oracle.dhAgree candidatePrivate composite.dh with
+                | none => simp [decryptRatchet, hf, hd, hr, hdraw, hs] at h
+                | some dhOutSend =>
+                    cases ht : receiveWithEviction session.triple composite
+                        (tripleHeaderOf composite) dhOutRecv dhOutSend
+                        (oracle.dhPublic candidatePrivate)
+                        (sparseOutputOf
+                          (Model.Braid.receive oracle.braidKem session.braid
+                            (braidMessageOf view session.braid composite)).2.1) with
+                    | error tripleReason =>
+                        simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht] at h
+                    | ok candidate =>
+                        obtain ⟨tripleCandidate, messageKey⟩ := candidate
+                        cases ha : oracle.aeadOpen
+                            (Model.State.messageKeys messageKey .tacenta).1
+                            (Model.State.messageKeys messageKey .tacenta).2.1
+                            (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+                            (Model.Messages.concatAd session.identityAd
+                              (Model.CompositeHeader.encode composite)) with
+                        | none =>
+                            simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha] at h
+                        | some opened =>
+                            simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha] at h
+                            have := hopen _ _ _ _ _ _ ha
+                            subst h
+                            omega
+
+/-- **The received plaintext maximum on an established session.** Under the
+    open-length property, every plaintext `decrypt` returns is at most
+    `maxPlaintextLen` bytes, a ratchet frame and a repeated initial frame
+    alike: the size rule bounds the ratchet message by `maxRatchetFrameLen`
+    (rules 2 and 3), and `maxRatchetFrameLen - 135 = maxPlaintextLen`. -/
+theorem decrypt_plaintext_le_max (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message plaintext : Bytes) (hopen : AeadOpenLength oracle)
+    (h : (decrypt view oracle session message).result = .ok plaintext) :
+    plaintext.length ≤ maxPlaintextLen := by
+  cases hd : dispatchDecrypt oracle session message with
+  | error reason => simp [decrypt, hd] at h
+  | ok inner =>
+      have hinner : inner.length ≤ maxRatchetFrameLen := by
+        cases hs : frameTooLong message with
+        | true => simp [dispatchDecrypt, hs] at hd
+        | false =>
+            by_cases hi : messageType message = some .initial
+            · obtain ⟨_, initial, hdec, _, hin⟩ :=
+                (dispatchDecrypt_initial_ok_iff oracle session message inner hi).mp hd
+              rw [← hin]
+              exact ratchetMessage_le_of_not_frameTooLong message initial hs
+                ((Model.Messages.decodeInitialDetailed_ok_iff _ _).mp hdec)
+            · have hp := dispatchDecrypt_passthrough oracle session message hs hi
+              rw [hd] at hp
+              cases hp
+              exact length_le_of_not_frameTooLong_not_initial message hs hi
+      have hr : (decryptRatchet view oracle session inner).result = .ok plaintext := by
+        cases hstep : decryptRatchet view oracle session inner with
+        | mk next result oracleNext =>
+            cases result with
+            | error reason => simp [decrypt, hd, hstep] at h
+            | ok actual => simp [decrypt, hd, hstep] at h; simp [h]
+      have := decryptRatchet_ok_length view oracle session inner plaintext hopen hr
+      have hv := maxRatchetFrameLen_value
+      have hp := maxPlaintextLen_value
+      simp only [hp]
+      omega
+
+/-- A successful preparation passed the size rule and the decoder, and hands
+    the decoded ratchet message on. -/
+theorem prepareResponder_ok_ratchetMessage (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (message : Bytes) (prepared : PreparedResponder)
+    (hOk : prepareResponder oracle identity store message = .ok prepared) :
+    frameTooLong message = false
+      ∧ ∃ initial, Model.Messages.decodeInitial message = some initial
+        ∧ prepared.ratchetMessage = initial.ratchetMessage := by
+  cases hs : frameTooLong message with
+  | true => simp [prepareResponder, hs] at hOk
+  | false =>
+      refine ⟨rfl, ?_⟩
+      cases hd : Model.Messages.decodeInitialDetailed message with
+      | error reason => simp [prepareResponder, hs, hd] at hOk
+      | ok initial =>
+          refine ⟨initial, (Model.Messages.decodeInitialDetailed_ok_iff _ _).mp hd, ?_⟩
+          grind (config := { gen := 30, splits := 50 }) [prepareResponder]
+
+/-- **The received plaintext maximum on responder establishment**, under the
+    open-length property. -/
+theorem establishResponder_plaintext_le_max (view : CodewordView) (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes)
+    (value : Session × Bytes) (hopen : AeadOpenLength oracle)
+    (h : (establishResponder view oracle identity store message).result = .ok value) :
+    value.2.length ≤ maxPlaintextLen := by
+  cases hp : prepareResponder oracle identity store message with
+  | error reason => simp [establishResponder, hp] at h
+  | ok prepared =>
+      obtain ⟨hs, initial, hdec, hmsg⟩ :=
+        prepareResponder_ok_ratchetMessage oracle identity store message prepared hp
+      have hinner := ratchetMessage_le_of_not_frameTooLong message initial hs hdec
+      cases hstep : decryptRatchet view oracle prepared.session prepared.ratchetMessage with
+      | mk next result oracleNext =>
+          cases result with
+          | error reason =>
+              simp [establishResponder, hp, finishResponderReceive, hstep] at h
+          | ok plaintext =>
+              simp [establishResponder, hp, finishResponderReceive, hstep] at h
+              have hr : (decryptRatchet view oracle prepared.session
+                  prepared.ratchetMessage).result = .ok plaintext := by simp [hstep]
+              have := decryptRatchet_ok_length view oracle prepared.session
+                prepared.ratchetMessage plaintext hopen hr
+              rw [← h]
+              have hv := maxRatchetFrameLen_value
+              have hpv := maxPlaintextLen_value
+              rw [hmsg] at this
+              simp only [hpv]
+              omega
 
 /-! ## Executable lifecycle check -/
 

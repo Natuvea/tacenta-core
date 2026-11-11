@@ -102,7 +102,7 @@ INNER_DRAW = ("    (hdrawB2 : traceB rngB2 = dB2 :: restB2) :\n"
               "    ∃ (p : ResponderPreparedParts ourB storeB msg) (ec : Array U8 32#usize) (dSend : Model.Lifecycle.Key)\n")
 INNER_TAIL = ("          tacenta_ratchet.RatchetError.OutOfOrder)), sB', rngB3) ∧\n"
               "      traceB rngB3 = restB2 := by\n"
-              "  rcases responder_first_frame_prepares")
+              "  have hsize := Tacenta.UnitLifecycleEstablishResponder.establish_responder_ok_fits rcB crcB ourB storeB\n")
 INNER_CALL = ("      lifecycle.Session.decrypt rcB crcB sB' msg rngB2 =\n"
               "        ok (core.result.Result.Err (lifecycle.Error.Triple (tacenta_triple.TripleError.Classical\n")
 INNER_MODEL = ("        Model.Lifecycle.decrypt viewB { oracleB with draws := dB2 :: restB2 }\n"

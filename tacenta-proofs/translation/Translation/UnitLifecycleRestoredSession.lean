@@ -293,9 +293,15 @@ theorem RestoredDecryptHypotheses.refines {R : Type} {rngCore : rand_core_1.RngC
     (h : RestoredDecryptHypotheses rngCore cryptoRng trace dh view oracle bytes s message rng) :
     PublicDecryptWitness rngCore cryptoRng trace dh oracle.braidKem view oracle s
       (restoredModelOf dh s) message rng := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh
+      oracle.braidKem view oracle s (restoredModelOf dh s) message rng
+      (sessionRefines_restored dh oracle.braidKem s h.scope) h.trace_eq hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   obtain ⟨output, hout, hstep⟩ := h.ofInvariant.refines
   exact decrypt_ratchet_message_refines rngCore cryptoRng trace dh oracle.braidKem view oracle s
-    (restoredModelOf dh s) message rng output h.messageType hout hstep
+    (restoredModelOf dh s) message rng output hsize h.messageType hout hstep
 
 /-- **`restored_decrypt_refines`**: for every byte string `bytes` that `Session::import` accepts with
 session `s` in scope and with `CounterHeadroom s`, the public `Session::decrypt` on every ratchet-type

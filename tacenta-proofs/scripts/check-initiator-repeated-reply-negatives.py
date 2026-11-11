@@ -137,7 +137,7 @@ REACH_REPEAT = ("      lifecycle.Session.decrypt byteRng byteCrc s'' (alloc.vec.
                 "          tacenta_ratchet.RatchetError.OutOfOrder)), s'', rngA3) := by\n")
 LEAF_RECV = ("    Model.Triple.receiveDetailed (initiatorAfterReply rkA prk k1 k2 dSend x newPub candPub) (firstHeader newPub)\n"
              "        dR dS np out = .error (.classical .outOfOrder) := by\n")
-LEAF_CAND = "    (dS : Key) (hcand : oracleA.dhAgree c newPub = some dS) :\n"
+LEAF_CAND = "    (dS : Key) (hcand : oracleA.dhAgree c newPub = some dS)\n"
 LEAF_KEEP = "        oracle := { oracleA with draws := rest } } := by\n"
 LEAF_TRACE = "          e1.map Tacenta.SessionUnitBraidT3.u8 :: [e2.map Tacenta.SessionUnitBraidT3.u8] := by\n"
 PIN_RECV = "theorem reply_again_receive_outOfOrder (rkA prk k1 k2 dSend x newPub candPub dR dS np : Key)\n"

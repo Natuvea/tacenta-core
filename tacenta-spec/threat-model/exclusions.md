@@ -42,6 +42,16 @@ The bounds this specification states are these:
 - **Skipping.** A skip is refused beyond `MAX_SKIP` before any key is derived.
   Each skipped-key store is held to `MAX_SKIPPED_STORE` (ratchet.md, Skipped
   keys; CLAIMS.md, "Proved (tier T2, functional properties of the model)").
+- **Message size.** A session refuses to encrypt a plaintext longer than
+  `MAX_PLAINTEXT_LEN` before any other work, and every receiving operation
+  refuses a frame longer than `MAX_INITIAL_FRAME_LEN`, or one whose ratchet
+  message is longer than `MAX_RATCHET_FRAME_LEN`, before it is copied or
+  decoded (message-format.md, Message size). Each refusal changes nothing and
+  draws nothing. The bound limits what one call is given to work on; how much
+  memory and time that costs is measured, not proved (LIM-14), and a caller's
+  own buffers, and the transport, are outside it. The bound applies at a
+  session's receiving operations and its send; the primitives `tacenta-core`
+  also exports (the AEAD among them) apply no size bound.
 - **The replay record.** It holds at most `MAX_LAST_RESORT_SEEN` entries per
   last-resort key and fails closed (session-establishment.md, Replay, and why
   the ratchet must follow).

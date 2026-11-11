@@ -25,6 +25,15 @@ pub use tacenta_wire::{
     WireBundle, decode_bundle, decode_initial, decode_message, encode_bundle,
 };
 
+// The message size bounds and the size rule (message-format.md, Message size)
+// live in the lifecycle leaf, beside the session operations that apply them,
+// so the translation covers them. Re-exported here so a caller can check a
+// frame or a plaintext against the same constants before handing it over.
+pub use tacenta_lifecycle::serialization::{
+    MAX_INITIAL_FRAME_LEN, MAX_PLAINTEXT_LEN, MAX_RATCHET_FRAME_LEN, check_frame_size,
+    frame_too_long, nested_ratchet_len, ratchet_span, ratchet_span_of,
+};
+
 /// The identifier meaning "no prekey was used". **Wire-sensitive.**
 pub const ABSENT_ID: u32 = 0;
 

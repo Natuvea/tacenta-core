@@ -180,6 +180,69 @@ is SemVer against the specified protocol (not the implementation).
   the project. Entries in released sections of this file call it "Independent reader"; that name is the same legacy identifier. The Status sections of ADR-0006, ADR-0007, ADR-0008 and ADR-0010 record the amendments of 2026-10-28. `security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md` said "P6 L2 decision and independent-reader evidence", which may mean the P6 operation reader's evidence or the project's reader's; it now names both: the P6 operation reader's evidence (related-party evidence) and the pass records of the specification-only, project-controlled reader. What the reader does and what L2 requires are unchanged; the
   wording now matches `GAP-REGISTER.md`, which calls it project-controlled
   evidence (`READER-INDEPENDENCE`).
+- `protocol/message-format.md`, Message size (new), with
+  `protocol/triple-ratchet.md`, Sending and receiving,
+  `protocol/session-establishment.md`, Sending and Receiving the initial
+  message, `protocol/error-handling.md`, `protocol/mlkem-braid.md`, Failure,
+  `CONSTANTS.md`, Bounds, `threat-model/exclusions.md`, EX-03, and
+  `security-properties/limitations.md`, LIM-14: messages now have a maximum
+  size. Revisions up to 0.2.0 had none, so this refuses inputs they accepted,
+  and the next revision is proposed as 0.3.0 (`VERSION` is unchanged here).
+  - One protocol constant, `MAX_PLAINTEXT_LEN` = 1,048,575 bytes (2^20 − 1),
+    the same on every platform, neither negotiated nor configurable, and two
+    bounds derived from it: `MAX_RATCHET_FRAME_LEN` = 150 + 16·⌊L/16⌋ =
+    1,048,710 bytes (102-byte header, padded ciphertext, 32-byte tag; the IV
+    is derived) and `MAX_INITIAL_FRAME_LEN` = that + 1,652 = 1,050,362 bytes
+    (the wrapper with ML-KEM-1024's 1,568-byte ciphertext).
+  - The sender's rule: a longer plaintext is refused as *plaintext too long*,
+    a condition the caller must act on, as the send's first check, before the
+    refusal of a failed agreement. Not truncated, not split.
+  - The size rule, on every receiving operation (a session's decrypt and
+    responder establishment): a frame longer than `MAX_INITIAL_FRAME_LEN`, an
+    initial frame whose ratchet message, located through the frame's own
+    `kem_ciphertext_len` whatever it declares, is longer than
+    `MAX_RATCHET_FRAME_LEN`, and any other frame longer than
+    `MAX_RATCHET_FRAME_LEN` are refused as *too long*, a decode failure. An
+    initial frame too short to locate its ratchet message goes on to the
+    decoder, which refuses it as before. The nested bound closes the case of a
+    repeated initial message with a short `kem_ciphertext`, which an
+    established session never reads. `kem_ciphertext_len` acceptance itself
+    is unchanged.
+  - Order and effects: each size check is its operation's first, so an input
+    that is too long is refused as too long even when its version byte is
+    unknown, its type byte is wrong or unknown, it is otherwise malformed,
+    it names prekeys the store does not hold, it is not the session's
+    repeat, or the session's agreement has failed (message-format.md,
+    Message size, Precedence). Every size refusal leaves the session, the
+    prekey store and its replay record unchanged, draws no random value and
+    writes nothing durable. The same inputs within the bounds keep the
+    refusals they had.
+  - `protocol/mlkem-braid.md`, Failure, with `protocol/error-handling.md`,
+    The order of checks: the order of a failed session's receive refusals
+    within the bounds is now stated, as the implementation and the model
+    already had it: a frame that is not an initial frame meets
+    `AgreementFailed` before it is decoded; an initial frame is decoded and
+    compared with the session's own initial message first (a decode failure,
+    then `NotARepeatedInitial`), and only a genuine repeat meets
+    `AgreementFailed`. None changes the session or draws a random value.
+  - The received plaintext is at most `MAX_PLAINTEXT_LEN` exactly. The page
+    states, as a property the bound relies on, that a ciphertext of `C` bytes
+    that authenticates opens to between `C − 16` and `C − 1` bytes; no check
+    after authentication is added.
+  - Mixed versions: senders and receivers of 0.2.0 and earlier enforce
+    neither rule. An earlier receiver accepts everything a sender applying
+    the rules emits. A receiver applying the size rule refuses an oversized
+    frame from an earlier sender as too long and its session goes on; an
+    oversized first initial message is lost, and a later, smaller one of the
+    same handshake still establishes the session.
+  - Scope: the bound applies at a session's receiving operations and its
+    send; the primitives an implementation also exports (the AEAD among them)
+    apply none (`threat-model/exclusions.md`, Message size). The Precedence
+    paragraph's examples of a frame within the bounds being refused as without
+    the rule hold on a session whose agreement has not failed; a failed
+    session refuses a frame that is not an initial frame with
+    `AgreementFailed` first, as `mlkem-braid.md`, Failure, states.
+
 - `threat-model/assumptions.md` ASM-03, ASM-05, ASM-06, ASM-07, ASM-08,
   ASM-09 and ASM-18,
   `security-properties/limitations.md` LIM-06 and LIM-12 and the

@@ -187,11 +187,18 @@ theorem established_initiator_decrypt_refines {R E : Type}
     (hdraw : ∃ draw rest, trace rng = draw :: rest) :
     PublicDecryptWitness rngCore cryptoRng trace dh oracle.braidKem view oracle s
       (establishedModelOf dh s) message rng := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh
+      oracle.braidKem view oracle s (establishedModelOf dh s) message rng
+      (sessionRefines_established rc crc dh oracle.braidKem our bundle expected rng0 rng1 s h)
+      htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   obtain ⟨output, hout, hstep⟩ := established_initiator_decrypt_ratchet_refines rngCore cryptoRng
     trace dh view oracle oracleOf codec contracts agreements hpub hct hoeq rc crc our bundle expected
     rng0 rng1 s h message rng htrace hchunk hdraw
   exact decrypt_ratchet_message_refines rngCore cryptoRng trace dh oracle.braidKem view oracle s
-    (establishedModelOf dh s) message rng output htype hout hstep
+    (establishedModelOf dh s) message rng output hsize htype hout hstep
 
 /-! ## The premises of the connected theorem hold together -/
 

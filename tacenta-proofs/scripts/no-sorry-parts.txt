@@ -38,10 +38,14 @@ hosted refuted:
   pin-negatives
 hosted braid:
   braid-agreement
+  encrypt-compose
+  encrypt-preservation
   atomicity
   repair
   responder-second-send
   send-refusal
+  size-rule
+  size-witness
   sparse-skip-kind
   sparse-store-full
   established
@@ -51,16 +55,22 @@ hosted decrypt:
   tampered-reply
   discharge-native-decide
   kdf-realisation
+  out-of-order-receive
   receive-preservation
   audit-negatives
+  decrypt-compose
+  decrypt-preservation
 hosted responder:
   restored
   encrypt
+  import-budget
   responder
   responder-establish-replay
   responder-frame
   responder-second-receipt
   responder-repeated-frame
+  responder-restored
+  responder-restored-witness
 hosted reply:
   responder-successor
   initiator-repeated-reply

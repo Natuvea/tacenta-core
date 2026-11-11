@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tacenta.dev/schema/frame-size-fields.schema.json",
+  "title": "The fields of an admitted frame-size vector",
+  "description": "The `fields` object of a valid vector in vectors/serialization/frame-size.json (tacenta-spec/protocol/message-format.md, Message size; tacenta-test-vectors/README.md, Vector layouts). A frame is its `prefix` followed by zero bytes up to its `length`. tooling/check-vectors.py validates every admitted vector's `fields` against this schema, and then recomputes both values from the frame and refuses a vector whose declared value differs.",
+  "type": "object",
+  "required": ["decodes"],
+  "additionalProperties": false,
+  "properties": {
+    "ratchet_message_length": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}$",
+      "description": "Four bytes big-endian: the length of the ratchet message the size rule locates. For a frame that is not an initial frame, the frame's length; for an initial frame, L - 84 - kem_ciphertext_len, where kem_ciphertext_len is bytes 68 to 71 big-endian. Present exactly when the rule locates one: absent for an initial frame shorter than 72 bytes or whose 84 + kem_ciphertext_len exceeds its length."
+    },
+    "decodes": {
+      "enum": ["01", "00"],
+      "description": "Whether the decoder a session's decrypt applies to the frame once the size rule admits it accepts it: 01 accepts, 00 refuses (a decode failure). For an initial frame (at least two bytes, version 0x01 and type 0x02) that decoder is the initial-message decoder (message-format.md, Initial message), which accepts exactly when the frame holds the version and type bytes, identity and ephemeral each as a curve byte 0x05 followed by a canonical 32-byte curve public key (Curve public keys: its little-endian value, every bit included, below 2^255 - 19), kem_ciphertext_len k, k bytes of kem_ciphertext and the three 4-byte prekey identifiers, that is when 72 + k + 12 <= L; it does not decode the ratchet message after them. For every other frame it is the ratchet-message decoder (message-format.md, Ratchet message), which accepts exactly when the frame holds the 102-byte composite header with version 0x01, type 0x01, a canonical 32-byte ratchet key, an agreement type byte from 0x00 to 0x05, and a presence byte 0x00 (with the 2-byte index and the 32-byte chunk all zero) or 0x01; it does not check the ciphertext after the header. Neither says anything about prekey lookups, the repeat check, authentication or the session's state."
+    }
+  }
+}

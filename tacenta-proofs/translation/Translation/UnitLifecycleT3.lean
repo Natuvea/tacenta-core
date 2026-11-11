@@ -723,6 +723,7 @@ def decodeRefusalOf : tacenta_wire.DecodeError → Model.Messages.DecodeRefusal
   | .WrongType => .wrongType
   | .TooShort => .tooShort
   | .LengthOverrun => .lengthOverrun
+  | .TooLong => .tooLong
 
 theorem wireByte_ne_zero (x : Std.U8) :
     Tacenta.SessionUnitWireT3.byteOf x ≠ 0 ↔ x ≠ 0#u8 := by
@@ -878,6 +879,7 @@ def refusalOf : lifecycle.Error → Model.Lifecycle.Refusal
   | .LegacyLastResortRecord => .legacyLastResortRecord
   | .LastResortRecordFull => .lastResortRecordFull
   | .AgreementFailed => .agreementFailed
+  | .PlaintextTooLong => .plaintextTooLong
 
 def ratchetSendRefusalOfReal : tacenta_ratchet.RatchetError →
     Option Model.Ratchet.SendRefusal :=
@@ -1040,6 +1042,9 @@ structure InitialDispatchContext {R : Type}
     (message : Slice Std.U8) (rng : R) where
   hrel : SessionRefines dh K real model
   htrace : trace rng = oracle.draws
+  /-- The size rule admitted the frame: `Session::decrypt` runs it before the
+      type dispatch, and refuses otherwise (`decrypt_frame_too_long_refines`). -/
+  hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false
   htype : serialization.message_type message =
     ok (some serialization.MessageType.Initial)
 
@@ -1776,6 +1781,345 @@ theorem message_type_refines_ratchet (bytes : Slice Std.U8)
   rw [htype] at h
   simpa [messageTypeOf] using h.symm
 
+/-! ## The size rule and the sender's rule (message-format.md, Message size)
+
+`check_frame_size`, the first step of `Session::decrypt` and of
+`establish_responder`, computes `Model.Lifecycle.frameTooLong` on every byte
+string (`check_frame_size_refines`); `Session::encrypt` refuses a plaintext
+exactly when `Model.Lifecycle.encrypt` does (`encrypt_plaintext_too_long_refines`).
+Each refusal returns the session and the random source as they were, on both
+sides.
+-/
+
+theorem sliceOf_length (bytes : Slice Std.U8) : (sliceOf bytes).length = bytes.val.length := by
+  simp [sliceOf]
+
+/-- `initial_kem_len` reads bytes 68 to 71 big-endian exactly where the model's
+`initialKemLen?` does, and reads nothing from a frame shorter than 72 bytes. -/
+theorem initial_kem_len_refines (bytes : Slice Std.U8) :
+    serialization.initial_kem_len bytes ⦃ fun r =>
+      r.map (fun k => k.val) = Model.Lifecycle.initialKemLen? (sliceOf bytes) ⦄ := by
+  unfold serialization.initial_kem_len
+  simp only [serialization.INITIAL_KEM_LEN_END]
+  split
+  · rename_i hshort
+    have hl : bytes.val.length < 72 := by scalar_tac
+    simp only [WP.spec_ok, Option.map_none]
+    unfold Model.Lifecycle.initialKemLen?
+    rw [Tacenta.SessionUnitWireT3.readBe32_none _ (by simp [sliceOf]; omega)]
+  · rename_i hlong
+    have hl : 72 ≤ bytes.val.length := by scalar_tac
+    step*
+    simp only [Option.map_some]
+    unfold Model.Lifecycle.initialKemLen?
+    rw [Tacenta.SessionUnitWireT3.readBe32_of_length _ (by simp [sliceOf]; omega)]
+    simp only [Option.some.injEq]
+    have hb : ∀ j, j < 4 → ((sliceOf bytes).drop 68)[j]!.toNat = (bytes.val[68 + j]!).val := by
+      intro j hj
+      rw [← wire_bytesOf_eq_sliceOf, Tacenta.SessionUnitWireT3.bytesOf_drop,
+        Tacenta.SessionUnitWireT3.bytesOf_getElem! _ _ (by simp; omega),
+        Tacenta.SessionUnitWireT3.byteOf_toNat]
+      simp [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by omega : 68 + j < bytes.val.length)]
+    rw [hb 0 (by omega), hb 1 (by omega), hb 2 (by omega), hb 3 (by omega), i5_post,
+      i1_post, i2_post, i3_post, i4_post]
+    have h0 := (bytes.val[68]!).hBounds
+    have h1 := (bytes.val[69]!).hBounds
+    have h2 := (bytes.val[70]!).hBounds
+    have h3 := (bytes.val[71]!).hBounds
+    simp only [UInt32.toNat_ofNat']
+    simp (disch := omega) only [Nat.reduceAdd, getElem!_pos] at h0 h1 h2 h3 ⊢
+    simp only [UScalarTy.numBits] at h0 h1 h2 h3
+    rw [Nat.mod_eq_of_lt (by omega)]
+
+
+/-- The value of the size rule the code computes, on the values it reads. -/
+def frameTooLongOf (len : Nat) (initial : Bool) (kem : Option Nat) : Bool :=
+  decide (1050362 < len) ||
+    match (if initial then
+        (match kem with
+         | none => none
+         | some k => if 84 + k ≤ len then some (len - (84 + k)) else none)
+      else some len) with
+    | some span => decide (1048710 < span)
+    | none => false
+
+theorem nested_ratchet_len_spec (frameLen : Std.Usize) (k : Std.U32) :
+    serialization.nested_ratchet_len frameLen k ⦃ fun r =>
+      r.map (fun s => s.val) =
+        (if 84 + k.val ≤ frameLen.val then some (frameLen.val - (84 + k.val)) else none) ⦄ := by
+  unfold serialization.nested_ratchet_len
+  simp only [serialization.INITIAL_FIXED_LEN]
+  have hc := U32.cast_Usize_val_eq k
+  have h84 : (84#usize).val = 84 := by simp
+  simp only [lift, bind_tc_ok]
+  have hadd := Usize.checked_add_bv_spec 84#usize (UScalar.cast .Usize k)
+  rcases ho : Usize.checked_add 84#usize (UScalar.cast .Usize k) with _ | start
+  · rw [ho] at hadd
+    simp only [WP.spec_ok, Option.map_none]
+    have hmax : frameLen.val ≤ Usize.max := by scalar_tac
+    rw [if_neg (by simp only [hc, h84] at hadd; omega)]
+  · rw [ho] at hadd
+    obtain ⟨_, hv, _⟩ := hadd
+    simp only [hc, h84] at hv
+    step*
+    · rw [if_pos (by scalar_tac)]
+      simp only [Option.map_some, Option.some.injEq]
+      omega
+    · rw [if_neg (by scalar_tac)]
+      simp
+
+theorem frame_too_long_spec (frameLen : Std.Usize) (initial : Bool) (kem : Option Std.U32) :
+    serialization.frame_too_long frameLen initial kem ⦃ fun b =>
+      b = frameTooLongOf frameLen.val initial (kem.map (fun k => k.val)) ⦄ := by
+  unfold serialization.frame_too_long
+  simp only [serialization.MAX_INITIAL_FRAME_LEN, serialization.MAX_RATCHET_FRAME_LEN]
+  by_cases hlong : 1050362 < frameLen.val
+  · rw [if_pos (by scalar_tac)]
+    simp [frameTooLongOf, hlong]
+  · rw [if_neg (by scalar_tac)]
+    unfold serialization.ratchet_span_of
+    by_cases hi : initial = true
+    swap
+    · simp only [Bool.not_eq_true] at hi
+      simp only [hi, Bool.false_eq_true, if_false, bind_tc_ok, WP.spec_ok, frameTooLongOf, hlong,
+        decide_false, Bool.false_or, decide_eq_decide]
+      scalar_tac
+    · simp only [hi]
+      rcases Option.eq_none_or_eq_some kem with hk | ⟨k, hk⟩
+      · simp [hk, frameTooLongOf, hlong]
+      · simp only [hk, if_true]
+        apply WP.spec_bind (nested_ratchet_len_spec frameLen k)
+        intro r hr
+        rcases r with _ | span
+        · simp only [Option.map_none] at hr
+          simp only [WP.spec_ok, frameTooLongOf, hlong, Option.map_some, if_true, ← hr]
+          simp
+        · simp only [Option.map_some] at hr
+          simp only [WP.spec_ok, frameTooLongOf, hlong, Option.map_some, if_true, ← hr]
+          simp only [decide_false, Bool.false_or, decide_eq_decide]
+          scalar_tac
+
+theorem frameTooLong_of_noninitial (frame : List UInt8)
+    (h : Model.Lifecycle.messageType frame ≠ some .initial) :
+    Model.Lifecycle.frameTooLong frame = frameTooLongOf frame.length false none := by
+  have hs : Model.Lifecycle.ratchetSpan frame = some frame.length := by
+    unfold Model.Lifecycle.ratchetSpan
+    split
+    · rename_i hm; exact (h hm).elim
+    · rfl
+  simp only [Model.Lifecycle.frameTooLong, hs, frameTooLongOf, Bool.false_eq_true, if_false,
+    Model.Lifecycle.maxInitialFrameLen_value, Model.Lifecycle.maxRatchetFrameLen_value]
+
+theorem frameTooLong_of_initial (frame : List UInt8)
+    (h : Model.Lifecycle.messageType frame = some .initial) :
+    Model.Lifecycle.frameTooLong frame =
+      frameTooLongOf frame.length true (Model.Lifecycle.initialKemLen? frame) := by
+  simp only [Model.Lifecycle.frameTooLong, Model.Lifecycle.ratchetSpan, h, frameTooLongOf, if_true,
+    Model.Lifecycle.maxInitialFrameLen_value, Model.Lifecycle.maxRatchetFrameLen_value]
+  rcases Model.Lifecycle.initialKemLen? frame with _ | k
+  · rfl
+  · by_cases hk : 84 + k ≤ frame.length <;> simp [hk]
+
+/-- The size rule the code applies is the model's, on every byte string. -/
+
+theorem check_frame_size_refines (bytes : Slice Std.U8) :
+    serialization.check_frame_size bytes =
+      ok (if Model.Lifecycle.frameTooLong (sliceOf bytes)
+        then core.result.Result.Err tacenta_wire.DecodeError.TooLong
+        else core.result.Result.Ok ()) := by
+  unfold serialization.check_frame_size
+  obtain ⟨mt, hmt, hrel⟩ := Std.WP.spec_imp_exists (message_type_refines bytes)
+  rw [hmt]
+  simp only [bind_tc_ok]
+  rcases mt with _ | ty
+  · have hm : Model.Lifecycle.messageType (sliceOf bytes) ≠ some .initial := by
+      rw [← hrel]; simp
+    obtain ⟨b, hb, hbv⟩ := Std.WP.spec_imp_exists
+      (frame_too_long_spec (Slice.len bytes) false none)
+    simp only [hb, bind_tc_ok, frameTooLong_of_noninitial _ hm, sliceOf_length, hbv,
+      Option.map_none, Slice.len_val]
+    split <;> simp_all
+  · rcases ty with _ | _
+    · have hm : Model.Lifecycle.messageType (sliceOf bytes) ≠ some .initial := by
+        rw [← hrel]; simp [messageTypeOf]
+      obtain ⟨b, hb, hbv⟩ := Std.WP.spec_imp_exists
+        (frame_too_long_spec (Slice.len bytes) false none)
+      simp only [hb, bind_tc_ok, frameTooLong_of_noninitial _ hm, sliceOf_length, hbv,
+        Option.map_none, Slice.len_val]
+      split <;> simp_all
+    · have hm : Model.Lifecycle.messageType (sliceOf bytes) = some .initial := by
+        rw [← hrel]; simp [messageTypeOf]
+      obtain ⟨kem, hkem, hkemv⟩ := Std.WP.spec_imp_exists (initial_kem_len_refines bytes)
+      obtain ⟨b, hb, hbv⟩ := Std.WP.spec_imp_exists
+        (frame_too_long_spec (Slice.len bytes) true kem)
+      simp only [hkem, hb, bind_tc_ok, frameTooLong_of_initial _ hm, sliceOf_length, hbv,
+        Slice.len_val]
+      have hk : Model.Lifecycle.initialKemLen? (sliceOf bytes) = kem.map (fun k => k.val) :=
+        hkemv.symm
+      rw [hk]
+      split <;> simp_all
+
+
+/-- A frame the size rule admits passes `check_frame_size`. -/
+theorem check_frame_size_admits (bytes : Slice Std.U8)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf bytes) = false) :
+    serialization.check_frame_size bytes = ok (core.result.Result.Ok ()) := by
+  rw [check_frame_size_refines, hsize]
+  rfl
+
+/-- A frame the size rule refuses fails `check_frame_size` with `TooLong`. -/
+theorem check_frame_size_refuses (bytes : Slice Std.U8)
+    (hlong : Model.Lifecycle.frameTooLong (sliceOf bytes) = true) :
+    serialization.check_frame_size bytes =
+      ok (core.result.Result.Err tacenta_wire.DecodeError.TooLong) := by
+  rw [check_frame_size_refines, hlong]
+  rfl
+
+/-- Every frame no longer than `maxRatchetFrameLen` passes the size rule: the span it
+locates is never longer than the frame. -/
+theorem frameTooLong_false_of_le (frame : Bytes)
+    (h : frame.length ≤ Model.Lifecycle.maxRatchetFrameLen) :
+    Model.Lifecycle.frameTooLong frame = false := by
+  have hspan : ∀ s, Model.Lifecycle.ratchetSpan frame = some s → s ≤ frame.length := by
+    intro s hs
+    unfold Model.Lifecycle.ratchetSpan at hs
+    split at hs
+    · split at hs
+      · simp at hs
+      · split at hs
+        · simp only [Option.some.injEq] at hs; omega
+        · simp at hs
+    · simp only [Option.some.injEq] at hs; omega
+  rw [Model.Lifecycle.maxRatchetFrameLen_value] at h
+  simp only [Model.Lifecycle.frameTooLong, Bool.or_eq_false_iff, decide_eq_false_iff_not,
+    Model.Lifecycle.maxInitialFrameLen_value, Model.Lifecycle.maxRatchetFrameLen_value]
+  refine ⟨by omega, ?_⟩
+  cases hs : Model.Lifecycle.ratchetSpan frame with
+  | none => rfl
+  | some s =>
+      have := hspan s hs
+      simp only [decide_eq_false_iff_not]
+      omega
+
+/-- A byte string of at most `MAX_RATCHET_FRAME_LEN` bytes passes `check_frame_size`. -/
+theorem check_frame_size_admits_of_le (bytes : Slice Std.U8)
+    (h : bytes.val.length ≤ Model.Lifecycle.maxRatchetFrameLen) :
+    serialization.check_frame_size bytes = ok (core.result.Result.Ok ()) :=
+  check_frame_size_admits bytes
+    (frameTooLong_false_of_le (sliceOf bytes) (by rw [sliceOf_length]; exact h))
+
+/-- **The size refusal on `Session::decrypt`, exactly.** A frame the size rule
+refuses is `Decode(TooLong)`, and the session and the random source are
+returned as they were; the model's step refuses with `decode tooLong` and
+returns its session and oracle unchanged. No other hypothesis: a malformed
+frame, an initial frame that is not a repeat, and a session whose agreement has
+failed are all included. -/
+theorem decrypt_frame_too_long_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true) :
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Err (.Decode tacenta_wire.DecodeError.TooLong), real, rng) ∧
+      Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+        { session := model, result := .error (.decode .tooLong), oracle := oracle } := by
+  constructor
+  · unfold lifecycle.Session.decrypt
+    rw [check_frame_size_refuses message hlong]
+    rfl
+  · exact Model.Lifecycle.decrypt_frame_too_long view oracle model (sliceOf message) hlong
+
+/-- The size refusal on `Session::decrypt` as a step refinement: the refusal
+refines the model's, with the session relation and the trace kept. -/
+theorem decrypt_frame_too_long_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true) :
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Err (.Decode tacenta_wire.DecodeError.TooLong), real, rng) ∧
+      StepRefines trace dh K (.Err (.Decode tacenta_wire.DecodeError.TooLong), real, rng)
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  obtain ⟨hreal, hmodel⟩ := decrypt_frame_too_long_refines rngCore cryptoRng view oracle
+    real model message rng hlong
+  refine ⟨hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, htrace⟩
+
+/-- **The sender's rule on `Session::encrypt`, exactly.** A plaintext longer than
+`MAX_PLAINTEXT_LEN` is `PlaintextTooLong`, with the session and the random
+source returned as they were; the model refuses with `plaintextTooLong` and
+returns its session and oracle unchanged. No other hypothesis: a session whose
+agreement has failed and a pending session are included. -/
+theorem encrypt_plaintext_too_long_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng : R)
+    (hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length) :
+    lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+        ok (.Err lifecycle.Error.PlaintextTooLong, real, rng) ∧
+      Model.Lifecycle.encrypt view oracle model (sliceOf plaintext) =
+        { session := model, result := .error .plaintextTooLong, oracle := oracle } := by
+  constructor
+  · unfold lifecycle.Session.encrypt
+    have h : Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN := by
+      rw [sliceOf_length] at hlong
+      simp only [serialization.MAX_PLAINTEXT_LEN, Model.Lifecycle.maxPlaintextLen] at hlong ⊢
+      scalar_tac
+    simp only [h, if_true]
+  · exact Model.Lifecycle.encrypt_plaintext_too_long view oracle model (sliceOf plaintext) hlong
+
+/-- The sender's rule on `Session::encrypt` as a step refinement. -/
+theorem encrypt_plaintext_too_long_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length) :
+    lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+        ok (.Err lifecycle.Error.PlaintextTooLong, real, rng) ∧
+      StepRefines trace dh K (.Err lifecycle.Error.PlaintextTooLong, real, rng)
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  obtain ⟨hreal, hmodel⟩ := encrypt_plaintext_too_long_refines rngCore cryptoRng view oracle
+    real model plaintext rng hlong
+  refine ⟨hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, htrace⟩
+
+/-- A call to `Session::encrypt` that returned a message was given a plaintext the
+sender's rule admits: a longer one is refused before anything else. -/
+theorem encrypt_ok_plaintext_fits {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
+    (bytes : alloc.vec.Vec Std.U8) (real' : lifecycle.Session) (rng' : R)
+    (h : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+      ok (.Ok bytes, real', rng')) :
+    (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen := by
+  unfold lifecycle.Session.encrypt at h
+  by_cases hlong : Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN
+  · simp [hlong] at h
+  · rw [sliceOf_length]
+    simp only [serialization.MAX_PLAINTEXT_LEN, Model.Lifecycle.maxPlaintextLen] at hlong ⊢
+    scalar_tac
+
+/-- A plaintext the sender's rule admits passes the first check of
+`Session::encrypt`. -/
+theorem encrypt_plaintext_admitted (plaintext : Slice Std.U8)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen) :
+    ¬ (Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN) := by
+  rw [sliceOf_length] at hlen
+  simp only [serialization.MAX_PLAINTEXT_LEN, Model.Lifecycle.maxPlaintextLen] at hlen ⊢
+  scalar_tac
+
 theorem braid_failed_refines (K : Model.Braid.Kem)
     (real : tacenta_braid.Braid) (model : Model.Braid.BraidState)
     (hrel : Tacenta.SessionUnitBraidT3.StateRefines K real.state model) :
@@ -1784,7 +2128,9 @@ theorem braid_failed_refines (K : Model.Braid.Kem)
     simp [tacenta_braid.Braid.failed, Model.Lifecycle.braidFailed,
       Tacenta.SessionUnitBraidT3.StateRefines, hr, hm] at hrel ⊢
 
-/-- The first `encrypt` refusal branch agrees exactly: a terminal Braid returns
+/-- The first `encrypt` refusal branch past the sender's rule agrees exactly: for a plaintext of at
+most `MAX_PLAINTEXT_LEN` bytes (`hlen`; a longer one is refused `PlaintextTooLong` first,
+`encrypt_plaintext_too_long_refines`), a terminal Braid returns
 `AgreementFailed`, leaves the complete Session and RNG untouched, and performs
 no primitive call. -/
 theorem encrypt_terminal_guard_refines {R : Type}
@@ -1793,6 +2139,7 @@ theorem encrypt_terminal_guard_refines {R : Type}
     (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
     (model : Model.Lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hfailed : Model.Lifecycle.agreementFailed model = true) :
     lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
         ok (.Err lifecycle.Error.AgreementFailed, real, rng) ∧
@@ -1806,10 +2153,11 @@ theorem encrypt_terminal_guard_refines {R : Type}
   rw [hbf] at hbraid
   constructor
   · unfold lifecycle.Session.encrypt
+    simp only [encrypt_plaintext_admitted plaintext hlen, if_false]
     rw [hbraid]
     simp
   · exact Model.Lifecycle.encrypt_terminal_guard view oracle model
-      (sliceOf plaintext) hfailed
+      (sliceOf plaintext) hlen hfailed
 
 theorem encrypt_terminal_guard_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -1824,8 +2172,13 @@ theorem encrypt_terminal_guard_step_refines {R : Type}
       lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  by_cases hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length
+  · obtain ⟨hreal, hstep⟩ := encrypt_plaintext_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model plaintext rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen := by omega
   have h := encrypt_terminal_guard_refines rngCore cryptoRng dh K view oracle
-    real model plaintext rng hrel hfailed
+    real model plaintext rng hrel hlen hfailed
   refine ⟨(.Err lifecycle.Error.AgreementFailed, real, rng), h.1, ?_⟩
   rw [h.2]
   exact ⟨rfl, hrel, htrace⟩
@@ -2424,7 +2777,8 @@ theorem decrypt_ratchet_decode_refusal_refines {R : Type}
 
 /-- Lift an already-related ratchet receive through the public decrypt
 dispatcher's passthrough arms (`none` and explicit ratchet).  Refusals preserve
-the inner state; success clears `pending_initial` on both sides. -/
+the inner state; success clears `pending_initial` on both sides.
+The frame passes the size rule (`hsize`); a frame it refuses is refused first (`decrypt_frame_too_long_refines`). -/
 theorem decrypt_passthrough_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -2435,6 +2789,7 @@ theorem decrypt_passthrough_step_refines {R : Type}
     (inner : alloc.vec.Vec Std.U8)
     (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
       lifecycle.Session × R)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message = ok realType)
     (hnotInitial : realType ≠ some .Initial)
     (hcopy : alloc.slice.Slice.to_vec core.clone.CloneU8 message = ok inner)
@@ -2457,7 +2812,7 @@ theorem decrypt_passthrough_step_refines {R : Type}
         | Ratchet => simp [messageTypeOf]
         | Initial => exact (hnotInitial rfl).elim
   have hdispatch := Model.Lifecycle.dispatchDecrypt_passthrough oracle model
-    (sliceOf message) hmodelNot
+    (sliceOf message) hsize hmodelNot
   rcases innerOutput with ⟨realResult, realNext, rngNext⟩
   cases hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
       (sliceOf message) with
@@ -2476,6 +2831,7 @@ theorem decrypt_passthrough_step_refines {R : Type}
               have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
                   ok output := by
                 unfold lifecycle.Session.decrypt
+                rw [check_frame_size_admits message hsize]
                 cases realType with
                 | none =>
                     simp [htype, hcopy, hinner, output,
@@ -2516,6 +2872,7 @@ theorem decrypt_passthrough_step_refines {R : Type}
               have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
                   ok output := by
                 unfold lifecycle.Session.decrypt
+                rw [check_frame_size_admits message hsize]
                 cases realType with
                 | none =>
                     simp [htype, hcopy, hinner, output, realFinal,
@@ -2536,7 +2893,8 @@ theorem decrypt_passthrough_step_refines {R : Type}
 
 /-- The public decrypt passthrough proof with the infallible byte-copy step
 discharged.  Callers reason about the copied bytes by value rather than carrying
-an implementation-level `Slice::to_vec` equation. -/
+an implementation-level `Slice::to_vec` equation.
+The frame passes the size rule (`hsize`); a frame it refuses is refused first (`decrypt_frame_too_long_refines`). -/
 theorem decrypt_passthrough_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -2546,6 +2904,7 @@ theorem decrypt_passthrough_refines {R : Type}
     (realType : Option serialization.MessageType)
     (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
       lifecycle.Session × R)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message = ok realType)
     (hnotInitial : realType ≠ some .Initial)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
@@ -2565,7 +2924,7 @@ theorem decrypt_passthrough_refines {R : Type}
   subst inner
   exact decrypt_passthrough_step_refines rngCore cryptoRng trace dh K view oracle
     real model message rng realType (show alloc.vec.Vec Std.U8 from message)
-    innerOutput htype hnotInitial hcopy hinner hstep
+    innerOutput hsize htype hnotInitial hcopy hinner hstep
 
 theorem decrypt_none_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -2575,6 +2934,7 @@ theorem decrypt_none_refines {R : Type}
     (message : Slice Std.U8) (rng : R)
     (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
       lifecycle.Session × R)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message = ok none)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng =
@@ -2584,7 +2944,7 @@ theorem decrypt_none_refines {R : Type}
     PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
       message rng := by
   exact decrypt_passthrough_refines rngCore cryptoRng trace dh K view oracle
-    real model message rng none innerOutput htype (by simp) hinner hstep
+    real model message rng none innerOutput hsize htype (by simp) hinner hstep
 
 theorem decrypt_ratchet_message_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -2594,6 +2954,7 @@ theorem decrypt_ratchet_message_refines {R : Type}
     (message : Slice Std.U8) (rng : R)
     (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
       lifecycle.Session × R)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Ratchet))
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
@@ -2604,7 +2965,7 @@ theorem decrypt_ratchet_message_refines {R : Type}
     PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
       message rng := by
   exact decrypt_passthrough_refines rngCore cryptoRng trace dh K view oracle
-    real model message rng (some .Ratchet) innerOutput htype (by simp) hinner hstep
+    real model message rng (some .Ratchet) innerOutput hsize htype (by simp) hinner hstep
 
 theorem decrypt_passthrough_refusal_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
@@ -2625,6 +2986,7 @@ theorem decrypt_passthrough_refusal_exact
       { session := modelNext, result := .error modelReason, oracle := oracleNext })
     (hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
       { session := modelNext, result := .error modelReason, oracle := oracleNext })
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message = ok realType)
     (hnotInitial : realType ≠ some .Initial)
     (hcopy : alloc.slice.Slice.to_vec core.clone.CloneU8 message = ok inner) :
@@ -2635,6 +2997,7 @@ theorem decrypt_passthrough_refusal_exact
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err realReason, realNext, rngNext) := by
     unfold lifecycle.Session.decrypt
+    rw [check_frame_size_admits message hsize]
     cases realType with
     | none =>
         simp [htype, hcopy, hinner,
@@ -2673,6 +3036,7 @@ theorem decrypt_passthrough_success_exact
         result := .ok modelPlaintext, oracle := oracleNext })
     (hbytes : vecOf plaintext = modelPlaintext)
     (htrace : trace rngNext = oracleNext.draws)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message = ok realType)
     (hnotInitial : realType ≠ some .Initial)
     (hcopy : alloc.slice.Slice.to_vec core.clone.CloneU8 message = ok inner) :
@@ -2684,6 +3048,7 @@ theorem decrypt_passthrough_success_exact
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Ok plaintext, { realNext with pending_initial := none }, rngNext) := by
     unfold lifecycle.Session.decrypt
+    rw [check_frame_size_admits message hsize]
     cases realType with
     | none =>
         simp [htype, hcopy, hinner,
@@ -2705,7 +3070,9 @@ theorem decrypt_passthrough_success_exact
 
 /-- Lift an exact initial-wrapper decoder refusal through public decrypt.
 Like the ratchet decoder branch, this isolates the remaining obligation: prove
-the detailed concrete and model decoders choose the same public reason. -/
+the detailed concrete and model decoders choose the same public reason.
+The frame passes the size rule (`hsize`); a frame it refuses is refused `Decode(TooLong)` first
+(`decrypt_frame_too_long_refines`). -/
 theorem decrypt_initial_decode_refusal_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -2716,6 +3083,7 @@ theorem decrypt_initial_decode_refusal_step_refines {R : Type}
     (modelReason : Model.Messages.DecodeRefusal)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rng = oracle.draws)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
     (hdecodeReal : tacenta_wire.decode_initial message =
@@ -2733,12 +3101,12 @@ theorem decrypt_initial_decode_refusal_step_refines {R : Type}
   have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
     simpa [messageTypeOf] using htypeRel.symm
   have hdispatch := Model.Lifecycle.dispatchDecrypt_decode_refusal oracle model
-    (sliceOf message) modelReason hmodelType hdecodeModel
+    (sliceOf message) modelReason hsize hmodelType hdecodeModel
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) (.decode modelReason) hdispatch
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err (.Decode realReason), real, rng) := by
-    simp [lifecycle.Session.decrypt, htype, hdecodeReal]
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecodeReal]
   refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
@@ -2761,6 +3129,11 @@ theorem decrypt_initial_decode_refusal_refines {R : Type}
       ok (core.result.Result.Err realReason)) :
     PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
       message rng := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model message rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   obtain ⟨classified, hclassified, hreason⟩ := Std.WP.spec_imp_exists
     (Tacenta.SessionUnitWireInitialT3.decode_initial_refusal_classifies message)
   have hclassifiedEq : classified = .Err realReason := by
@@ -2791,7 +3164,7 @@ theorem decrypt_initial_decode_refusal_refines {R : Type}
     rw [hnone', hreason']
   have hexact := decrypt_initial_decode_refusal_step_refines rngCore cryptoRng trace dh K
     view oracle real model message rng realReason (decodeRefusalOf realReason)
-    hrel htrace htype hdecodeReal hdecodeModel rfl
+    hrel htrace hsize htype hdecodeReal hdecodeModel rfl
   exact ⟨(.Err (.Decode realReason), real, rng), hexact.1, hexact.2⟩
 
 /-- An initial frame cannot be a repeat when the established Session has no
@@ -2832,6 +3205,11 @@ theorem decrypt_initial_without_established_refines {R : Type}
     (hnone : real.established_ephemeral = none) :
     PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
       message rng := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model message rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
@@ -2844,12 +3222,12 @@ theorem decrypt_initial_without_established_refines {R : Type}
     simp [Model.Lifecycle.repeatedInitial, hmodelNone]
   have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) .notARepeatedInitial hdispatch
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hnone]
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hnone]
   refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
@@ -2902,6 +3280,11 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model message rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   have htypeRel := message_type_refines message
   rw [htype] at htypeRel
   have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
@@ -2941,12 +3324,12 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
         exact absurd heq' (by decide)
   have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) .notARepeatedInitial hdispatch
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
       hsameAgreement, hephemeralCall]
   refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
@@ -3003,6 +3386,11 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model message rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   have htypeRel := message_type_refines message
   rw [htype] at htypeRel
   have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
@@ -3060,12 +3448,12 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
         exact hcontra.elim
   have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) .notARepeatedInitial hdispatch
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
       hsameAgreement, hephemeralCall, hencoded, hidentityCall]
   refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
@@ -3096,6 +3484,11 @@ theorem decrypt_initial_identity_mismatch_agreement_refines {R : Type}
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+  · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model message rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
   have htypeRel := message_type_refines message
   rw [htype] at htypeRel
   have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
@@ -3156,12 +3549,12 @@ theorem decrypt_initial_identity_mismatch_agreement_refines {R : Type}
         exact hcontra.elim
   have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) .notARepeatedInitial hdispatch
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
       hsameAgreement, hencoded, hidentityCall]
   refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
@@ -3205,6 +3598,7 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
     (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
       lifecycle.Session × R)
     (hrel : SessionRefines dh K real model)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
     (hdecode : tacenta_wire.decode_initial message =
@@ -3233,7 +3627,7 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
       hestablished hephemeral hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   rcases innerOutput with ⟨realResult, realNext, rngNext⟩
   cases hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
       (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage with
@@ -3251,7 +3645,7 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
                 (core.result.Result.Err realReason, realNext, rngNext)
               have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
                   ok output := by
-                simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+                simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
                   hsameAgreement, hephemeralCall, hencoded, hidentityCall, hinner, output,
                   core.result.Result.Insts.CoreOpsTry.branch,
                   core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
@@ -3281,7 +3675,7 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
                   rfl, hstep.session.establishedEphemeral⟩
               have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
                   ok output := by
-                simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+                simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
                   hsameAgreement, hephemeralCall, hencoded, hidentityCall, hinner, output, realFinal,
                   core.result.Result.Insts.CoreOpsTry.branch]
               have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
@@ -3304,6 +3698,7 @@ theorem decrypt_initial_repeat_agreement_step_refines {R : Type}
     (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
       lifecycle.Session × R)
     (hrel : SessionRefines dh K real model)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
     (hdecode : tacenta_wire.decode_initial message =
@@ -3331,7 +3726,7 @@ theorem decrypt_initial_repeat_agreement_step_refines {R : Type}
       hrel hestablished hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   rcases innerOutput with ⟨realResult, realNext, rngNext⟩
   cases hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
       (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage with
@@ -3349,7 +3744,7 @@ theorem decrypt_initial_repeat_agreement_step_refines {R : Type}
                 (core.result.Result.Err realReason, realNext, rngNext)
               have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
                   ok output := by
-                simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+                simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
                   hsameAgreement, hencoded, hidentityCall, hinner, output,
                   core.result.Result.Insts.CoreOpsTry.branch,
                   core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
@@ -3379,7 +3774,7 @@ theorem decrypt_initial_repeat_agreement_step_refines {R : Type}
                   rfl, hstep.session.establishedEphemeral⟩
               have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
                   ok output := by
-                simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+                simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
                   hsameAgreement, hencoded, hidentityCall, hinner, output, realFinal,
                   core.result.Result.Insts.CoreOpsTry.branch]
               have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
@@ -3407,6 +3802,7 @@ theorem decrypt_initial_repeat_refusal_exact
     (modelNext : Model.Lifecycle.Session)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rngNext = oracleNext.draws)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
     (hdecode : tacenta_wire.decode_initial message =
@@ -3440,13 +3836,13 @@ theorem decrypt_initial_repeat_refusal_exact
       hestablished hephemeral hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
       { session := modelNext, result := .error modelReason, oracle := oracleNext } := by
     simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep]
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err realReason, real, rngNext) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
       hsameAgreement, hephemeralCall, hencoded', hidentityCall, hinner,
       core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
@@ -3472,6 +3868,7 @@ theorem decrypt_initial_repeat_agreement_refusal_exact
     (modelNext : Model.Lifecycle.Session)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rngNext = oracleNext.draws)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
     (hdecode : tacenta_wire.decode_initial message =
@@ -3504,13 +3901,13 @@ theorem decrypt_initial_repeat_agreement_refusal_exact
       hrel hestablished hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
       { session := modelNext, result := .error modelReason, oracle := oracleNext } := by
     simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep]
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err realReason, real, rngNext) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
       hsameAgreement, hencoded', hidentityCall, hinner,
       core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
@@ -3551,7 +3948,7 @@ def initial_dispatch_repeat_refusal_from_premises
   refine InitialDispatchRoute.repeatRefusal ?_
   exact decrypt_initial_repeat_refusal_exact rngCore cryptoRng trace dh codec K view oracle
     oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
-    ctx.hrel htraceNext ctx.htype hdecode hestablished
+    ctx.hrel htraceNext ctx.hsize ctx.htype hdecode hestablished
     hephemeral hidentity hsameAgreement hmodelSame hinner hmodelStep hstep
 
 theorem decrypt_initial_repeat_success_exact
@@ -3569,6 +3966,7 @@ theorem decrypt_initial_repeat_success_exact
     (realNext : lifecycle.Session) (modelNext : Model.Lifecycle.Session)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rngNext = oracleNext.draws)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
     (hdecode : tacenta_wire.decode_initial message =
@@ -3603,7 +4001,7 @@ theorem decrypt_initial_repeat_success_exact
       hestablished hephemeral hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   let realFinal := { realNext with pending_initial := none }
   let modelFinal := { modelNext with pendingInitial := none }
   have hs : SessionRefines dh K realNext modelNext := by
@@ -3616,7 +4014,7 @@ theorem decrypt_initial_repeat_success_exact
     simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep, modelFinal]
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Ok plaintext, realFinal, rngNext) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
       hsameAgreement, hephemeralCall, hencoded, hidentityCall, hinner, realFinal,
       core.result.Result.Insts.CoreOpsTry.branch]
   exact ⟨(.Ok plaintext, realFinal, rngNext), hreal,
@@ -3638,6 +4036,7 @@ theorem decrypt_initial_repeat_agreement_success_exact
     (realNext : lifecycle.Session) (modelNext : Model.Lifecycle.Session)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rngNext = oracleNext.draws)
+    (hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false)
     (htype : serialization.message_type message =
       ok (some serialization.MessageType.Initial))
     (hdecode : tacenta_wire.decode_initial message =
@@ -3671,7 +4070,7 @@ theorem decrypt_initial_repeat_agreement_success_exact
       hrel hestablished hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
-    hmodelType hdecodeRel hrepeat
+    hsize hmodelType hdecodeRel hrepeat
   let realFinal := { realNext with pending_initial := none }
   let modelFinal := { modelNext with pendingInitial := none }
   have hs : SessionRefines dh K realNext modelNext := by
@@ -3684,7 +4083,7 @@ theorem decrypt_initial_repeat_agreement_success_exact
     simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep, modelFinal]
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Ok plaintext, realFinal, rngNext) := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+    simp [lifecycle.Session.decrypt, check_frame_size_admits message hsize, htype, hdecode, hestablished,
       hsameAgreement, hencoded, hidentityCall, hinner, realFinal,
       core.result.Result.Insts.CoreOpsTry.branch]
   exact ⟨(.Ok plaintext, realFinal, rngNext), hreal,
@@ -3727,7 +4126,7 @@ def initial_dispatch_repeat_success_from_premises
   refine InitialDispatchRoute.repeatSuccess ?_
   exact decrypt_initial_repeat_success_exact rngCore cryptoRng trace dh codec K view oracle oracleNext
     real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
-    ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
+    ctx.hrel htraceNext ctx.hsize ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
     hmodelSame hinner hmodelStep hbytes
     hstep
 
@@ -3742,6 +4141,7 @@ theorem encrypt_braid_failure_step_refines {R : Type}
     (modelMessage : Option Model.Braid.Msg) (modelEpoch : Nat)
     (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -3771,11 +4171,12 @@ theorem encrypt_braid_failure_step_refines {R : Type}
   have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
       ok (.Err lifecycle.Error.AgreementFailed, realNext, rngNext) := by
     unfold lifecycle.Session.encrypt
+    simp only [encrypt_plaintext_admitted plaintext hlen, ↓reduceIte]
     simp [hrealReady, hsendReal, hrealFailed, realNext]
   have hmodel : Model.Lifecycle.encrypt view oracle model (sliceOf plaintext) =
       { session := modelNext, result := .error .agreementFailed,
         oracle := oracleNext } := by
-    simp [Model.Lifecycle.encrypt, hready, hsendModel, hfailed, modelNext]
+    simp [Model.Lifecycle.encrypt, Nat.not_lt.mpr hlen, hready, hsendModel, hfailed, modelNext]
   refine ⟨(.Err lifecycle.Error.AgreementFailed, realNext, rngNext), hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hnextSession, htrace⟩
@@ -3792,6 +4193,7 @@ theorem encrypt_braid_failure_of_no_draw_send
     (realBraidNext : tacenta_braid.Braid)
     (hkem : oracle.braidKem = K)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -3819,7 +4221,7 @@ theorem encrypt_braid_failure_of_no_draw_send
       realOutput realBraidNext hnoDraw hpost
   exact encrypt_braid_failure_step_refines rngCore cryptoRng trace dh K view oracle
     oracle real model plaintext rng rngNext realMessage realEpoch realOutput
-    realBraidNext modelMessage modelEpoch modelOutput modelBraidNext hrel hready
+    realBraidNext modelMessage modelEpoch modelOutput modelBraidNext hrel hlen hready
     hsendReal hsendModel hnext (hfailed modelBraidNext hnext) htrace
 
 theorem encrypt_braid_failure_of_draw_send
@@ -3859,6 +4261,11 @@ theorem encrypt_braid_failure_of_draw_send
       lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  by_cases hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length
+  · obtain ⟨hreal, hstep⟩ := encrypt_plaintext_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model plaintext rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen := by omega
   obtain ⟨draws, rest, modelMessage, modelEpoch, modelOutput, modelBraidNext,
       hcount, hhead, htail, hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
     braid_send_model_result_of_draw (R := R) trace oracle model.braid hkem
@@ -3867,7 +4274,7 @@ theorem encrypt_braid_failure_of_draw_send
   exact encrypt_braid_failure_step_refines rngCore cryptoRng trace dh K view oracle
     ({ oracle with draws := rest }) real model plaintext rng rngNext realMessage
     realEpoch realOutput realBraidNext modelMessage modelEpoch modelOutput
-    modelBraidNext hrel hready hsendReal hsendModel hnext
+    modelBraidNext hrel hlen hready hsendReal hsendModel hnext
     (hfailed modelBraidNext hnext) htail
 
 /-! Contract-backed wrappers for the two Braid refusal shapes.  These are the
@@ -3888,6 +4295,7 @@ theorem encrypt_braid_failure_of_no_draw_contracts
     (hlive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid)
     (hkem : oracle.braidKem = K)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -3902,7 +4310,7 @@ theorem encrypt_braid_failure_of_no_draw_contracts
         (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
   apply encrypt_braid_failure_of_no_draw_send rngCore cryptoRng trace dh K view oracle
     real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext hkem hrel
-    hready hsendReal hnoDraw
+    hlen hready hsendReal hnoDraw
   · exact braid_send_post_of_contracts contracts real.braid rng hrel.braid hlive hsendReal
   · exact hfailed
   · exact htrace
@@ -3936,12 +4344,17 @@ theorem public_encrypt_braid_failure_no_draw_of_contracts
         ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
       trace rngNext = oracle.draws) :
     PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model plaintext rng := by
+  by_cases hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length
+  · obtain ⟨hreal, hstep⟩ := encrypt_plaintext_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model plaintext rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen := by omega
   obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts contracts real.braid rng
   rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
   have htraceNext' := htraceNext realMessage realEpoch realOutput realBraidNext rngNext hsend
   exact encrypt_braid_failure_of_no_draw_contracts rngCore cryptoRng trace dh K view oracle
     real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext contracts
-    hlive hkem hrel hready hsend hnoDraw
+    hlive hkem hrel hlen hready hsend hnoDraw
     (fun modelNext hnext => hfailed modelNext realBraidNext hnext) htraceNext'
 
 /-! The draw-consuming Braid-failure route uses the same implementation-result
@@ -3982,6 +4395,11 @@ theorem public_encrypt_braid_failure_draw_of_contracts
       Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelNext →
       Model.Lifecycle.braidFailed modelNext = true) :
     PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model plaintext rng := by
+  by_cases hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length
+  · obtain ⟨hreal, hstep⟩ := encrypt_plaintext_too_long_step_refines rngCore cryptoRng trace dh K
+      view oracle real model plaintext rng hrel htrace hlong
+    exact ⟨_, hreal, hstep⟩
+  have hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen := by omega
   obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts contracts real.braid rng
   rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
   obtain ⟨draws, rest, hcount, hhead, htail⟩ := hdraw _ _ hsend
@@ -4408,7 +4826,9 @@ theorem decrypt_ratchet_triple_refusal_step_refines {R : Type}
 
 /-- The Triple refusal branch is atomic at the lifecycle boundary.  Braid has
 already produced a candidate next state, but neither implementation commits it
-when Triple send refuses; only the already-consumed RNG trace advances. -/
+when Triple send refuses; only the already-consumed RNG trace advances.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem encrypt_triple_refusal_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -4423,6 +4843,7 @@ theorem encrypt_triple_refusal_step_refines {R : Type}
     (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
     (modelReason : Model.Triple.SendRefusal)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -4451,6 +4872,7 @@ theorem encrypt_triple_refusal_step_refines {R : Type}
   have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
       ok (.Err (.Triple realReason), real, rngNext) := by
     unfold lifecycle.Session.encrypt
+    simp only [encrypt_plaintext_admitted plaintext hlen, ↓reduceIte]
     simp [hrealReady, hsendReal, hrealNext]
     cases htripleReal with
     | none hout hsend => simp [hout, hsend]
@@ -4460,7 +4882,7 @@ theorem encrypt_triple_refusal_step_refines {R : Type}
       { session := model,
         result := .error (Model.Lifecycle.tripleSendRefusalOf modelReason),
         oracle := oracleNext } := by
-    simp [Model.Lifecycle.encrypt, hready, hsendModel, hnotFailed, htripleModel]
+    simp [Model.Lifecycle.encrypt, Nat.not_lt.mpr hlen, hready, hsendModel, hnotFailed, htripleModel]
   refine ⟨(.Err (.Triple realReason), real, rngNext), hreal, ?_⟩
   rw [hmodel]
   exact ⟨tripleSendRefusalOfReal_sound hreason, hrel, htrace⟩
@@ -4487,6 +4909,7 @@ theorem encrypt_triple_refusal_of_exact_candidate
     (modelReason : Model.Triple.SendRefusal)
     (hsparse : RealSparseConversion realOutput sparseOutput)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -4506,7 +4929,7 @@ theorem encrypt_triple_refusal_of_exact_candidate
         (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
   exact encrypt_triple_refusal_step_refines rngCore cryptoRng trace dh K view oracle oracleNext
     real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext candidate
-    realReason modelMessage modelEpoch modelOutput modelBraidNext modelReason hrel hready
+    realReason modelMessage modelEpoch modelOutput modelBraidNext modelReason hrel hlen hready
     hsendReal (real_triple_refusal_of_exact_candidate hsparse hsendCandidate) hsendModel hnext
     hnotFailed htripleModel hreason htrace
 
@@ -4541,6 +4964,7 @@ theorem public_encrypt_triple_refusal_of_contracts
       (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
     (hsparse : RealSparseConversion realOutput sparseOutput)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -4565,7 +4989,7 @@ theorem public_encrypt_triple_refusal_of_contracts
   exact encrypt_triple_refusal_of_exact_candidate rngCore cryptoRng trace dh K view oracle
     oracleNext real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext
     candidate sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext
-    modelReason hsparse hrel hready hsendReal hsendCandidate hsendModel hnext hnotFailed
+    modelReason hsparse hrel hlen hready hsendReal hsendCandidate hsendModel hnext hnotFailed
     htripleModel' hreason htrace
 
 attribute [-step] Tacenta.SessionUnitErasureT1.extend_slice32_spec
@@ -5146,7 +5570,9 @@ set_option maxHeartbeats 4000000 in
 /-- Successful established-session encryption refines the executable lifecycle
 model all the way to the returned wire bytes. The leaf send relations supply
 the candidate state/header/message key; this theorem composes them with the
-proved serializers and the AEAD oracle contract. -/
+proved serializers and the AEAD oracle contract.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem encrypt_success_no_initial_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5169,6 +5595,7 @@ theorem encrypt_success_no_initial_step_refines {R : Type}
     (realMk : Array Std.U8 32#usize) (modelTripleNext : Model.Triple.State)
     (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -5291,6 +5718,7 @@ theorem encrypt_success_no_initial_step_refines {R : Type}
   have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
       ok (.Ok ratchetMessage, realNext, rngNext) := by
     unfold lifecycle.Session.encrypt
+    simp only [encrypt_plaintext_admitted plaintext hlen, ↓reduceIte]
     cases htripleReal with
     | none hout hsend =>
         simp [hrealReady, hsendReal, hrealNext, hout, hsend, hcompositeReal,
@@ -5308,7 +5736,7 @@ theorem encrypt_success_no_initial_step_refines {R : Type}
              (Model.Messages.concatAd model.identityAd
                (Model.CompositeHeader.encode modelComposite))))
         oracle := oracleNext } := by
-    simp [Model.Lifecycle.encrypt, hready, hsendModel, hnotFailed,
+    simp [Model.Lifecycle.encrypt, Nat.not_lt.mpr hlen, hready, hsendModel, hnotFailed,
       htripleModel, hcompositeModel, hpendingModel, modelNext]
   refine ⟨(.Ok ratchetMessage, realNext, rngNext), hreal, ?_⟩
   rw [hmodel]
@@ -5327,7 +5755,8 @@ theorem encrypt_success_no_initial_step_refines {R : Type}
 
 
 /-- The established-session success leaf with the Triple candidate supplied by
-the exact generated send_candidate result. -/
+the exact generated send_candidate result.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`). -/
 theorem encrypt_success_no_initial_of_exact_candidate {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5351,6 +5780,7 @@ theorem encrypt_success_no_initial_of_exact_candidate {R : Type}
     (modelTripleNext : Model.Triple.State)
     (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -5391,7 +5821,9 @@ theorem encrypt_success_no_initial_of_exact_candidate {R : Type}
 
 
 /-- Established-session encryption after the Triple result has been obtained
-from the generated candidate and contract-backed model adapter. -/
+from the generated candidate and contract-backed model adapter.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem public_encrypt_success_no_initial_of_contracts {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5415,6 +5847,7 @@ theorem public_encrypt_success_no_initial_of_contracts {R : Type}
     (modelTripleNext : Model.Triple.State)
     (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -5479,7 +5912,9 @@ set_option maxHeartbeats 4000000 in
 /-- Successful pending-initial encryption refines the executable lifecycle
 model all the way to the returned wire bytes. The leaf send relations supply
 the candidate state/header/message key; this theorem composes them with the
-proved serializers and the AEAD oracle contract. -/
+proved serializers and the AEAD oracle contract.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem encrypt_success_initial_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5503,6 +5938,7 @@ theorem encrypt_success_initial_step_refines {R : Type}
     (realMk : Array Std.U8 32#usize) (modelTripleNext : Model.Triple.State)
     (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -5718,6 +6154,7 @@ theorem encrypt_success_initial_step_refines {R : Type}
   have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
       ok (.Ok initialMessage, realNext, rngNext) := by
     unfold lifecycle.Session.encrypt
+    simp only [encrypt_plaintext_admitted plaintext hlen, ↓reduceIte]
     cases htripleReal with
     | none hout hsend =>
         simp [hrealReady, hsendReal, hrealNext, hout, hsend, hcompositeReal,
@@ -5745,7 +6182,7 @@ theorem encrypt_success_initial_step_refines {R : Type}
                (Model.Messages.concatAd model.identityAd
                  (Model.CompositeHeader.encode modelComposite)))))
         oracle := oracleNext } := by
-    simp [Model.Lifecycle.encrypt, hready, hsendModel, hnotFailed,
+    simp [Model.Lifecycle.encrypt, Nat.not_lt.mpr hlen, hready, hsendModel, hnotFailed,
       htripleModel, hcompositeModel, hpendingModel, modelNext]
   refine ⟨(.Ok initialMessage, realNext, rngNext), hreal, ?_⟩
   rw [hmodel]
@@ -5754,7 +6191,8 @@ theorem encrypt_success_initial_step_refines {R : Type}
 
 
 /-- The pending-initial success leaf with the Triple candidate supplied by
-the exact generated send_candidate result. -/
+the exact generated send_candidate result.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`). -/
 theorem encrypt_success_initial_of_exact_candidate {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5779,6 +6217,7 @@ theorem encrypt_success_initial_of_exact_candidate {R : Type}
     (modelTripleNext : Model.Triple.State)
     (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -5830,7 +6269,9 @@ theorem encrypt_success_initial_of_exact_candidate {R : Type}
 
 
 /-- Pending-initial encryption after the Triple result has been obtained from
-the generated candidate and contract-backed model adapter. -/
+the generated candidate and contract-backed model adapter.
+The plaintext is at most `MAX_PLAINTEXT_LEN` bytes (`hlen`); a longer one is refused first
+(`encrypt_plaintext_too_long_refines`). -/
 theorem public_encrypt_success_initial_of_contracts {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -5855,6 +6296,7 @@ theorem public_encrypt_success_initial_of_contracts {R : Type}
     (modelTripleNext : Model.Triple.State)
     (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -5939,6 +6381,13 @@ inductive EncryptRouteEvidence {R : Type}
     (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
     (plaintext : Slice Std.U8) (rng : R) : Type where
+  /-- The sender's rule refuses the plaintext (message-format.md, Message size):
+      the first check, before the terminal guard and the Braid. -/
+  | plaintextTooLong
+      (hrel : SessionRefines dh K real model)
+      (htrace : trace rng = oracle.draws)
+      (hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length) :
+      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng
   | terminal
       (hrel : SessionRefines dh K real model)
       (htrace : trace rng = oracle.draws)
@@ -6005,16 +6454,25 @@ theorem public_encrypt_of_braid_route
       plaintext rng) :
     PublicEncryptWitness rc crc trace dh K view oracle real model plaintext rng := by
   cases evidence with
+  | plaintextTooLong hrel htrace hlong =>
+      obtain ⟨hreal, hstep⟩ := encrypt_plaintext_too_long_step_refines rc crc trace dh K view
+        oracle real model plaintext rng hrel htrace hlong
+      exact ⟨_, hreal, hstep⟩
   | terminal hrel htrace hfailed =>
       exact public_encrypt_terminal_witness rc crc trace dh K view oracle real model
         plaintext rng hrel htrace hfailed
   | braidNoDraw contracts hlive hkem hrel hready htrace hnoDraw hsend hfailed htraceNext =>
+      by_cases hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length
+      · obtain ⟨hreal, hstep⟩ := encrypt_plaintext_too_long_step_refines rc crc trace dh K view
+          oracle real model plaintext rng hrel htrace hlong
+        exact ⟨_, hreal, hstep⟩
+      have hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen := by omega
       exact encrypt_braid_failure_of_no_draw_contracts
         (rngCore := rc) (cryptoRng := crc) (trace := trace) (dh := dh) (K := K)
         (view := view) (oracle := oracle) (real := real) (model := model)
         (plaintext := plaintext) (rng := _) (rngNext := _)
         (realMessage := _) (realEpoch := _) (realOutput := _)
-        (realBraidNext := _) contracts hlive hkem hrel hready hsend hnoDraw
+        (realBraidNext := _) contracts hlive hkem hrel hlen hready hsend hnoDraw
         (fun modelNext hnext => hfailed modelNext hnext) htraceNext
   | braidDraw contracts hkem hrel hready htrace hneedsDraw hsend hdraw hpost hfailed =>
       exact encrypt_braid_failure_of_draw_send
@@ -6058,6 +6516,7 @@ inductive EncryptTripleRouteEvidence {R : Type}
         (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
       (hsparse : RealSparseConversion realOutput sparseOutput)
       (hrel : SessionRefines dh K real model)
+      (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
       (hready : Model.Lifecycle.agreementFailed model = false)
       (hsendReal : tacenta_braid.Braid.send rc crc real.braid rng =
         ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -6099,6 +6558,7 @@ inductive EncryptTripleRouteEvidence {R : Type}
         (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
       (hsparse : RealSparseConversion realOutput sparseOutput)
       (hrel : SessionRefines dh K real model)
+      (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
       (hready : Model.Lifecycle.agreementFailed model = false)
       (hsendReal : tacenta_braid.Braid.send rc crc real.braid rng =
         ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -6155,6 +6615,7 @@ inductive EncryptTripleRouteEvidence {R : Type}
         (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
       (hsparse : RealSparseConversion realOutput sparseOutput)
       (hrel : SessionRefines dh K real model)
+      (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
       (hready : Model.Lifecycle.agreementFailed model = false)
       (hsendReal : tacenta_braid.Braid.send rc crc real.braid rng =
         ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
@@ -6221,29 +6682,29 @@ theorem public_encrypt_of_triple_route
   cases evidence with
   | @refusal rngNext oracleNext realMessage realEpoch realOutput realBraidNext candidate
       sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext modelReason
-      contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hready
+      contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hlen hready
       hsendReal hsendCandidate hsendModel hnext hnotFailed hmodelOf htrace =>
       exact public_encrypt_triple_refusal_of_contracts rc crc trace dh K view oracle oracleNext
         real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext candidate
         sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext contracts hroom
-        hcb hsb hnewb hepoch hcounter hsparse hrel hready hsendReal hsendCandidate
+        hcb hsb hnewb hepoch hcounter hsparse hrel hlen hready hsendReal hsendCandidate
         hsendModel hnext hnotFailed hmodelOf htrace
   | @successNoInitial rngNext oracleNext realMessage realEpoch realOutput realBraidNext candidate
       realHeader realMk sparseOutput modelTripleNext modelHeader modelMk modelMessage modelEpoch
-      modelOutput modelBraidNext contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hready
+      modelOutput modelBraidNext contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hlen hready
       hsendReal hsendCandidate hsendModel hmessage hbraidNext hnotFailed hmodelEpoch
       hmodelOutput htripleModel htripleNext hheader hmk hpending htrace hadRoom hcipherRoom =>
       exact public_encrypt_success_no_initial_of_contracts rc crc trace dh kem K view oracle
         oracleNext oracleOf codewordView hkdf hz80 hz32 hzKeys real model plaintext rng rngNext
         realMessage realEpoch realOutput realBraidNext
         modelMessage modelEpoch modelOutput modelBraidNext candidate realHeader realMk sparseOutput
-        modelTripleNext modelHeader modelMk hrel hready hsendReal hsendModel hmessage hbraidNext
+        modelTripleNext modelHeader modelMk hrel hlen hready hsendReal hsendModel hmessage hbraidNext
         hnotFailed contracts hroom hcb hsb hnewb hepoch hcounter hsparse hsendCandidate
         hmodelEpoch hmodelOutput htripleModel htripleNext hheader hmk hpending htrace hadRoom
         hcipherRoom
   | @successInitial rngNext oracleNext realMessage realEpoch realOutput realBraidNext candidate
       realHeader realMk sparseOutput modelTripleNext modelHeader modelMk modelMessage modelEpoch
-      modelOutput modelBraidNext pending contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hready
+      modelOutput modelBraidNext pending contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hlen hready
       hsendReal hsendCandidate hsendModel hmessage hbraidNext hnotFailed hmodelEpoch
       hmodelOutput htripleModel htripleNext hheader hmk hpending htrace hz80 hz32 hzKeys
       hadRoom hcipherRoom hinitialRoom =>
@@ -6251,7 +6712,7 @@ theorem public_encrypt_of_triple_route
         oracleOf codec codewordView hkdf hz80 hz32 hzKeys real model plaintext rng rngNext
         realMessage realEpoch realOutput realBraidNext modelMessage modelEpoch modelOutput
         modelBraidNext candidate realHeader realMk sparseOutput modelTripleNext modelHeader modelMk
-        hrel hready hsendReal hsendModel hmessage hbraidNext hnotFailed contracts hroom hcb hsb
+        hrel hlen hready hsendReal hsendModel hmessage hbraidNext hnotFailed contracts hroom hcb hsb
         hnewb hepoch hcounter hsparse hsendCandidate hmodelEpoch hmodelOutput htripleModel
         htripleNext hheader hmk pending hpending htrace hadRoom hcipherRoom hinitialRoom
 

@@ -9041,7 +9041,7 @@ theorem initial_dispatch_route_from_concrete_evidence
         hreceive decoded established hdecode hestablished hephemeral hidentity
       have hw := decrypt_initial_repeat_step_refines rc crc trace dh codec K view oracle
         real model message rng established decoded (result, next, rngNext)
-        ctx.hrel ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame
+        ctx.hrel ctx.hsize ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame
         hcall hstep
       cases result with
       | Err reason => exact ⟨.repeatRefusal hw⟩
@@ -9092,7 +9092,7 @@ theorem initial_dispatch_agreement_equivalent_route
     hreceive decoded established hdecode hestablished hi
   have hw := decrypt_initial_repeat_agreement_step_refines rc crc trace dh codec K view
     oracle real model message rng established decoded (result, next, rngNext)
-    ctx.hrel ctx.htype hdecode hestablished hi hsameAgreement hmodelSame hcall hstep
+    ctx.hrel ctx.hsize ctx.htype hdecode hestablished hi hsameAgreement hmodelSame hcall hstep
   cases result with
   | Err reason => exact ⟨.repeatRefusal hw⟩
   | Ok plaintext => exact ⟨.repeatSuccess hw⟩
@@ -13642,10 +13642,11 @@ theorem initial_ratchet_refines_terminal_or_decode_refusal
 /-! ## Public `Session::decrypt` composition
 
 The inner initial dispatcher is now consumed by an outer indexed evidence
-sum.  Its constructors carry either the exact generated ratchet result and
-`StepRefines` relation for a non-initial frame, or the complete initial
-branch package (including concrete DH, Triple, AEAD, model-result and success
-splice evidence).  The final theorem therefore does not accept an untyped
+sum.  Its constructors carry the size rule's refusal of the frame (the first
+step, with only the relation and the trace at the call), or, for a frame the rule admits, either the
+exact generated ratchet result and `StepRefines` relation for a non-initial
+frame, or the complete initial branch package (including concrete DH, Triple,
+AEAD, model-result and success splice evidence).  The final theorem therefore does not accept an untyped
 route callback or a pre-built public witness. -/
 inductive SessionDecryptEvidence {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
@@ -13653,6 +13654,13 @@ inductive SessionDecryptEvidence {R : Type}
     (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
     (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
     (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : R) : Type where
+  /-- The size rule refuses the frame (message-format.md, Message size): the first
+      check of `Session::decrypt`, before the type dispatch. -/
+  | frameTooLong
+      (hrel : SessionRefines dh K real model)
+      (htrace : trace rng = oracle.draws)
+      (hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | initialDecodeRefusal
       (reason : tacenta_wire.DecodeError)
       (hrel : SessionRefines dh K real model)
@@ -13927,6 +13935,10 @@ theorem public_session_decrypt_end_to_end
       message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
   cases evidence with
+  | frameTooLong hrel htrace hlong =>
+      obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rc crc trace dh K view
+        oracle real model message rng hrel htrace hlong
+      exact ⟨_, hreal, hstep⟩
   | initialDecodeRefusal reason hrel htrace htype hdecode =>
       exact decrypt_initial_decode_refusal_refines rc crc trace dh K view oracle real model
         message rng reason hrel htrace htype hdecode
@@ -13971,35 +13983,45 @@ theorem public_session_decrypt_end_to_end
       hmodelStep hstep =>
       exact decrypt_initial_repeat_refusal_exact rc crc trace dh codec K view oracle oracleNext
         real model message rng rngNext established decoded realReason modelReason modelNext
-        ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
+        ctx.hrel htraceNext ctx.hsize ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
         hmodelSame hinner hmodelStep hstep
   | initialAgreementRepeatRefusal codec ctx rngNext established decoded realReason modelReason
       modelNext oracleNext htraceNext hdecode hestablished hne hidentity hsameAgreement hmodelSame
       hinner hmodelStep hstep =>
       exact decrypt_initial_repeat_agreement_refusal_exact rc crc trace dh codec K view oracle
         oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
-        ctx.hrel htraceNext ctx.htype hdecode hestablished hidentity hsameAgreement hmodelSame
+        ctx.hrel htraceNext ctx.hsize ctx.htype hdecode hestablished hidentity hsameAgreement hmodelSame
         hinner hmodelStep hstep
   | initialRepeatSuccess codec ctx rngNext established decoded plaintext modelPlaintext realNext
       modelNext oracleNext htraceNext hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame hinner
       hmodelStep hbytes hstep =>
       exact decrypt_initial_repeat_success_exact rc crc trace dh codec K view oracle oracleNext
         real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
-        ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
+        ctx.hrel htraceNext ctx.hsize ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
         hmodelSame hinner hmodelStep hbytes hstep
   | initialAgreementRepeatSuccess codec ctx rngNext established decoded plaintext modelPlaintext
       realNext modelNext oracleNext htraceNext hdecode hestablished hne hidentity hsameAgreement
       hmodelSame hinner hmodelStep hbytes hstep =>
       exact decrypt_initial_repeat_agreement_success_exact rc crc trace dh codec K view oracle
         oracleNext real model message rng rngNext established decoded plaintext modelPlaintext
-        realNext modelNext ctx.hrel htraceNext ctx.htype hdecode hestablished hidentity
+        realNext modelNext ctx.hrel htraceNext ctx.hsize ctx.htype hdecode hestablished hidentity
         hsameAgreement hmodelSame hinner hmodelStep hbytes hstep
   | nonInitialNone hrel htrace htype innerOutput hinner hstep =>
+      by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+      · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rc crc trace dh K view
+          oracle real model message rng hrel htrace hlong
+        exact ⟨_, hreal, hstep⟩
+      have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
       exact decrypt_none_refines rc crc trace dh K view oracle real model message rng
-        innerOutput htype hinner hstep
+        innerOutput hsize htype hinner hstep
   | nonInitialRatchet hrel htrace htype innerOutput hinner hstep =>
+      by_cases hlong : Model.Lifecycle.frameTooLong (sliceOf message) = true
+      · obtain ⟨hreal, hstep⟩ := decrypt_frame_too_long_step_refines rc crc trace dh K view
+          oracle real model message rng hrel htrace hlong
+        exact ⟨_, hreal, hstep⟩
+      have hsize : Model.Lifecycle.frameTooLong (sliceOf message) = false := by simpa using hlong
       exact decrypt_ratchet_message_refines rc crc trace dh K view oracle real model message rng
-        innerOutput htype hinner hstep
+        innerOutput hsize htype hinner hstep
 
 /-! The caller-facing theorem retains the same indexed witness and exposes the
 pending-state consequence beside it.  This is the public atomicity boundary:
@@ -14089,6 +14111,7 @@ noncomputable def encrypt_generated_nonterminal_prefix_of_output
     {realOutput : Option tacenta_braid.Output}
     {realBraidNext : tacenta_braid.Braid} {rngNext : R}
     (hrel : SessionRefines dh K real model)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
     (hsend : tacenta_braid.Braid.send rc crc real.braid rng =
@@ -14103,10 +14126,10 @@ noncomputable def encrypt_generated_nonterminal_prefix_of_output
   cases hnext : tacenta_braid.Braid.failed realBraidNext with
   | fail error =>
       unfold lifecycle.Session.encrypt at houtput
-      simp [hrealReady, hsend, hnext] at houtput
+      simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext] at houtput
   | div =>
       unfold lifecycle.Session.encrypt at houtput
-      simp [hrealReady, hsend, hnext] at houtput
+      simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext] at houtput
   | ok failed =>
       cases failed with
       | true => exact .braidFailed hnext houtput
@@ -14116,10 +14139,10 @@ noncomputable def encrypt_generated_nonterminal_prefix_of_output
               cases hcandidate : lifecycle.send_candidate real.triple realEpoch none with
               | fail error =>
                   unfold lifecycle.Session.encrypt at houtput
-                  simp [hrealReady, hsend, hnext, hout, hcandidate] at houtput
+                  simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext, hout, hcandidate] at houtput
               | div =>
                   unfold lifecycle.Session.encrypt at houtput
-                  simp [hrealReady, hsend, hnext, hout, hcandidate] at houtput
+                  simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext, hout, hcandidate] at houtput
               | ok value =>
                   rcases value with ⟨candidate, sent⟩
                   cases sent with
@@ -14132,19 +14155,19 @@ noncomputable def encrypt_generated_nonterminal_prefix_of_output
               cases hconvert : tacenta_spqr.Output.new realSparse.key_epoch realSparse.key with
               | fail error =>
                   unfold lifecycle.Session.encrypt at houtput
-                  simp [hrealReady, hsend, hnext, hout, hconvert] at houtput
+                  simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext, hout, hconvert] at houtput
               | div =>
                   unfold lifecycle.Session.encrypt at houtput
-                  simp [hrealReady, hsend, hnext, hout, hconvert] at houtput
+                  simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext, hout, hconvert] at houtput
               | ok sparseOutput =>
                   cases hcandidate : lifecycle.send_candidate real.triple realEpoch
                       (some sparseOutput) with
                   | fail error =>
                       unfold lifecycle.Session.encrypt at houtput
-                      simp [hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
+                      simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
                   | div =>
                       unfold lifecycle.Session.encrypt at houtput
-                      simp [hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
+                      simp [encrypt_plaintext_admitted plaintext hlen, hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
                   | ok value =>
                       rcases value with ⟨candidate, sent⟩
                       cases sent with
@@ -14490,6 +14513,7 @@ theorem encrypt_triple_refusal_evidence_of_generated
     {candidate : tacenta_triple.State} {realReason : tacenta_triple.TripleError}
     (contracts : TripleSendRefinementContracts)
     (conditions : GeneratedTripleRefusalConditions model sparseOutput)
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
     (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
     (hsparse : RealSparseConversion realOutput sparseOutput)
@@ -14525,7 +14549,7 @@ theorem encrypt_triple_refusal_evidence_of_generated
   exact ⟨.refusal (modelReason := modelReason) contracts conditions.room
     conditions.chainBound conditions.skippedBound conditions.newBound
     conditions.epochBound conditions.counterBound hsparse
-    braidEvidence.session braidEvidence.ready braidEvidence.realSend hsendCandidate
+    braidEvidence.session hlen braidEvidence.ready braidEvidence.realSend hsendCandidate
     braidEvidence.modelSend braidEvidence.next braidEvidence.notFailed hmodelOf
     braidEvidence.traceNext⟩
 
@@ -14557,6 +14581,7 @@ theorem encrypt_triple_success_evidence_of_generated
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen)
     (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
     (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
     (hsparse : RealSparseConversion realOutput sparseOutput)
@@ -14651,7 +14676,7 @@ theorem encrypt_triple_success_evidence_of_generated
   | none =>
       exact ⟨.successNoInitial contracts conditions.room conditions.chainBound
         conditions.skippedBound conditions.newBound conditions.epochBound
-        conditions.counterBound hsparse braidEvidence.session braidEvidence.ready
+        conditions.counterBound hsparse braidEvidence.session hlen braidEvidence.ready
         braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
         braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
         htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
@@ -14693,7 +14718,7 @@ theorem encrypt_triple_success_evidence_of_generated
         omega
       exact ⟨.successInitial contracts conditions.room conditions.chainBound
         conditions.skippedBound conditions.newBound conditions.epochBound
-        conditions.counterBound hsparse braidEvidence.session braidEvidence.ready
+        conditions.counterBound hsparse braidEvidence.session hlen braidEvidence.ready
         braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
         braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
         htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
@@ -14785,6 +14810,10 @@ theorem public_session_encrypt_of_send_contracts
     (providers : EncryptNonterminalRouteProviders rc crc trace dh kem K view oracle
       real model plaintext rng) :
     PublicEncryptWitness rc crc trace dh K view oracle real model plaintext rng := by
+  by_cases hlong : Model.Lifecycle.maxPlaintextLen < (sliceOf plaintext).length
+  · exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+      (.braid (.plaintextTooLong hrel htrace hlong))
+  have hlen : (sliceOf plaintext).length ≤ Model.Lifecycle.maxPlaintextLen := by omega
   obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts (crc := crc)
     braid triple aead hzKeys dhCodec real plaintext rng headroom
   cases hfailed : Model.Lifecycle.agreementFailed model with
@@ -14797,7 +14826,7 @@ theorem public_session_encrypt_of_send_contracts
       rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
       let generatedPrefix :=
         encrypt_generated_nonterminal_prefix_of_output (crc := crc)
-          hrel hfailed houtput hsend
+          hrel hlen hfailed houtput hsend
       cases generatedPrefix with
       | braidFailed hnext hgeneratedOutput =>
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
@@ -14811,7 +14840,7 @@ theorem public_session_encrypt_of_send_contracts
             realBraidNext rngNext sparseOutput candidate reason hgeneratedOutput hnext hsparse
             hsendCandidate braidEvidence
           let tripleEvidence := encrypt_triple_refusal_evidence_of_generated
-            (kem := kem) (view := view) triple conditions hgeneratedOutput hnext hsparse
+            (kem := kem) (view := view) triple conditions hlen hgeneratedOutput hnext hsparse
             hsendCandidate braidEvidence
           obtain ⟨tripleEvidence⟩ := tripleEvidence
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
@@ -14825,7 +14854,7 @@ theorem public_session_encrypt_of_send_contracts
             hsendCandidate braidEvidence
           let tripleEvidence := encrypt_triple_success_evidence_of_generated
             (kem := kem) triple conditions headroom aead oracleOf codewordView
-            hz80 hz32 hzKeys hgeneratedOutput hnext hsparse hsendCandidate braidEvidence
+            hz80 hz32 hzKeys hlen hgeneratedOutput hnext hsparse hsendCandidate braidEvidence
           obtain ⟨tripleEvidence⟩ := tripleEvidence
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
             (.triple tripleEvidence)

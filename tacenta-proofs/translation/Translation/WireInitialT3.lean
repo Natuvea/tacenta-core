@@ -494,6 +494,7 @@ def decodeRefusalOf : tacenta_wire.DecodeError → DecodeRefusal
   | .WrongType => .wrongType
   | .TooShort => .tooShort
   | .LengthOverrun => .lengthOverrun
+  | .TooLong => .tooLong
 
 set_option maxHeartbeats 2000000 in
 /-- The translated initial-message decoder returns the model's exact public

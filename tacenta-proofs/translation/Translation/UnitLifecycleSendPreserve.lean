@@ -84,14 +84,21 @@ reading.
 ## Where its premises are exhibited
 
 The general lemma quantifies over the nine agreement states whose send takes no draw.  Its premises, the relation after
-the call and the agreement walk's included, are exhibited together only at `NoHeaderReceived`, on the reply's run; at
-the other eight states no run in this tree exhibits them, and the relation after the call there would come from an
-encrypt refinement whose leaf hypotheses are not discharged at those states.
+the call and the agreement walk's included, are exhibited together at `NoHeaderReceived`, on the reply's run (this
+module), and at `KeysSampled`, on two runs: the initiator's second message (`initiator_sends_second_message` in
+`UnitLifecycleInitiatorSecondMessage`, on `first_send_second_message_reachable`) and the encoder-state witness of
+`UnitLifecycleRestoredResponderWitness`; at the other seven no-draw states no run in this tree exhibits them.  The
+relation after the call there would come from `encrypt_refines_keeps_invariant` (`UnitLifecycleEncryptCompose`), which
+derives the encrypt route's per-call records at every invariant session outside `HeaderReceived` and still takes the
+session premises (the invariant, the relation before the call, the counter budget, live encoders, the plaintext bound
+and the trace and draw records), the boundary records and the laws; no run here establishes those session premises
+at those states.
 
 ## What it does not show
 
-* The general lemma at any of the eight no-draw states other than `NoHeaderReceived` on a run: no run here exhibits
-  its premises there.
+* The general lemma on a run at any of the seven no-draw states other than `NoHeaderReceived` and `KeysSampled` (the
+  second is exhibited in `UnitLifecycleInitiatorSecondMessage` and `UnitLifecycleRestoredResponderWitness`, not here):
+  no run in this tree exhibits its premises there.
 * `encrypt` at an agreement state whose send draws (`KeysUnsampled`, `HeaderReceived`), and so a Triple send with an
   agreement output (`advance`, a new chain pair, `clearOldEpochs`): not covered.  In particular the initiator's first
   send itself is not an instance; only its Triple leaf is re-derived.
@@ -295,6 +302,9 @@ theorem encrypt_session_cases (view : Model.Lifecycle.CodewordView) (oracle : Mo
     (Model.Lifecycle.encrypt view oracle m pt).session.braid.epoch = m.braid.epoch := by
   obtain ⟨hout, hep⟩ := braid_send_no_draw_model oracle.braidKem m.braid hdraw
   unfold Model.Lifecycle.encrypt
+  by_cases hl : Model.Lifecycle.maxPlaintextLen < pt.length
+  · simp [hl]
+  simp only [hl, if_false]
   by_cases hf : Model.Lifecycle.agreementFailed m = true
   · simp [hf]
   · simp only [hf, Bool.false_eq_true, if_false, Model.Lifecycle.sendAgreement_no_draw oracle m.braid hdraw]
@@ -814,6 +824,9 @@ theorem encrypt_ok_not_failed {R : Type} (rc : rand_core_1.RngCore R) (crc : ran
     (h : lifecycle.Session.encrypt rc crc s pt rng = ok (core.result.Result.Ok v, s', rng')) :
     tacenta_braid.Braid.failed s.braid = ok false := by
   unfold lifecycle.Session.encrypt at h
+  by_cases hlong : Slice.len pt > serialization.MAX_PLAINTEXT_LEN
+  · simp [hlong] at h
+  rw [if_neg hlong] at h
   obtain ⟨fb, hfb, h⟩ := bind_eq_ok_inv h
   cases fb
   · exact hfb
@@ -963,14 +976,17 @@ theorem modelCounterRoom_firstReceipt (mB : Model.Lifecycle.Session) (secret : M
 /-- **The responder's reply keeps `Session::invariant` and the four ceilings, on the run of the initiator's first
 send.**  Under the hypotheses of `initiator_first_send_responder_replies` (no other), at every successful return of
 `establish_responder` on the bytes the initiator's first `encrypt` emitted, for every reply plaintext `ptR` of at most
-`Usize.max - 150` bytes and every source state `rngR`: `Session::encrypt` at `sB'` returns `Ok bytesR` and `sB''`
+`Usize.max - 150` and at most `MAX_PLAINTEXT_LEN` bytes and every source state `rngR`: `Session::encrypt` at `sB'`
+returns `Ok bytesR` and `sB''`
 and leaves `rngR` as it was, `sB''` passes `Session::invariant`, meets the four ceilings (`CounterHeadroom`) and has
 room for every `j` with `j + 3 < u32::MAX` further operations (`CounterRoom`), and refines the model session after
 the receipt with the Triple `replierAfterSend`.  Derived on the run: `sB'`, its relation and its invariant are the
 successor results' at the same call, the call and the relation after it are the reply's, and
 `encrypt_keeps_invariant_no_draw` composes them at the agreement state `NoHeaderReceived`, whose send takes no draw.
 No compiler-trust axiom (the pin): the nine `native_decide` constants of the encrypt and decrypt refinements it applies
-are kernel proofs since 2026-10-21. -/
+are kernel proofs since 2026-10-21.
+Since the message size bound `ptR` is also at most `MAX_PLAINTEXT_LEN` bytes (`hlenR`); a longer one is refused
+`PlaintextTooLong` first (`UnitLifecycleSizeRule.encrypt_size_refusal`). -/
 theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1019,7 +1035,8 @@ theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.De
     (ptB : alloc.vec.Vec U8) (sB' : lifecycle.Session) (storeB' : lifecycle.PrekeyStore) (rngB' : F)
     (hcallB : lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =
       ok (core.result.Result.Ok (sB', ptB), storeB', rngB'))
-    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max) (rngR : F) :
+    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max)
+    (hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen) (rngR : F) :
     ∃ (p : ResponderPreparedParts ourB storeB (alloc.vec.Vec.deref bytes)) (ec : Array U8 32#usize)
       (dSend : Model.Lifecycle.Key) (dk ekSeed ekVector : Model.Braid.Bytes) (bytesR : alloc.vec.Vec Std.U8)
       (sB'' : lifecycle.Session),
@@ -1041,7 +1058,7 @@ theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.De
       codewordView hz80 hz32 hzKeys hgen hsizes hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h q hq
       plaintext hroom rng htrace d1 d2 rest hdraws bytes s' rng' hcall rcB crcB contracts hpub hsym hcon haead hrt
       hoeq traceB oracleB oracleOfB braidB agreements ourB storeB hpublish hidentity hdistinct hkem rngB htraceB dB
-      restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR rngR
+      restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR hlenR rngR
   -- the invariant at the session establish_responder returned, on the same call
   have hinv := Tacenta.UnitLifecycleResponderSuccessor.initiator_first_send_responder_successor_admissible rc crc
     trace dh kem view oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hsizes hct
@@ -1057,7 +1074,7 @@ theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.De
           ⟨headerSource oracle.braidKem (Tacenta.SessionUnitBraidT3.AuthOf q.auth) ekSeed ekVector, 0⟩
           (arrayOf ec) (arrayOf q.sparseRoot) (arrayOf q.sparseSend) (arrayOf q.sparseReceive)
           (arrayOf q.ratchetBytes) (arrayOf q.dhOut) dSend (oracleB.dhPublic dB) dB) (sliceOf ptR)).session := by
-    rw [reply_model_step _ _ _ _ _ _ _ _ _ _ _ _ _ _ hpend]
+    rw [reply_model_step _ _ _ _ _ _ _ _ _ _ _ _ _ _ hpend _ hlenR]
     exact hrel''
   -- the budget at sB', from the relation
   have hroomB : ∀ j, j + 3 < Std.U32.max → CounterRoom sB' (j + 1) := fun j hj =>
@@ -1073,7 +1090,8 @@ theorem initiator_first_send_responder_reply_successor [Tacenta.SessionUnitT1.De
 
 /-- **`Session::invariant` and the four ceilings at the session the responder's reply leaves**: the invariant and
 ceiling conjuncts of `initiator_first_send_responder_reply_successor`, at every successful return of the reply's
-`encrypt` at `sB'`, under its hypotheses.  No compiler-trust axiom (the pin), as that theorem. -/
+`encrypt` at `sB'`, under its hypotheses.  No compiler-trust axiom (the pin), as that theorem.
+Since the message size bound `ptR` is also at most `MAX_PLAINTEXT_LEN` bytes (`hlenR`). -/
 theorem initiator_first_send_responder_reply_admissible [Tacenta.SessionUnitT1.DerivedKeysModel] {R E F : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -1122,7 +1140,8 @@ theorem initiator_first_send_responder_reply_admissible [Tacenta.SessionUnitT1.D
     (ptB : alloc.vec.Vec U8) (sB' : lifecycle.Session) (storeB' : lifecycle.PrekeyStore) (rngB' : F)
     (hcallB : lifecycle.establish_responder rcB crcB ourB storeB (alloc.vec.Vec.deref bytes) rngB =
       ok (core.result.Result.Ok (sB', ptB), storeB', rngB'))
-    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max) (rngR : F)
+    (ptR : Slice Std.U8) (hroomR : 102 + (ptR.val.length + 48) ≤ Usize.max)
+    (hlenR : (Tacenta.UnitLifecycleT3.sliceOf ptR).length ≤ Model.Lifecycle.maxPlaintextLen) (rngR : F)
     (bytesR : alloc.vec.Vec Std.U8) (sB'' : lifecycle.Session) (rngR' : F)
     (hcallR : lifecycle.Session.encrypt rcB crcB sB' ptR rngR = ok (core.result.Result.Ok bytesR, sB'', rngR')) :
     lifecycle.Session.invariant sB'' = ok true ∧ Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom sB'' := by
@@ -1131,7 +1150,7 @@ theorem initiator_first_send_responder_reply_admissible [Tacenta.SessionUnitT1.D
       codec codewordView hz80 hz32 hzKeys hgen hsizes hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h q hq
       plaintext hroom rng htrace d1 d2 rest hdraws bytes s' rng' hcall rcB crcB contracts hpub hsym hcon haead hrt
       hoeq traceB oracleB oracleOfB braidB agreements ourB storeB hpublish hidentity hdistinct hkem rngB htraceB dB
-      restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR rngR
+      restB hdrawB ptB sB' storeB' rngB' hcallB ptR hroomR hlenR rngR
   rw [hcallR] at hcall2
   simp only [ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hcall2
   obtain ⟨-, rfl, -⟩ := hcall2
@@ -1176,9 +1195,11 @@ theorem established_encrypt_triple_invariant_via_preservation [Tacenta.SessionUn
     (hcall : lifecycle.Session.encrypt rc crc s plaintext rng =
       ok (core.result.Result.Ok bytes, s', rng')) :
     tacenta_triple.State.invariant s'.triple = ok true := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng
+    bytes s' rng' hcall
   obtain ⟨output, hcall', -, hcases⟩ := established_encrypt_outcomes rc crc trace dh kem view oracle
     braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen hct hbound rcE crcE our
-    bundle expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest hdraws
+    bundle expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest hdraws
   rw [hcall] at hcall'
   cases hcall'
   rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, hkg, bytes', hres, hframe, hst, tripleNext, messageKey,
@@ -2111,85 +2132,70 @@ info: @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_su
                                                                                                           ((↑ptR).length +
                                                                                                             48) ≤
                                                                                                         Usize.max →
-                                                                                                      ∀ (rngR : F),
-                                                                                                        ∃ p ec dSend dk
-                                                                                                          ekSeed
-                                                                                                          ekVector
-                                                                                                          bytesR sB'',
-                                                                                                          oracle.braidKem.keyGen
-                                                                                                                (Model.Lifecycle.braidRandomness
-                                                                                                                  (d1 ++
-                                                                                                                    d2)) =
-                                                                                                              some
-                                                                                                                (dk,
-                                                                                                                  ekSeed,
-                                                                                                                  ekVector) ∧
-                                                                                                            lifecycle.Session.encrypt
-                                                                                                                  rcB
-                                                                                                                  crcB
-                                                                                                                  sB'
-                                                                                                                  ptR
-                                                                                                                  rngR =
-                                                                                                                ok
-                                                                                                                  (core.result.Result.Ok
-                                                                                                                      bytesR,
-                                                                                                                    sB'',
-                                                                                                                    rngR) ∧
-                                                                                                              sB''.invariant =
+                                                                                                      List.length
+                                                                                                            (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                              ptR) ≤
+                                                                                                          Model.Lifecycle.maxPlaintextLen →
+                                                                                                        ∀ (rngR : F),
+                                                                                                          ∃ p ec dSend
+                                                                                                            dk ekSeed
+                                                                                                            ekVector
+                                                                                                            bytesR sB'',
+                                                                                                            oracle.braidKem.keyGen
+                                                                                                                  (Model.Lifecycle.braidRandomness
+                                                                                                                    (d1 ++
+                                                                                                                      d2)) =
+                                                                                                                some
+                                                                                                                  (dk,
+                                                                                                                    ekSeed,
+                                                                                                                    ekVector) ∧
+                                                                                                              lifecycle.Session.encrypt
+                                                                                                                    rcB
+                                                                                                                    crcB
+                                                                                                                    sB'
+                                                                                                                    ptR
+                                                                                                                    rngR =
                                                                                                                   ok
-                                                                                                                    true ∧
-                                                                                                                Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
-                                                                                                                    sB'' ∧
-                                                                                                                  (∀
-                                                                                                                      (j :
-                                                                                                                        ℕ),
-                                                                                                                      j +
-                                                                                                                            3 <
-                                                                                                                          U32.max →
-                                                                                                                        Tacenta.UnitLifecycleSendPreserve.CounterRoom
-                                                                                                                          sB''
-                                                                                                                          j) ∧
-                                                                                                                    Tacenta.UnitLifecycleT3.SessionRefines
-                                                                                                                      dh
-                                                                                                                      oracleB.braidKem
-                                                                                                                      sB''
-                                                                                                                      (have
-                                                                                                                        __src :=
-                                                                                                                        Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiptSession
-                                                                                                                          (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
-                                                                                                                            dh
-                                                                                                                            p)
-                                                                                                                          (Tacenta.UnitLifecycleT3.sliceOf
-                                                                                                                            p.braidSecret)
-                                                                                                                          {
-                                                                                                                            source :=
-                                                                                                                              Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
-                                                                                                                                oracle.braidKem
-                                                                                                                                (Tacenta.SessionUnitBraidT3.AuthOf
-                                                                                                                                  q.auth)
-                                                                                                                                ekSeed
-                                                                                                                                ekVector,
-                                                                                                                            index :=
-                                                                                                                              0 }
-                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                            ec)
-                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                            q.sparseRoot)
-                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                            q.sparseSend)
-                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                            q.sparseReceive)
-                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                            q.ratchetBytes)
-                                                                                                                          (Tacenta.UnitLifecycleT3.arrayOf
-                                                                                                                            q.dhOut)
-                                                                                                                          dSend
-                                                                                                                          (oracleB.dhPublic
-                                                                                                                            dB)
-                                                                                                                          dB;
-                                                                                                                      {
-                                                                                                                        triple :=
-                                                                                                                          Tacenta.UnitLifecycleResponderReply.replierAfterSend
+                                                                                                                    (core.result.Result.Ok
+                                                                                                                        bytesR,
+                                                                                                                      sB'',
+                                                                                                                      rngR) ∧
+                                                                                                                sB''.invariant =
+                                                                                                                    ok
+                                                                                                                      true ∧
+                                                                                                                  Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                                                      sB'' ∧
+                                                                                                                    (∀
+                                                                                                                        (j :
+                                                                                                                          ℕ),
+                                                                                                                        j +
+                                                                                                                              3 <
+                                                                                                                            U32.max →
+                                                                                                                          Tacenta.UnitLifecycleSendPreserve.CounterRoom
+                                                                                                                            sB''
+                                                                                                                            j) ∧
+                                                                                                                      Tacenta.UnitLifecycleT3.SessionRefines
+                                                                                                                        dh
+                                                                                                                        oracleB.braidKem
+                                                                                                                        sB''
+                                                                                                                        (have
+                                                                                                                          __src :=
+                                                                                                                          Tacenta.UnitLifecycleResponderFirstReceipt.firstReceiptSession
+                                                                                                                            (Tacenta.UnitLifecycleEstablishResponder.responderModelOf
+                                                                                                                              dh
+                                                                                                                              p)
+                                                                                                                            (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                                              p.braidSecret)
+                                                                                                                            {
+                                                                                                                              source :=
+                                                                                                                                Tacenta.UnitLifecycleResponderFirstReceipt.headerSource
+                                                                                                                                  oracle.braidKem
+                                                                                                                                  (Tacenta.SessionUnitBraidT3.AuthOf
+                                                                                                                                    q.auth)
+                                                                                                                                  ekSeed
+                                                                                                                                  ekVector,
+                                                                                                                              index :=
+                                                                                                                                0 }
                                                                                                                             (Tacenta.UnitLifecycleT3.arrayOf
                                                                                                                               ec)
                                                                                                                             (Tacenta.UnitLifecycleT3.arrayOf
@@ -2204,21 +2210,40 @@ info: @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_su
                                                                                                                               q.dhOut)
                                                                                                                             dSend
                                                                                                                             (oracleB.dhPublic
-                                                                                                                              dB),
-                                                                                                                        braid :=
-                                                                                                                          __src.braid,
-                                                                                                                        ratchetPrivate :=
-                                                                                                                          __src.ratchetPrivate,
-                                                                                                                        identityAd :=
-                                                                                                                          __src.identityAd,
-                                                                                                                        ourIdentityPublic :=
-                                                                                                                          __src.ourIdentityPublic,
-                                                                                                                        peerIdentityPublic :=
-                                                                                                                          __src.peerIdentityPublic,
-                                                                                                                        pendingInitial :=
-                                                                                                                          __src.pendingInitial,
-                                                                                                                        establishedEphemeral :=
-                                                                                                                          __src.establishedEphemeral })
+                                                                                                                              dB)
+                                                                                                                            dB;
+                                                                                                                        {
+                                                                                                                          triple :=
+                                                                                                                            Tacenta.UnitLifecycleResponderReply.replierAfterSend
+                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                ec)
+                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                q.sparseRoot)
+                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                q.sparseSend)
+                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                q.sparseReceive)
+                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                q.ratchetBytes)
+                                                                                                                              (Tacenta.UnitLifecycleT3.arrayOf
+                                                                                                                                q.dhOut)
+                                                                                                                              dSend
+                                                                                                                              (oracleB.dhPublic
+                                                                                                                                dB),
+                                                                                                                          braid :=
+                                                                                                                            __src.braid,
+                                                                                                                          ratchetPrivate :=
+                                                                                                                            __src.ratchetPrivate,
+                                                                                                                          identityAd :=
+                                                                                                                            __src.identityAd,
+                                                                                                                          ourIdentityPublic :=
+                                                                                                                            __src.ourIdentityPublic,
+                                                                                                                          peerIdentityPublic :=
+                                                                                                                            __src.peerIdentityPublic,
+                                                                                                                          pendingInitial :=
+                                                                                                                            __src.pendingInitial,
+                                                                                                                          establishedEphemeral :=
+                                                                                                                            __src.establishedEphemeral })
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_successor
@@ -2316,26 +2341,31 @@ info: @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_ad
                                                                                                           ((↑ptR).length +
                                                                                                             48) ≤
                                                                                                         Usize.max →
-                                                                                                      ∀ (rngR : F)
-                                                                                                        (bytesR :
-                                                                                                          alloc.vec.Vec
-                                                                                                            U8)
-                                                                                                        (sB'' :
-                                                                                                          lifecycle.Session)
-                                                                                                        (rngR' : F),
-                                                                                                        lifecycle.Session.encrypt
-                                                                                                              rcB crcB
-                                                                                                              sB' ptR
-                                                                                                              rngR =
-                                                                                                            ok
-                                                                                                              (core.result.Result.Ok
-                                                                                                                  bytesR,
-                                                                                                                sB'',
-                                                                                                                rngR') →
-                                                                                                          sB''.invariant =
-                                                                                                              ok true ∧
-                                                                                                            Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
-                                                                                                              sB''
+                                                                                                      List.length
+                                                                                                            (Tacenta.UnitLifecycleT3.sliceOf
+                                                                                                              ptR) ≤
+                                                                                                          Model.Lifecycle.maxPlaintextLen →
+                                                                                                        ∀ (rngR : F)
+                                                                                                          (bytesR :
+                                                                                                            alloc.vec.Vec
+                                                                                                              U8)
+                                                                                                          (sB'' :
+                                                                                                            lifecycle.Session)
+                                                                                                          (rngR' : F),
+                                                                                                          lifecycle.Session.encrypt
+                                                                                                                rcB crcB
+                                                                                                                sB' ptR
+                                                                                                                rngR =
+                                                                                                              ok
+                                                                                                                (core.result.Result.Ok
+                                                                                                                    bytesR,
+                                                                                                                  sB'',
+                                                                                                                  rngR') →
+                                                                                                            sB''.invariant =
+                                                                                                                ok
+                                                                                                                  true ∧
+                                                                                                              Tacenta.UnitLifecycleDecryptRunBounds.CounterHeadroom
+                                                                                                                sB''
 -/
 #guard_msgs in
 #check @Tacenta.UnitLifecycleSendPreserve.initiator_first_send_responder_reply_admissible

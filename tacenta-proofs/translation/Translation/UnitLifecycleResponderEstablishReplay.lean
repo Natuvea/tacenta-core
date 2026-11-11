@@ -132,7 +132,7 @@ theorem establish_responder_again_refused {E : Type} (rcB : rand_core_1.RngCore 
     hfp ⟨(kemId, fp), by simp [hseen], rfl⟩
   obtain ⟨ik, enc, hik, henc, hsh⟩ := p.hShared
   exact Tacenta.UnitLifecycleResponderFirstFrame.establish_responder_replay_refused_at rcB crcB ourB _ msg rng
-    p.decoded p.hDecode p.signedSecret hSigned p.kemSlot true hSlot p.peerIdentity p.peerEphemeral p.hCurve
+    p.decoded p.hSize p.hDecode p.signedSecret hSigned p.kemSlot true hSlot p.peerIdentity p.peerEphemeral p.hCurve
     p.oneTime hOneTime p.kemSecret hDecaps p.kemSecretZ p.hKemSecretZ p.signedBytes p.hSignedBytes
     p.signedPrekey p.hSignedPrekey ik hik enc henc p.shared hsh p.secretZ p.hSecretZ p.secret p.hSecret _ hrep
 
@@ -194,9 +194,11 @@ theorem initiator_first_send_responder_replay_refused [Tacenta.SessionUnitT1.Der
       storeB'.last_resort_seen.val = storeB.last_resort_seen.val.concat (storeB.kem_id, fp) ∧
       ∀ rngB2 : F, lifecycle.establish_responder rcB crcB ourB storeB' (alloc.vec.Vec.deref bytes) rngB2 =
         ok (core.result.Result.Err lifecycle.Error.ReplayedLastResort, storeB', rngB2) := by
+  have hfits := Tacenta.UnitLifecycleT3.encrypt_ok_plaintext_fits rc crc s plaintext rng
+    bytes s' rng' hcall
   obtain ⟨output, hcall', -, hcases⟩ := Tacenta.UnitLifecycleEstablishedEncrypt.established_encrypt_outcomes rc
     crc trace dh kem view oracle braid triple aead dhCodec oracleOf codec codewordView hz80 hz32 hzKeys hgen
-    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom rng htrace d1 d2 rest hdraws
+    hct hbound rcE crcE ourA bundleA expected rng0 rng1 s h plaintext hroom hfits rng htrace d1 d2 rest hdraws
   rw [hcall] at hcall'
   cases hcall'
   rcases hcases with ⟨-, hres, -⟩ | ⟨dk, ekSeed, ekVector, -, bytes', hres, -, -, tripleNext, messageKey,
@@ -334,7 +336,9 @@ theorem first_send_replay_refused_reachable (K : Model.Braid.Kem) (dh : DhView)
     byteRng byteCrc byteTrace dh kem Tacenta.UnitLifecycleRepair.witnessView oracle H.braid H.triple H.aead
     H.dhCodec H.oracleOf H.codec H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen
     H.kemCiphertextLen H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session H.established
-    emptyPlaintext H.room seed H.trace_eq _ _ _
+    emptyPlaintext H.room
+    (by simp [Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext, Tacenta.UnitLifecycleT3.sliceOf])
+    seed H.trace_eq _ _ _
     (Tacenta.UnitLifecycleEstablishedEncrypt.byteTrace_two seed (by omega))
   rw [Tacenta.UnitLifecycleEstablishedEncrypt.two_draws_of_64 seed hseed] at hcases
   obtain ⟨res, s', rng'⟩ := output
@@ -372,7 +376,13 @@ theorem first_send_replay_refused_reachable (K : Model.Braid.Kem) (dh : DhView)
     H.codewordView H.zeroizing80 H.zeroizing32 H.zeroizingKeys H.keyGen hsizes H.kemCiphertextLen
     H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session h q rfl emptyPlaintext H.room seed
     H.trace_eq _ _ _ (Tacenta.UnitLifecycleEstablishedEncrypt.byteTrace_two seed (by omega)) bytes s' rng'
-    hcall byteRng byteCrc contracts hpub hsym hcon haead hrt L.optionEq byteTrace oracle oracleOfB ag ourB
+    hcall
+    (Tacenta.UnitLifecycleEstablishedEncrypt.first_message_fits H.aead H.dhCodec H.kemCiphertextLen
+      H.kemCiphertextBound byteRng byteCrc ourA _ _ _ rng1 q.session H.established byteRng byteCrc
+      emptyPlaintext seed bytes s' rng'
+      (by simp [Tacenta.UnitLifecycleEstablishedEncrypt.emptyPlaintext,
+        Model.Lifecycle.maxRatchetFrameLen_value]) hcall)
+    byteRng byteCrc contracts hpub hsym hcon haead hrt L.optionEq byteTrace oracle oracleOfB ag ourB
     storeB hpublish hidentity hdistinct hkem hhead seed H.trace_eq d1 (d2 :: rest2) hdrB
   rcases hdisj with ⟨-, e, hrefuse, -⟩ |
     ⟨p, ec, dSend, dk', ekSeed', ekVector', ptB, sB', storeB', rngB', -, -, -, -, -, -, -, -, -, -, hcallB, hpt, -⟩

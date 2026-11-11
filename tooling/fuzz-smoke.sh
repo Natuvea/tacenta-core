@@ -15,8 +15,9 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$here/tacenta-core"
 
-# Seconds per target. Seven targets today, so the whole step is about a minute. Long
-# enough to replay every corpus entry and take a few thousand fresh runs;
+# Seconds per target. Eight targets today, so the whole step is about a minute
+# and a half. Long enough to replay every corpus entry and take a few thousand
+# fresh runs;
 # short enough that nobody starts wondering whether to skip it.
 seconds="${FUZZ_SMOKE_SECONDS:-10}"
 
@@ -53,6 +54,11 @@ for target_file in fuzz/fuzz_targets/*.rs; do
   # not, and a cap keeps them fast.
   max_len=4096
   if [ "$target" = "persisted_state" ]; then max_len=32768; fi
+  # The size rule's boundary target expands a short input into a frame of up to
+  # MAX_INITIAL_FRAME_LEN + 64 bytes, so its seeds reach both bounds at any cap;
+  # the cap is raised past MAX_INITIAL_FRAME_LEN + 1 = 1,050,363 only so that
+  # its raw mode can grow an input that long as well.
+  if [ "$target" = "frame_size_boundary" ]; then max_len=1050432; fi
   # `-runs` as well as `-max_total_time`: whichever comes first. A slow target
   # on a loaded runner should stop on time, and a fast one should not spin.
   mkdir -p "$smoke_corpus/$target"

@@ -42,10 +42,13 @@ import Translation.NumericWitnessSession
 import Translation.SessionUnitDecodedStateDischarge
 import Translation.SessionUnitBraidFromBytesWitness
 import Translation.UnitLifecycleAtomicity
+import Translation.UnitLifecycleDecryptCompose
+import Translation.UnitLifecycleDecryptPreserve
 import Translation.UnitLifecycleRepair
 import Translation.UnitLifecycleResponderEstablishReplay
 import Translation.UnitLifecycleIntegrationScreen
 import Translation.UnitLifecycleKdf
+import Translation.UnitLifecycleOutOfOrderReceive
 import Translation.UnitOracleShape
 import Translation.UnitOracleModel
 import Translation.UnitOracleDh
@@ -67,18 +70,25 @@ import Translation.SessionUnitDecodeEc
 import Translation.UnitLifecycleDecryptStates
 import Translation.UnitLifecycleInitialAgreementT3
 import Translation.UnitLifecycleDecryptT3
+import Translation.UnitLifecycleEncryptCompose
+import Translation.UnitLifecycleEncryptPreserve
 import Translation.UnitLifecycleEstablishInitiatorShape
 import Translation.UnitLifecycleEstablishedDecrypt
 import Translation.UnitLifecycleSessionCodec
 import Translation.UnitLifecycleSessionRoundTrip
+import Translation.UnitLifecycleSizeRule
+import Translation.UnitLifecycleSizeWitness
 import Translation.UnitLifecycleSparseSkipKindT3
 import Translation.UnitLifecycleRestoredSession
 import Translation.UnitLifecycleEstablishedEncrypt
+import Translation.UnitLifecycleImportBudget
 import Translation.UnitLifecycleEstablishResponder
 import Translation.UnitLifecycleResponderFirstFrame
 import Translation.UnitLifecycleResponderFirstReceipt
 import Translation.UnitLifecycleResponderRepeatedFrame
 import Translation.UnitLifecycleResponderSuccessor
+import Translation.UnitLifecycleRestoredResponder
+import Translation.UnitLifecycleRestoredResponderWitness
 import Translation.UnitLifecycleResponderReply
 import Translation.UnitLifecycleResponderReplyReceipt
 import Translation.UnitLifecycleResponderSecondReceipt
@@ -245,6 +255,68 @@ refuses it as out of order (the reply's ratchet key is now the peer key held and
 number 0 is below the receive count 1), the session returned is the one given (which passes `Session::invariant` and
 meets the four ceilings), the source loses exactly one draw, and the step refines the model's.  No law is added beyond
 the receipt's; a delivery at a later session, of different bytes, or after a first receipt that refused is not shown.
+`UnitLifecycleSizeRule.lean`: the message size bound at the three public entries. The translated
+`check_frame_size` refuses exactly where the model's size rule does, the nested bound included, for every
+`kem_ciphertext_len`; the early refusals of `Session::encrypt`, `Session::decrypt` and `establish_responder`
+return the session or the prekey store and the random source unchanged, refine the model's, and come before the
+terminal, decode, not-a-repeat and prekey-lookup refusals. No law for those. The received plaintext is at most
+`MAX_PLAINTEXT_LEN` under one assumed law, `Model.Lifecycle.AeadOpenLength`, not shown of the shipping AEAD.
+Not shown: that every message `encrypt` returns passes the size rule (only under `AeadSealBounded`, for
+plaintexts up to 150 bytes, or 65,770 for a first message, below `MAX_RATCHET_FRAME_LEN`), memory and time per
+call, allocation failure, and callers that bypass the three entries.
+`UnitLifecycleSizeWitness.lean` gives a padded toy AEAD (PKCS#7-style padding and a 32-byte tag) and shows that
+the received maximum's hypotheses (`hstep`, `hok` and the open-length law) and every hypothesis of
+`initiator_receives_reply` hold together at one call of a run, at the real constants under the reach's laws and
+`AeadOpenLengthLaw` (assumed), with every such law satisfied in one toy interpretation; consistency only, not that
+the shipping AEAD meets the laws, and only for that route and that received-maximum result.
+`UnitLifecycleEncryptPreserve.lean`: `Session::encrypt` keeps `Session::invariant` and spends at most one unit of
+the counter budget at every agreement state, the two that draw included, given the relation after the call or
+composed with the encrypt refinement, under the existing KEM records and one assumed size law, `Encaps1SizesOf`;
+and every refused `encrypt`, `decrypt` and `decrypt_ratchet` keeps the invariant and the whole budget, with no law.
+Not shown: a successful receive outside the in-order scope, the step at `HeaderReceived` on a run, or that the
+shipping KEM meets the laws; the law is assumed, not accepted as trust.
+`UnitLifecycleDecryptPreserve.lean`: `Session::decrypt` and `decrypt_ratchet` keep `Session::invariant` and spend
+at most one unit of the counter budget at every agreement state and every agreement transition, with or without the
+agreement's output, given the relation after the call and a model step in the in-order scope with the output, under
+existing records and two assumed length laws of the KEM wrapper, `KeyPairEkVectorLen` and `Encapsulate2Len`; the
+translated `Braid::receive` keeps `Braid::invariant` at every state; every session `establish_responder` returns is
+its inner receive's and keeps the invariant given the same of that receive.  Not shown: a receive outside the in-order scope,
+a receive with a transition or an output on a run, the budget at an imported session, the composition with the decrypt
+refinement, or that the shipping KEM meets the laws, which are assumed and not accepted as trust.
+`UnitLifecycleImportBudget.lean` states what `Session::import` adds about the counters: the classical clock below
+`u32::MAX` and the sparse and Braid epochs below `u64::MAX`, each one step above the budget, and no other ceiling, with
+no hypothesis (`roomCheck` is `CounterRoom` as a decidable check, true of every session); and, under the nine laws of the round trip, a copy of every established
+initiator with its clock at `MAX_EVENTS` or its send chain at `u64::MAX` is accepted with no budget, so acceptance does
+not give the ceilings.  Not shown: that operations reach those copies, or what the operations do at a session with no
+budget.
+`UnitLifecycleDecryptCompose.lean` composes the `decrypt_ratchet` refinement with receive preservation: under the
+refinement's hypotheses, `ReceiveInvariantLaws` and the in-order scope of the frame, `decrypt_ratchet` and the public
+`decrypt` of a ratchet-type frame refine the model's step and leave a session that passes the invariant with one unit of
+budget spent, the relation after the call and the model step derived; and the same from the bytes `import` accepted, in
+the restored scope, with the budget check.  Conditional on `DecryptOracleOf`, whose AEAD open clause is false of the
+shipping AEAD by reading at long lengths.  Not shown: the out-of-order family, initial-type frames, a run exhibiting the
+hypotheses with a successful receive.
+`UnitLifecycleOutOfOrderReceive.lean` drops the in-order scope: every successful `decrypt_ratchet` and `decrypt` at
+every frame (a stored key used, a skip on either chain, an eviction from a full store) keeps the invariant with one unit
+of budget spent, given the relation after the call and a model step at any frame, and the model's step of every frame
+is one, so the composition with the decrypt refinement takes the in-order composition's hypotheses without
+`FrameInOrder`; on success no stored key for the frame's numbers is kept.  Conditional on `DecryptOracleOf` likewise.
+Not shown: a witness or run reaching an out-of-order receive, initial-type frames, that a delayed frame is still
+decrypted after an eviction.
+`UnitLifecycleEncryptCompose.lean` derives the encrypt route's per-call records (the counted draw record, the Triple
+providers) and its headroom at every session that passes `Session::invariant`, has room for one operation and refines a
+model session whose encoder has codewords left, at every agreement state but `HeaderReceived`, and composes the route
+with the preservation step: `encrypt` refines the model's step and keeps the invariant with one unit of budget spent,
+with its effects on success.  No new law; conditional on `AeadSealBounded` and `OracleOf`, false of the shipping AEAD
+by reading at long lengths.  Not shown: `encrypt` at `HeaderReceived`, a session whose encoder is exhausted, a second
+party.
+`UnitLifecycleRestoredResponder.lean` proves the export/import round trip at the responder's session after its first
+receipt (agreement waiting for the header with a decoder holding at most one chunk, an established ephemeral, no
+pending initial message): `import` of the exported bytes returns that session itself, at the inner receive, at
+`establish_responder` and on the bytes the initiator's first `encrypt` emitted, and the restored copy's `encrypt`
+refines the model's step and keeps the invariant with one unit of budget spent.  No new law; conditional on the AEAD
+contracts, false of the shipping AEAD by reading at long lengths.  Not shown: later responder states, `Session::clone`.
+`UnitLifecycleRestoredResponderWitness.lean` exhibits the first-receipt responder's accepted round trip, full next-encrypt hypothesis record and successful continuation together, including the actual returned RNG state. Its proof-level restore/encrypt composition has typed body controls. All existing reach and codec laws remain, including the AEAD contracts false of shipping code by reading; this is not primitive realization or full lifecycle closure.
 `UnitKemWrapperModel.lean` builds that KEM model from the `tacenta_kem` wrapper's opaque functions
 read through byte views and proves the KEM agreements of it from eight laws about those functions,
 with a model; that is not a statement that the real wrapper meets the laws.

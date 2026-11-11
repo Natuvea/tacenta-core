@@ -86,6 +86,8 @@ the AEAD output, which already carries its authentication tag, and runs to the
 end of the ratchet message; it is not length-prefixed because nothing follows
 it there. The ratchet-message decoder places no constraint on the ciphertext's
 length or contents: the AEAD checks both (Authenticated encryption, below).
+The whole message's length is bounded before any decoder reads it, by the size
+rule (Message size, below), which is not part of the decoder.
 
 `ag_type` names what the agreement's message carries, and its six values are
 the ML-KEM Braid specification's members minus one:
@@ -297,7 +299,159 @@ The decoder does not check `kem_ciphertext`'s length either. Decapsulation
 refuses a ciphertext that is not the KEM's ciphertext length, 1,568 bytes for
 ML-KEM-1024, and the recipient refuses the initial message at that point. The
 refusal is not a decode failure. It comes before any secret is derived and
-changes nothing.
+changes nothing. The size rule (Message size, below) reads `kem_ciphertext_len`
+to find the ratchet message, whatever length it declares, and does not refuse a
+length for being other than the KEM's.
+
+## Message size
+
+One protocol constant bounds every message, the same on every platform and for
+every session. It is not negotiated and not configurable. An application may
+refuse to send less than it allows; that is the application's own limit and
+outside this specification.
+
+```
+MAX_PLAINTEXT_LEN      = 1,048,575 bytes   (2^20 - 1)
+MAX_RATCHET_FRAME_LEN  = 150 + 16 * floor(MAX_PLAINTEXT_LEN / 16)
+                       = 1,048,710 bytes
+MAX_INITIAL_FRAME_LEN  = MAX_RATCHET_FRAME_LEN + 1,652
+                       = 1,050,362 bytes
+```
+
+Only `MAX_PLAINTEXT_LEN` is chosen. The other two are derived from it and from
+the formats above:
+
+- A plaintext of `n` bytes gains 1 to 16 bytes of padding, so its AES-CBC
+  ciphertext is `16 * (floor(n / 16) + 1)` bytes, and the tag adds 32
+  (Authenticated encryption). The IV is derived, not sent. With the 102-byte
+  composite header, a ratchet message carrying it is
+  `102 + 16 * (floor(n / 16) + 1) + 32 = 150 + 16 * floor(n / 16)` bytes. That
+  never decreases as `n` grows, so its largest value over the plaintexts a
+  sender may encrypt is at `n = MAX_PLAINTEXT_LEN`.
+- An initial message is its wrapper followed by a ratchet message
+  (Initial message). With ML-KEM-1024's 1,568-byte ciphertext the wrapper is
+  `2 + 33 + 33 + 4 + 1,568 + 4 + 4 + 4 = 1,652` bytes.
+
+A frame, below, is the whole byte string a receiving operation is given.
+
+**The sender's rule.** A session refuses to encrypt a plaintext longer than
+`MAX_PLAINTEXT_LEN` bytes. This is the first check of the send, before every
+other check of it, the refusal of a session whose agreement has failed
+(mlkem-braid.md, Failure) included. The refusal is *plaintext too long*, a
+condition the caller must act on (error-handling.md). It changes nothing: the
+session is exactly as it was, the material for a pending initial message and
+the agreement's state included, no random value is drawn, and there is nothing
+to persist. The plaintext is not truncated and not split; carrying a longer
+payload is the application's concern.
+
+So a conforming sender never emits a ratchet message longer than
+`MAX_RATCHET_FRAME_LEN`, or an initial message longer than
+`MAX_INITIAL_FRAME_LEN`. Every message an initiator sends while its session is
+pending is an initial message (session-establishment.md, Sending the initial
+message), the first and the repeats alike.
+
+**The receiver's rule (the size rule).** Every operation that receives a
+frame applies it: a session's decrypt, and responder establishment from an
+initial message (session-establishment.md, Receiving the initial message). Let
+`L` be the frame's length. The frame is an *initial frame* when it has at least
+two bytes and they are the version byte and the initial type byte (`0x01`,
+`0x02`); every other frame, a ratchet message or anything unrecognised, is not.
+The receiver refuses the frame as *too long*:
+
+1. when `L > MAX_INITIAL_FRAME_LEN`, whatever the frame is;
+2. when it is an initial frame, `L >= 72`, and, with `k` the big-endian value
+   of bytes 68 to 71 (`kem_ciphertext_len`), `84 + k <= L` and
+   `L - 84 - k > MAX_RATCHET_FRAME_LEN`. `L - 84 - k` is the length of the
+   ratchet message the wrapper's own length field locates (Initial message),
+   whatever `k` is;
+3. when it is not an initial frame and `L > MAX_RATCHET_FRAME_LEN`.
+
+An initial frame shorter than 72 bytes, or whose `84 + k` exceeds `L`, is
+refused by rule 1 or not at all by this rule. Such a frame goes on to the
+initial-message decoder, which refuses it as it would without the rule (Initial
+message: input that ends inside a fixed field, or a `kem_ciphertext_len` that
+runs past the end), so no ratchet message is ever taken from it. Every frame
+the rule does not refuse goes on unchanged, and the checks after it refuse what
+they refused before. The arithmetic is exact: an implementation with bounded
+integers treats an `84 + k` that its integers cannot hold as exceeding `L`.
+
+The rule reads only `L`, the first two bytes and, for an initial frame, bytes
+68 to 71. It is the first check of the operation: before the frame is copied or
+decoded, before the initial-message decoder and the repeat check
+(`NotARepeatedInitial`), before the refusal of a session whose agreement has
+failed, before any prekey is looked up, any ciphertext decapsulated, any
+agreement computed and any random value drawn.
+
+**Precedence.** So a frame the rule refuses is refused as too long whatever
+else is wrong with it, and whatever state the receiver is in. In particular:
+
+- an unknown version byte, or a type byte other than the initial message's
+  (an unknown one, or the ratchet message's, which responder establishment
+  refuses as the wrong type): such a frame is not an initial frame, so it is
+  refused as too long when `L` exceeds `MAX_RATCHET_FRAME_LEN` (rule 3), and
+  in any case when it exceeds `MAX_INITIAL_FRAME_LEN` (rule 1);
+- an initial frame that is otherwise malformed (a key without its curve byte
+  or not canonical, a `kem_ciphertext_len` that runs past the end) or that
+  names prekeys the store does not hold, or is not a repeat of the session's
+  own initial message: refused as too long under rule 1 or rule 2, before it
+  is decoded and before any identifier is looked up;
+- a session whose agreement has failed, or any other session that would
+  refuse the frame for its own reasons: refused as too long first.
+
+The same frames one byte within the bounds are not refused by this rule, and
+each is then refused, or accepted, exactly as it would be without it: an
+unknown version or a wrong type byte as a decode failure, an identifier the
+store does not hold by the lookup that does not find it, and an initial frame that is not the session's repeat as `NotARepeatedInitial`
+(on a session whose agreement has not failed; a failed session refuses a frame
+that is not an initial frame with `AgreementFailed` before decoding it,
+mlkem-braid.md, Failure).
+
+The refusal is a decode failure (Rejection), and reveals no more to a peer than
+any other. It changes nothing, whichever of the cases above applies: the
+session is exactly as it was, its pending initial material and a failed
+agreement's state included; on establishment the prekey store is exactly as it
+was, its one-time prekeys and its last-resort replay record included; no random
+value is drawn; nothing durable is written.
+
+Rule 2 is why rule 1 is not enough. The initial-message decoder accepts any
+`kem_ciphertext_len`, and a session receiving a repeated initial message never
+looks at `kem_ciphertext` (session-establishment.md, Receiving the initial
+message). Under rule 1 alone, an initial frame of `MAX_INITIAL_FRAME_LEN` bytes
+with an empty `kem_ciphertext` would carry a ratchet message of
+`MAX_INITIAL_FRAME_LEN - 84 = 1,050,278` bytes to that session. With rule 2 the
+ratchet message a receiver decrypts is at most `MAX_RATCHET_FRAME_LEN` bytes,
+standalone or inside an initial frame, on establishment and on a repeat alike.
+Whether a `kem_ciphertext_len` other than the KEM's should be a decode failure
+is a separate question, which this rule does not settle.
+
+**The plaintext a receiver returns.** A ratchet message of `f` bytes carries an
+AEAD `input` of `f - 102` bytes, so a ciphertext of `C = f - 134` bytes, and
+`C <= 1,048,576 = 2^20` within the rule. The bound on what a receiver returns
+then rests on this property of the AEAD:
+
+> **Successful-open length property (relied on).** A ciphertext of `C` bytes
+> that authenticates and whose padding is accepted opens to between `C - 16`
+> and `C - 1` bytes of plaintext.
+
+The receiver's steps 3 and 4 (Authenticated encryption) give it: `p` is between
+1 and 16, and the result is `C - p` bytes. It is stated here because the bound
+depends on it: an AEAD without it would let the rule admit longer plaintexts. With
+it, every plaintext a receiver returns is at most `2^20 - 1 = MAX_PLAINTEXT_LEN`
+bytes, which is why `MAX_PLAINTEXT_LEN` is one less than a multiple of 16. The
+frame bounds fix the received maximum exactly, and no check after
+authentication is needed. A peer that holds a message's keys and does not
+follow the sender's rule still cannot make a receiver return more.
+
+**Earlier revisions.** Revisions up to and including 0.2.0 had neither rule.
+Their senders emit, and their receivers accept, longer messages. A receiver
+that applies the size rule refuses a frame longer than the bounds from such a
+sender as too long. The session that refused it goes on, since the refusal
+changed nothing; a later message on the same chain skips past the refused one,
+whose key is then held as any skipped key is (ratchet.md, Skipped keys). If the
+refused frame was an initiator's first initial message, a later, smaller
+initial message of the same handshake can still establish the session. A
+receiver of an earlier revision accepts every message a sender that applies
+the sender's rule emits, since none exceeds the bounds.
 
 ## Prekey bundle
 
@@ -429,7 +583,8 @@ A decoder rejects, rather than accepting and repairing: an unrecognised version;
 a message too short for its fixed fields; a length prefix that overruns the
 input; trailing bytes after a message that should have ended; and any encoding
 that is not the canonical one, a curve public key's included (Curve public
-keys). Rejection is a decode failure, distinct from an
+keys). A receiver also rejects a frame the size rule refuses as too long
+(Message size), before any decoder reads it. Rejection is a decode failure, distinct from an
 authentication failure, and neither reveals more than that the message was not
 acceptable. That restraint is about what a peer learns from a refusal. It does
 not constrain the error types an implementation reports to its own caller,

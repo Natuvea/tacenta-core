@@ -238,11 +238,14 @@ structure Initial where
   ratchetMessage : List UInt8
   deriving Repr, Inhabited, DecidableEq
 
-/-- The implementation's four wire-decoder refusals. The specification makes
-    decode refusal distinct from authentication refusal while leaving these
-    local names to the implementation (error-handling.md). -/
+/-- The implementation's four wire-decoder refusals, and the size rule's.
+    The specification makes decode refusal distinct from authentication
+    refusal while leaving these local names to the implementation
+    (error-handling.md). `tooLong` is the size rule's refusal
+    (message-format.md, Message size), which a receiving operation applies
+    before any decoder runs: no decoder in this file returns it. -/
 inductive DecodeRefusal where
-  | unknownVersion | wrongType | tooShort | lengthOverrun
+  | unknownVersion | wrongType | tooShort | lengthOverrun | tooLong
   deriving Repr, DecidableEq, Inhabited
 
 /-- `some ()` when `k` begins with the `EncodeEC` curve byte, `none` otherwise

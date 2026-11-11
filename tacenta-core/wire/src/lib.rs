@@ -74,6 +74,11 @@ pub enum DecodeError {
     TooShort,
     /// A length prefix runs past the end of the input.
     LengthOverrun,
+    /// A received frame is longer than the size rule allows
+    /// (message-format.md, Message size). No decoder in this crate returns
+    /// it: a receiving operation applies the size rule before any decoder
+    /// runs, and reports its refusal as this decode failure.
+    TooLong,
 }
 
 /// The codeword size, matching `tacenta_erasure::CHUNK_BYTES`. Repeated rather

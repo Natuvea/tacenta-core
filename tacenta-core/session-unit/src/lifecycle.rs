@@ -36,8 +36,8 @@ use crate::ratchet;
 use crate::ratchet::RatchetError;
 use crate::serialization::composite::{AgreementType, Codeword, Composite};
 use crate::serialization::{
-    ABSENT_ID, DecodeError, MessageType, concat_ad, decode_initial, decode_message, encode_initial,
-    encode_message, message_type,
+    ABSENT_ID, DecodeError, MAX_PLAINTEXT_LEN, MessageType, check_frame_size, concat_ad,
+    decode_initial, decode_message, encode_initial, encode_message, message_type,
 };
 
 /// A long-term identity. The one X25519 key serves both the Diffie-Hellman
@@ -2306,6 +2306,18 @@ pub enum Error {
     /// restart and the next `send` may succeed, which is the state before the
     /// failing call, not a resurrection of the agreement.
     AgreementFailed,
+    /// The plaintext is longer than
+    /// [`MAX_PLAINTEXT_LEN`](crate::serialization::MAX_PLAINTEXT_LEN), 1,048,575
+    /// bytes (message-format.md, Message size).
+    ///
+    /// `encrypt` checks this first, before every other check (the
+    /// `AgreementFailed` refusal included), so nothing has changed: the session,
+    /// a pending initial message and the agreement are as they were, no random
+    /// value was drawn, and there is nothing to persist. The plaintext is not
+    /// truncated or split; shortening it, or carrying it some other way, is the
+    /// caller's. A frame from a peer that is too long is not this error: it is
+    /// `Decode(DecodeError::TooLong)`.
+    PlaintextTooLong,
 }
 
 /// One established session: the ratchet state, the private key behind the current
@@ -2732,12 +2744,23 @@ fn responder_replay_fingerprint(
 /// what a crash between the two costs. On any refusal the store is untouched,
 /// including the two refusals that precede decryption on the last-resort path
 /// (`ReplayedLastResort` and `LastResortRecordFull`).
+///
+/// The size rule runs first (message-format.md, Message size), as in
+/// [`Session::decrypt`]: a frame it refuses is `Decode(DecodeError::TooLong)`,
+/// before the message is decoded or copied, before any prekey is looked up or
+/// ciphertext decapsulated, and before any random draw. The ratchet message
+/// inside is bounded through the message's own `kem_ciphertext_len`, whatever
+/// it declares.
 pub fn establish_responder<R: RngCore + CryptoRng>(
     our_identity: &Identity,
     our_prekeys: &mut PrekeyStore,
     initial_message: &[u8],
     rng: &mut R,
 ) -> Result<(Session, Vec<u8>), Error> {
+    match check_frame_size(initial_message) {
+        Ok(()) => {}
+        Err(error) => return Err(Error::Decode(error)),
+    }
     let decoded = match decode_initial(initial_message) {
         Ok(decoded) => decoded,
         Err(error) => return Err(Error::Decode(error)),
@@ -2887,12 +2910,27 @@ impl Session {
     /// peer with no session and every later message undecryptable. The
     /// conformance suite exercises this by asking a responder to read a third
     /// message first.
+    ///
+    /// A plaintext longer than
+    /// [`MAX_PLAINTEXT_LEN`](crate::serialization::MAX_PLAINTEXT_LEN) is refused
+    /// as [`Error::PlaintextTooLong`] before anything else, the terminal
+    /// agreement check included: no random value is drawn and the session is
+    /// unchanged (message-format.md, Message size). Every message this returns
+    /// is at most `MAX_RATCHET_FRAME_LEN` bytes, or `MAX_INITIAL_FRAME_LEN` while
+    /// the session is pending.
     #[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
     pub fn encrypt<R: RngCore + CryptoRng>(
         &mut self,
         plaintext: &[u8],
         rng: &mut R,
     ) -> Result<Vec<u8>, Error> {
+        // The sender's rule, first (message-format.md, Message size): before
+        // the terminal check, before `braid.send` draws, before anything
+        // changes. It reads only the length.
+        if plaintext.len() > MAX_PLAINTEXT_LEN {
+            return Err(Error::PlaintextTooLong);
+        }
+
         // A failed agreement is terminal: refuse rather than send an epoch-0
         // header on a session whose post-quantum ratchet can no longer advance.
         if self.braid.failed() {
@@ -2975,11 +3013,25 @@ impl Session {
     /// required for a genuine repeat to survive a harmless re-encoding. The
     /// inner message authenticates under this session's keys and associated
     /// data, and the ratchet refuses one it has already accepted.
+    ///
+    /// **The size rule runs first** (message-format.md, Message size): a frame
+    /// longer than `MAX_INITIAL_FRAME_LEN`, an initial frame whose ratchet
+    /// message (located through the frame's own `kem_ciphertext_len`) is longer
+    /// than `MAX_RATCHET_FRAME_LEN`, and any other frame longer than
+    /// `MAX_RATCHET_FRAME_LEN` are refused as `Decode(DecodeError::TooLong)`
+    /// before the frame is copied or decoded, before `NotARepeatedInitial` and
+    /// `AgreementFailed`, and before any random draw. The session is unchanged.
     pub fn decrypt<R: RngCore + CryptoRng>(
         &mut self,
         message: &[u8],
         rng: &mut R,
     ) -> Result<Vec<u8>, Error> {
+        // The size rule, first: it reads the length and at most six bytes,
+        // and copies nothing.
+        match check_frame_size(message) {
+            Ok(()) => {}
+            Err(error) => return Err(Error::Decode(error)),
+        }
         let inner = match message_type(message) {
             Some(MessageType::Initial) => {
                 let decoded = match decode_initial(message) {

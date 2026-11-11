@@ -1491,8 +1491,17 @@ theorem establish_responder_no_panic {R : Type}
       initialMessage rng ⦃ fun _ => True ⦄ := by
   let _ : Tacenta.SessionUnitSessionT1.ZeroizingModel := contracts.sessionZeroizing
   unfold lifecycle.establish_responder
+  -- The size rule first: its refusal returns at once.
+  obtain ⟨sizeResult, hsize, -⟩ :=
+    Std.WP.spec_imp_exists (check_frame_size_no_panic initialMessage)
+  rw [hsize]
+  simp only [bind_tc_ok]
+  rcases sizeResult with _ | sizeError
+  swap
+  · simp
+  simp only
   step with decode_initial_no_panic initialMessage
-  rcases r with decoded | decodeError
+  rcases r1 with decoded | decodeError
   · step with responder_signed_prekey_secret_no_panic
       contracts.decrypt.braid.zeroizingArray ourPrekeys decoded.signed_prekey_id
     rename_i signedResult signedResult_post
@@ -1502,7 +1511,7 @@ theorem establish_responder_no_panic {R : Type}
       step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec signedSecret
       simp only [cf_post]
       step with responder_kem_slot_no_panic ourPrekeys decoded.kem_prekey_id
-      rcases r2 with kemValue | kemError
+      rcases r3 with kemValue | kemError
       · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec kemValue
         simp only [cf1_post]
         rcases kemValue with ⟨kemSlot, lastResort⟩
@@ -1526,8 +1535,8 @@ theorem establish_responder_no_panic {R : Type}
               (by
                 intro index hslot
                 subst hslot
-                simpa [SlotResultInBounds] using r2_post)
-            rcases r5 with kemSecret | kemDecapsulateError
+                simpa [SlotResultInBounds] using r3_post)
+            rcases r6 with kemSecret | kemDecapsulateError
             · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec kemSecret
               simp only [cf4_post]
               step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec
@@ -1553,7 +1562,7 @@ theorem establish_responder_no_panic {R : Type}
               all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec contracts.decrypt.braid.zeroizingArray secret
               all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec sk_post
               all_goals step with responder_replay_fingerprint_no_panic contracts.decrypt.triple.hmac ourPrekeys decoded.kem_prekey_id a1 lastResort
-              all_goals (rcases r6 with replayValue | replayError)
+              all_goals (rcases r7 with replayValue | replayError)
               all_goals try
                 { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec replayError
                   simp only [cf5_post]
@@ -1573,7 +1582,7 @@ theorem establish_responder_no_panic {R : Type}
               all_goals step with Tacenta.SessionUnitBraidT1.vecU8_clone_no_panic decoded.ephemeral
               all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post1 braid_post2 v_post
               all_goals step with decrypt_ratchet_no_panic rngCore cryptoRng contracts.decrypt _ decoded.message.deref rng decryptHeadroom
-              all_goals (rcases r7 with decrypted | decryptError)
+              all_goals (rcases r8 with decrypted | decryptError)
               all_goals try
                 { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec decryptError
                   simp only [cf6_post]
@@ -1581,7 +1590,7 @@ theorem establish_responder_no_panic {R : Type}
                     core.convert.FromSame.from] }
               all_goals step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec decrypted
               all_goals rw [cf6_post]
-              all_goals exact finish_responder_prekeys_no_panic contracts.decrypt.triple.spqrZeroize contracts.vecPop ourPrekeys decoded.kem_prekey_id decoded.one_time_prekey_id lastResort replayValue session decrypted rng1 r6_post headroom
+              all_goals exact finish_responder_prekeys_no_panic contracts.decrypt.triple.spqrZeroize contracts.vecPop ourPrekeys decoded.kem_prekey_id decoded.one_time_prekey_id lastResort replayValue session decrypted rng1 r7_post headroom
             · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec kemDecapsulateError
               simp only [cf4_post]
               simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
@@ -1708,6 +1717,10 @@ theorem encrypt_no_panic {R : Type}
     (headroom : EncryptHeadroom self plaintext) :
     lifecycle.Session.encrypt rc crc self plaintext rng ⦃ fun _ => True ⦄ := by
   unfold lifecycle.Session.encrypt
+  -- The sender's rule: a plaintext over `MAX_PLAINTEXT_LEN` is refused at once.
+  by_cases hlen : Slice.len plaintext > serialization.MAX_PLAINTEXT_LEN
+  · simp [hlen]
+  simp only [hlen, if_false]
   step with Tacenta.SessionUnitBraidT1.Braid.failed_no_panic self.braid
   split
   · simp
@@ -1796,6 +1809,15 @@ theorem decrypt_no_panic {R : Type}
     (headroom : DecryptRatchetHeadroom self) :
     lifecycle.Session.decrypt rc crc self message rng ⦃ fun _ => True ⦄ := by
   unfold lifecycle.Session.decrypt
+  -- The size rule first: its refusal returns at once.
+  obtain ⟨sizeResult, hsize, -⟩ :=
+    Std.WP.spec_imp_exists (check_frame_size_no_panic message)
+  rw [hsize]
+  simp only [bind_tc_ok]
+  rcases sizeResult with _ | sizeError
+  swap
+  · simp
+  simp only
   step with message_type_no_panic message
   rcases o with _ | mt
   · step
