@@ -565,10 +565,12 @@ on the self-hosted runner group, as the job did before the split, and only that 
 pull requests restore. If the parts of one run restored different build outputs (main saved newer ones while
 they were starting), the combiner refuses them; "Re-run failed jobs" combines the same parts again, so the run
 needs "Re-run all jobs" or a new push. A step of the `checks` job
-(`tooling/check-no-sorry-parts-coverage.py`) fails, before any hosted job runs, when a phase of
-the script is in no part of a partition or in two, when a slice of the sliced check is missing or
-repeated, or when the workflow's matrix names a part the parts file does not have or leaves one
-out, or the part job could skip a leg or a step (a matrix `exclude`, a step `if`); its cases are
+(`tooling/check-no-sorry-parts-coverage.py`) fails, in the `checks` job, which runs beside the hosted
+parts and does not hold them back, when a phase of the script is in no part of a partition or in two,
+when a slice of the sliced check is missing or repeated, or when the workflow's matrix names a part
+the parts file does not have or leaves one out, or the part job could skip a leg or a step (a matrix
+`exclude`, a job `if`, a step `if` other than the one that step has today, `continue-on-error` on
+the job or a step), and then the `checks` job fails, and with it the run; its cases are
 `tooling/tests/run-check-no-sorry-parts-coverage-cases.sh`. The `preserve` part groups the phases
 that prove the session invariant is kept across a send or a receive (`send-preservation`,
 `encrypt-preservation`, `receive-preservation`, `decrypt-preservation` and `out-of-order-receive`)
