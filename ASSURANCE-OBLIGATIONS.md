@@ -9,7 +9,8 @@ Later on 2026-10-28 the Gate 2 row's count of BLOCKING rows was recounted from `
 Later again on 2026-10-28 the project's reader was called the specification-only, project-controlled reader where this file said "the independent reader", and the P6 decision's surface the "model/concrete/operation-reader" surface; wording only, with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 Also on 2026-10-28, at the owner's instruction, the BLOCKING line of the gate classes, the note after them, the closure evidence of the ML-KEM Braid row, the Gate 1 deficit and closure evidence, the Gate 2 deficit and closure evidence, the SL4-01 completion trigger, the deferral list's heading and the second next P1 slice were changed for the uniform rule on BLOCKING technical obligations (`GAP-REGISTER.md`, "Gate class key"), MU-02 and MU-03 point their independent reviewer at that key's definition, the BLOCKING line says which fields of an item or row are its acceptance, the AMBIGUOUS line says what a recorded decision for an AMBIGUOUS item must state and cannot do, the Gate 1 and Gate 2 deficits name `SESSION-IDENTITY-L2-SHORTFALL`, and the Gate 2 deficit says that MU-01 and the Session orchestration row stay AMBIGUOUS until the P6 decision is reopened and its reopening work is done, where a record that its fired triggers are answered also ended it. Each change adds a condition or replaces a decision route with evidence or with a target change; no class was lowered and no target was changed. The edit was made with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 On 2026-11-10 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` after `HL-R1-SPARSE-READER` was reopened at BLOCKING, at the owner's instruction of 2026-10-29, with its original acceptance restored as historical wording (a later clean-room reader pass, which the row does not count pass 14 as; the decision alternative that the acceptance had before pass 14 closed it is removed under the class key's rule that a BLOCKING technical obligation cannot be discharged by accepting it, which removes a route and is a tightening), and the row's clause on it was changed to say so; with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
-On 2026-11-11 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` when `main` (after #286, #287 and #289) was merged into the size-bound, preservation and lifecycle work: eleven rows are open at BLOCKING, the nine of `main` and `SIZE-BOUND-REPLY-ROUTE-GAP` and `SIZE-BOUND-OPEN-LENGTH`, and the row names the two size-bound rows beside the rows of `main` it already named (as on `main`, it does not name `SESSION-CONTRACT-VACUITY`, `DISPATCH-EVIDENCE-VACUITY` or `E2E-01`); with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
+On 2026-11-11 the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` when `main` (after #286, #287 and #289) was merged into the size-bound, preservation and lifecycle work: eleven rows were then open at BLOCKING (sixteen from 2026-11-12, below), the nine of `main` and `SIZE-BOUND-REPLY-ROUTE-GAP` and `SIZE-BOUND-OPEN-LENGTH`, and the row names the two size-bound rows beside the rows of `main` it already named (as on `main`, it does not name `SESSION-CONTRACT-VACUITY`, `DISPATCH-EVIDENCE-VACUITY` or `E2E-01`); with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
+On 2026-11-12, at the owner's decisions of 2026-11-07 and 2026-11-08, the Session orchestration row's deficit says that the eight identity-record functions are outside the P6 surface and that the property tests of its prekey operations have no recorded hosted run, the Gate 1 deficit names six component rows short of target, and the Gate 2 row's count of BLOCKING rows was recounted from `GAP-REGISTER.md` after `PT-WIRE`, `PT-PROTOBUF`, `PT-PQXDH`, `PT-BRAID` and `PT-SESSION` were opened there (sixteen rows); each change adds a condition, and no class or target changed; with tool assistance under the maintainer's account and no reader independent of the maintainer; nothing else was re-read.
 
 ## Gate classes
 
@@ -341,6 +342,9 @@ than security requirements.
 
   **Current target deficit:**
   [P6-L2-TARGET-DECISION.md](tacenta-model/P6-L2-TARGET-DECISION.md) records the bounded model/concrete/operation-reader surface, its declared-crypto boundary and reopen triggers.
+  The eight identity-record functions of `tacenta-core/src/sessions/identity.rs` are outside that surface and meet L1 only in part;
+  the `ASSURANCE.md` Session row does not show L2 for them and says which of L2's elements each has (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`).
+  The property tests of the surface's prekey operations, added with `tacenta-test-vectors/property-tests.md`, have no recorded hosted run (`GAP-REGISTER.md`, `PT-SESSION`).
 
   **Gate class:**
   AMBIGUOUS
@@ -463,8 +467,12 @@ than security requirements.
   and `READER-INDEPENDENCE`'s condition still reads what the P6 decision relies on).
   Practice 5 is BLOCKING above, and the ML-KEM Braid reads L3 against an L4 target in the `ASSURANCE.md` Components table, because its T3 receive theorems take `ct1_bounded` as a premise (preservation theorems now exist in `CLAIMS.md`, and the label has not been changed);
   no target change has lowered that target.
-  The Session row's identity-record functions do not reach its L2 target (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`);
-  no other component has been assessed part by part as this row now asks.
+  Six component rows fall short of target in the `ASSURANCE.md` Components table: the ML-KEM Braid, as above;
+  the Session row, whose identity-record functions do not reach its L2 target (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`) and for whose prekey operations L1's property-test element is not shown until `PT-SESSION` meets its acceptance;
+  the wire decoders, the protobuf profile and the PQXDH derivation, which read L4 against L4, and L4 includes L1: under the five elements of `tacenta-test-vectors/property-tests.md` they had no property test for some operations a page states, and the tests added with that index have no recorded hosted run (`GAP-REGISTER.md`, `PT-WIRE`, `PT-PROTOBUF`, `PT-PQXDH`);
+  and Persisted formats: prekey store, which reads L2 against L2, and whose one property test reached its assertion only for a relabelling to version 4 until it was repaired in the same change, with no hosted run of the repair recorded (`PT-SESSION`);
+  the Braid's property tests are `PT-BRAID`, a condition beside the L3 reading above; no level is relabelled.
+  Apart from L1's property-test element, which that index reads for every row, no other component has been assessed part by part as this row now asks.
 
   **Gate class:**
   BLOCKING
@@ -482,7 +490,8 @@ than security requirements.
   Gap register must have no open BLOCKING rows and no unresolved AMBIGUOUS rows.
   After `E2E-07` was closed on the run at `75387aa9` and `HL-R1-SPARSE-TRANSLATION` on one Linux x86_64 regeneration of 2026-10-03 (an emulated run by the maintainer's tool-assisted session,
   not independent),
-  eleven rows are open at BLOCKING in the register,
+  sixteen rows are open at BLOCKING in the register,
+  five of them the property-test deficits opened on 2026-11-12 (`PT-WIRE`, `PT-PROTOBUF`, `PT-PQXDH`, `PT-BRAID` and `PT-SESSION`),
   two of them findings of the fourteenth reader pass (`G14-03`,
   `G14-06`), two the message size bound's (`SIZE-BOUND-REPLY-ROUTE-GAP`, `SIZE-BOUND-OPEN-LENGTH`,
   set BLOCKING for the final claims by the owner's decision of 2026-10-28),
