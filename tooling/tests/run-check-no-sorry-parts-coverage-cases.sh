@@ -12,12 +12,15 @@
 #   a phase the script lists that no part names (the script given one, made for the purpose)   refused
 #   a part that names a phase the script does not list   refused
 #   a part name in the workflow with no part in the script   refused, for the pull-request list and the push list
+#   a part of the hosted partition in the push list   refused (it is not a part of the partition a push feeds)
 #   a part of the script missing from the workflow's list   refused, for an ordinary part; a part declared with
 #                                             no phase yet is not in the list, and the list naming it is refused,
 #                                             as is a part that has been given a phase and is not in the list
 #   a part named twice in the workflow's list, the two partitions swapped, a matrix or partition expression of
 #   a shape the check does not read, a job missing   refused
-#   a matrix `exclude` or `include`, a step `if` or `continue-on-error` on a part job, a job `if`   refused
+#   a matrix `exclude` or `include`, a step `if` (a new one, or a condition another step has moved to the part
+#   step), `continue-on-error` on the job or a step (`true`, or an expression), a job `if`   refused
+#   two steps with the combining step's id   refused
 #   a workflow, a parts file or a phase table that cannot be read   refused (a gate that cannot run fails)
 #
 # A part declared with no phase (`-`) is in the files of the tree only once one has been added; the cases that
@@ -252,6 +255,12 @@ swap("""'["all"]'""", """'["all", "ghost"]'""")
 PY
 run ghost-push --parts "$work/base.parts" --workflow "$work/yml-ghost-push"
 refuses ghost-push "names ghost, which is not a part of partition single"
+# A part of the other partition in the push list: a name the parts file has, but not in the partition a push feeds.
+edit_yml push-hosted-part <<'PY'
+swap("""'["all"]'""", """'["all", "kernel"]'""")
+PY
+run push-hosted-part --parts "$work/base.parts" --workflow "$work/yml-push-hosted-part"
+refuses push-hosted-part "names kernel, which is not a part of partition single"
 edit_yml reply-missing <<'PY'
 swap('"reply", ', '')
 PY
@@ -329,12 +338,30 @@ swap("          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched
 PY
 run step-if-part --parts "$work/base.parts" --workflow "$work/yml-step-if-part"
 refuses step-if-part "matrix.part != 'preserve'"
+# A condition another step is allowed, moved to the part step: on a push the `all` part would run no phase.
+edit_yml step-if-moved <<'PY'
+swap("          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        run:",
+     "          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        if: github.event_name == 'pull_request'\n        run:")
+PY
+run step-if-moved --parts "$work/base.parts" --workflow "$work/yml-step-if-moved"
+refuses step-if-moved "step translation_part of \`translation-part\` has the condition \`github.event_name == 'pull_request'\`"
 edit_yml step-continue <<'PY'
 swap("          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        run:",
      "          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        continue-on-error: true\n        run:")
 PY
 run step-continue --parts "$work/base.parts" --workflow "$work/yml-step-continue"
 refuses step-continue "has \`continue-on-error\`"
+edit_yml step-continue-expression <<'PY'
+swap("          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        run:",
+     "          NO_SORRY_BUILD_CACHE: ${{ steps.lean-build.outputs.cache-matched-key }}\n        continue-on-error: ${{ matrix.part == 'preserve' }}\n        run:")
+PY
+run step-continue-expression --parts "$work/base.parts" --workflow "$work/yml-step-continue-expression"
+refuses step-continue-expression "step translation_part of \`translation-part\` has \`continue-on-error\`"
+edit_yml job-continue <<'PY'
+swap("  translation-part:\n", "  translation-part:\n    continue-on-error: true\n")
+PY
+run job-continue --parts "$work/base.parts" --workflow "$work/yml-job-continue"
+refuses job-continue "the \`translation-part\` job has \`continue-on-error\`"
 edit_yml job-if <<'PY'
 swap("  translation-part:\n", "  translation-part:\n    if: github.event_name == 'push'\n")
 PY
@@ -354,6 +381,15 @@ swap("fromJSON(github.event_name == 'push' &&", "fromJSON(github.event_name == '
 PY
 run matrix-other-event --parts "$work/base.parts" --workflow "$work/yml-matrix-other-event"
 refuses matrix-other-event "the matrix's \`part\` is not"
+# Two steps with the combining step's id, each naming a partition the check reads: which one runs is not one answer.
+# (Before the partition-literal case: a guard that stops refusing these must be seen to accept this one.)
+edit_yml partition-twice <<'PY'
+swap("          NO_SORRY_PARTITION: ${{ github.event_name == 'push' && 'single' || 'hosted' }}\n        run: bash tacenta-proofs/scripts/no-sorry.sh\n",
+     "          NO_SORRY_PARTITION: ${{ github.event_name == 'push' && 'single' || 'hosted' }}\n        run: bash tacenta-proofs/scripts/no-sorry.sh\n"
+     "      - id: translation_no_sorry\n        env:\n          NO_SORRY_PARTITION: ${{ github.event_name == 'push' && 'single' || 'hosted' }}\n        run: 'true'\n")
+PY
+run partition-twice --parts "$work/base.parts" --workflow "$work/yml-partition-twice"
+refuses partition-twice "does not name its partition"
 edit_yml partition-literal <<'PY'
 swap("NO_SORRY_PARTITION: ${{ github.event_name == 'push' && 'single' || 'hosted' }}", "NO_SORRY_PARTITION: hosted")
 PY
@@ -374,4 +410,4 @@ refuses empty-table "the script lists no phase"
 run no-script --script "$work/no-such-no-sorry.sh" --parts "$work/base.parts" --workflow "$work/base.yml"
 refuses no-script "did not list its phases"
 
-echo "check-no-sorry-parts-coverage-cases: $cases cases (the files of the tree and of a tree with a part declared empty; a phase in no part or in two, and a slice of the dispatcher in none or two, with the parts reader's refusals in place and removed; a phase the script gains or loses; a part name in the workflow with no part, a part missing from the workflow, in the pull-request list and the push list; a part declared empty named in the list, and one given a phase and left out; a list that names a part twice, the partitions swapped, an expression or a job of another shape; files that cannot be read) gave the expected result"
+echo "check-no-sorry-parts-coverage-cases: $cases cases (the files of the tree and of a tree with a part declared empty; a phase in no part or in two, and a slice of the dispatcher in none or two, with the parts reader's refusals in place and removed; a phase the script gains or loses; a part name in the workflow with no part, a part missing from the workflow, in the pull-request list and the push list; a hosted part in the push list; a part declared empty named in the list, and one given a phase and left out; a list that names a part twice, the partitions swapped, an expression or a job of another shape, two combining steps; a part job that could skip a leg or a step; files that cannot be read) gave the expected result"

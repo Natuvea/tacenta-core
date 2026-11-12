@@ -26,8 +26,9 @@ It fails when
 
   * the `translation-part` job could run fewer legs or fewer steps than the matrix list says: the matrix has a key
     other than `part` (`exclude` drops a leg, `include` adds one), the job or a step has `continue-on-error`, the
-    job has an `if`, or a step has an `if` other than the four exact conditions the job has today (all of which
-    only choose between a push and a pull request). A step of a part job skipped by an `if` would leave the part
+    job has an `if`, or a step has an `if` other than the exact condition that step has today (four steps have one,
+    and each only chooses between a push and a pull request, or the runner kind; a condition moved to another step
+    is refused). `continue-on-error` is refused when it is `true` or an expression, which can be true. A step of a part job skipped by an `if` would leave the part
     with no directory or an empty one, which the combiner refuses only after the run;
   The commands of a leg's steps are held by `required-steps.json`, not here.
 
@@ -204,16 +205,20 @@ def workflow_parts(workflow):
     return push_list, other_list, push_partition, other_partition
 
 
-# The only step conditions the part job has: they choose between a push and a pull request, or the runner kind.
+# The only step conditions the part job has, each with the step it is on (by `id`, or by `name` for a step with no
+# `id`): they choose between a push and a pull request, or the runner kind. A condition is allowed only on its own
+# step, so a condition moved to another step (the part step itself, say) is refused like any other.
 ALLOWED_STEP_IF = {
-    "runner.environment == 'self-hosted'",
-    "github.event_name == 'push' && matrix.part == 'all' && steps.mathlib-files.outputs.cache-hit != 'true'",
-    "github.event_name == 'pull_request'",
-    "github.event_name == 'push' && matrix.part == 'all'",
+    "translation_seed": "runner.environment == 'self-hosted'",
+    "Save Mathlib's downloaded cache files (pushes to main only)":
+        "github.event_name == 'push' && matrix.part == 'all' && steps.mathlib-files.outputs.cache-hit != 'true'",
+    "lean-build": "github.event_name == 'pull_request'",
+    "Save the Lean build outputs (pushes to main only)": "github.event_name == 'push' && matrix.part == 'all'",
 }
 
 
 def truthy_continue(value):
+    """Anything but an absent value or false: `true`, and an expression such as `${{ ... }}`, which can be true."""
     return value is not None and value is not False and str(value).strip().lower() != "false"
 
 
@@ -241,9 +246,11 @@ def check_part_job(workflow):
             problems.append(f"step {index + 1} of `translation-part` is not a mapping")
             continue
         label = step.get("id") or step.get("name") or step.get("uses") or f"step {index + 1}"
-        if "if" in step and str(step["if"]).strip() not in ALLOWED_STEP_IF:
+        allowed = ALLOWED_STEP_IF.get(label)
+        if "if" in step and str(step["if"]).strip() != allowed:
             problems.append(f"step {label} of `translation-part` has the condition `{step['if']}`, which can skip "
-                            "it for a leg; only the push or pull-request conditions the job has are allowed")
+                            "it for a leg; a step may have only the push, pull-request or runner condition it "
+                            "has today")
         if truthy_continue(step.get("continue-on-error")):
             problems.append(f"step {label} of `translation-part` has `continue-on-error`")
     return problems
