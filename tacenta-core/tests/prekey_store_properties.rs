@@ -1,18 +1,24 @@
 //! Property tests for the prekey store's operations (`create_prekeys`, `replenish`,
 //! `rotate_signed_prekey`, `rotate_kem`, `publish_one_time_batch`, `publish_multi_use`
 //! and consumption by `establish_responder`), against
-//! `tacenta-spec/protocol/key-deletion.md`, What this implementation does.
+//! `tacenta-spec/protocol/key-deletion.md`, What this implementation does, and for the
+//! stored list `legacy_blocked`, against `tacenta-spec/protocol/session-persistence.md`,
+//! Legacy markers.
 //!
-//! Generator: `StdRng::seed_from_u64(SEED + run)` chooses, for each of `RUNS` runs,
-//! the store's starting size and a sequence of `STEPS` operations: a replenishment of
-//! 0 to 3, a rotation of either kind, or an initial message from a fresh initiator to
-//! one of the bundles the store publishes (a one-time pair or the multi-use bundle),
-//! delivered first with its authentication tag altered, then as sent, then again. Replay: the seed is fixed in this file, and each
-//! assertion message names the run and the step. Case count: the numbering property
-//! runs `create_prekeys` for every `n` from 0 to 8; the sequence property runs `RUNS`
-//! (12) sequences of `STEPS` (24) operations; the rotation property runs `RUNS` (12)
-//! stores, each rotated twice of one kind, the kind alternating by run.
-
+//! Generators, each `StdRng::seed_from_u64` with a seed fixed in this file and varied
+//! by case: the numbering property draws the store's size `n` from 0 to `MAX_N` for
+//! each of `NUMBERING_CASES` (48) cases; the sequence property draws, for each of
+//! `RUNS` (12) runs, the store's starting size and a sequence of `STEPS` (24)
+//! operations (a replenishment of 0 to 3, a rotation of either kind, or an initial
+//! message from a fresh initiator to one of the bundles the store publishes, delivered
+//! first with its authentication tag altered, then as sent, then again); the rotation
+//! property draws, for each of `ROTATION_RUNS` (24) runs, the starting size and a
+//! schedule of `ROTATION_STEPS` (8) steps, each a rotation of a drawn kind or a
+//! replenishment, publishing a bundle after each; the list property draws, for each
+//! of `LIST_CASES` (256) cases, the store's size and a `legacy_blocked` list of zero to
+//! three entries, each the store's last-resort KEM identifier or a drawn other
+//! identifier. Replay: the seeds are fixed, and each assertion message names the case,
+//! run or step.
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use std::collections::{BTreeMap, BTreeSet};
 use tacenta_core::sessions::identity::{Expectation, establish_initiator};
@@ -21,6 +27,11 @@ use tacenta_core::sessions::{Identity, PrekeyStore, PublishedBundle, establish_r
 const SEED: u64 = 0x9e_4e75;
 const RUNS: u64 = 12;
 const STEPS: usize = 24;
+const NUMBERING_CASES: u64 = 48;
+const MAX_N: u32 = 40;
+const ROTATION_RUNS: u64 = 24;
+const ROTATION_STEPS: usize = 8;
+const LIST_CASES: u64 = 256;
 
 /// `create_prekeys(n)` numbers the store in one pass: the signed prekey 1, the
 /// one-time curve prekeys 2 to n + 1, the last-resort KEM prekey n + 2 and the
@@ -33,39 +44,53 @@ const STEPS: usize = 24;
 /// `2n + 3`."
 #[test]
 fn create_prekeys_numbers_the_store_as_the_page_says() {
-    let mut r = StdRng::seed_from_u64(SEED);
-    for n in 0u32..=8 {
+    let mut sizes = BTreeSet::new();
+    for case in 0..NUMBERING_CASES {
+        let mut r = StdRng::seed_from_u64(SEED ^ 0x0d0d ^ case);
+        let n = r.gen_range(0..=MAX_N);
+        sizes.insert(n);
         let id = Identity::generate(&mut r);
         let store = id.create_prekeys(n as usize, &mut r);
-        assert_eq!(store.next_id(), 2 * n + 3, "n = {n}: next_id");
+        assert_eq!(store.next_id(), 2 * n + 3, "case {case}, n = {n}: next_id");
         assert_eq!(
             store.one_time_remaining(),
             (n as usize, n as usize),
-            "n = {n}"
+            "case {case}, n = {n}"
         );
         let multi = store.publish_multi_use();
-        assert_eq!(multi.signed_prekey_id, 1, "n = {n}: signed prekey");
+        assert_eq!(
+            multi.signed_prekey_id, 1,
+            "case {case}, n = {n}: signed prekey"
+        );
         assert_eq!(
             multi.kem_prekey_id,
             n + 2,
-            "n = {n}: last-resort KEM prekey"
+            "case {case}, n = {n}: last-resort KEM prekey"
         );
-        assert!(multi.bundle.one_time_prekey.is_none(), "n = {n}");
+        assert!(
+            multi.bundle.one_time_prekey.is_none(),
+            "case {case}, n = {n}"
+        );
         let batch = store.publish_one_time_batch();
         let curve: BTreeSet<u32> = batch.iter().map(|b| b.one_time_prekey_id).collect();
         let kem: BTreeSet<u32> = batch.iter().map(|b| b.kem_prekey_id).collect();
         assert_eq!(
             curve,
             (2..n + 2).collect(),
-            "n = {n}: one-time curve prekeys"
+            "case {case}, n = {n}: one-time curve prekeys"
         );
         assert_eq!(
             kem,
             (n + 3..2 * n + 3).collect(),
-            "n = {n}: one-time KEM prekeys"
+            "case {case}, n = {n}: one-time KEM prekeys"
         );
-        assert!(batch.iter().all(|b| b.signed_prekey_id == 1), "n = {n}");
+        assert!(
+            batch.iter().all(|b| b.signed_prekey_id == 1),
+            "case {case}, n = {n}"
+        );
     }
+    // Not vacuous: the draws cover more than a handful of sizes.
+    assert!(sizes.len() >= 16, "only {} sizes drawn", sizes.len());
 }
 
 /// Every identifier a key was ever published under: curve prekeys and KEM prekeys.
@@ -254,10 +279,12 @@ fn identifiers_never_repeat_and_used_prekeys_are_gone() {
     );
 }
 
-/// A retired prekey is honoured for exactly one rotation, for the signed prekey and
-/// for the last-resort KEM prekey alike: an initial message made from a bundle
-/// published before a rotation is accepted after that rotation, and one made from the
-/// same bundle after a second rotation is refused, leaving the store unchanged.
+/// A retired prekey is honoured for exactly one rotation, for the signed prekey and for
+/// the last-resort KEM prekey alike. Over generated schedules of rotations of either
+/// kind and replenishments, an initial message made from any multi-use bundle the store
+/// published earlier is accepted exactly when neither of the keys it names has been
+/// retired by more than one rotation of its kind since that bundle was published, and a
+/// refused one leaves the store's bytes as they were.
 ///
 /// Specification: key-deletion.md, What this implementation does: "**Signed prekeys
 /// rotate, and the retired one is kept for exactly one rotation.**", "is honoured by
@@ -267,42 +294,138 @@ fn identifiers_never_repeat_and_used_prekeys_are_gone() {
 /// prekey".
 #[test]
 fn a_retired_prekey_is_honoured_for_exactly_one_rotation() {
-    for run in 0..RUNS {
+    let (mut honoured, mut refused) = (0usize, 0usize);
+    for run in 0..ROTATION_RUNS {
         let mut r = StdRng::seed_from_u64(SEED ^ 0x707 ^ run);
         let bob = Identity::generate(&mut r);
-        let kem = run % 2 == 1;
-        let mut store = bob.create_prekeys(0, &mut r);
-        let old = store.publish_multi_use();
-        let initial_from = |r: &mut StdRng| {
-            let alice = Identity::generate(r);
-            let mut s = establish_initiator(&alice, &old, &Expectation::first_contact(&[]), r)
-                .unwrap_or_else(|e| panic!("run {run}: {e:?}"));
-            s.encrypt(b"first", r).unwrap()
-        };
-        let rotate = |store: &mut PrekeyStore, r: &mut StdRng| {
-            if kem {
-                store.rotate_kem(&bob, r)
-            } else {
-                store.rotate_signed_prekey(&bob, r)
+        let mut store = bob.create_prekeys(r.gen_range(0..3), &mut r);
+        // Each published bundle with the rotation counts of both kinds at publication.
+        let (mut signed_rotations, mut kem_rotations) = (0u32, 0u32);
+        let mut published = vec![(store.publish_multi_use(), 0u32, 0u32)];
+        for step in 0..ROTATION_STEPS {
+            match r.gen_range(0..5u8) {
+                0 | 1 => {
+                    store.rotate_signed_prekey(&bob, &mut r);
+                    signed_rotations += 1;
+                }
+                2 | 3 => {
+                    store.rotate_kem(&bob, &mut r);
+                    kem_rotations += 1;
+                }
+                _ => store.replenish(&bob, r.gen_range(0..3usize), &mut r),
             }
-        };
-        rotate(&mut store, &mut r);
-        let once = initial_from(&mut r);
-        assert!(
-            establish_responder(&bob, &mut store, &once, &mut r).is_ok(),
-            "run {run} (kem: {kem}): a key retired by one rotation was not honoured"
-        );
-        rotate(&mut store, &mut r);
-        let twice = initial_from(&mut r);
-        let bytes = store.to_bytes().to_vec();
-        assert!(
-            establish_responder(&bob, &mut store, &twice, &mut r).is_err(),
-            "run {run} (kem: {kem}): a key retired two rotations ago was honoured"
-        );
-        assert_eq!(
-            store.to_bytes().to_vec(),
-            bytes,
-            "run {run}: the refusal changed the store"
-        );
+            let i = r.gen_range(0..published.len());
+            let (bundle, s_at, k_at) = &published[i];
+            let expect = signed_rotations - s_at <= 1 && kem_rotations - k_at <= 1;
+            let alice = Identity::generate(&mut r);
+            let mut sender =
+                establish_initiator(&alice, bundle, &Expectation::first_contact(&[]), &mut r)
+                    .unwrap_or_else(|e| panic!("run {run} step {step}: {e:?}"));
+            let initial = sender.encrypt(b"first", &mut r).unwrap();
+            let bytes = store.to_bytes().to_vec();
+            let got = establish_responder(&bob, &mut store, &initial, &mut r).is_ok();
+            assert_eq!(
+                got,
+                expect,
+                "run {run} step {step}: bundle {i} after {} signed and {} KEM rotations",
+                signed_rotations - s_at,
+                kem_rotations - k_at
+            );
+            if got {
+                honoured += 1;
+            } else {
+                refused += 1;
+                assert_eq!(
+                    store.to_bytes().to_vec(),
+                    bytes,
+                    "run {run} step {step}: the refusal changed the store"
+                );
+            }
+            assert!(store.invariant(), "run {run} step {step}: invariant");
+            published.push((store.publish_multi_use(), signed_rotations, kem_rotations));
+        }
     }
+    // Not vacuous: both outcomes occur.
+    assert!(
+        honoured >= 20 && refused >= 20,
+        "{honoured} honoured, {refused} refused"
+    );
+}
+
+/// The decoder accepts a stored `legacy_blocked` list exactly when it is the canonical
+/// one, and reads it back to the same bytes; it refuses every other spelling.
+/// Generated: fresh stores (written as v5, with no previous prekeys, so the last-resort
+/// KEM identifier is the only one a list may name) whose empty list is replaced by a
+/// list of zero to three entries, each that identifier or another drawn one. The
+/// canonical lists are then the empty list and the list holding that identifier once.
+///
+/// Specification: session-persistence.md, Legacy markers: "`legacy_blocked` is in
+/// strictly ascending order, holds at most two entries, and every entry is `kem_id` or
+/// the identifier inside `previous_kem`", and "A list that is not strictly ascending,
+/// whether out of order or naming an identifier twice, is a second spelling of a list
+/// the writer would have sorted, and is refused"; Principles, "Canonical and
+/// length-prefixed". A repeated identifier is refused only by the decoder's canonical
+/// re-encoding check, so this property is what tests that check.
+#[test]
+fn a_stored_blocked_list_is_accepted_only_in_its_canonical_spelling() {
+    let (mut accepted, mut refused_repeat) = (0usize, 0usize);
+    for case in 0..LIST_CASES {
+        let mut r = StdRng::seed_from_u64(SEED ^ 0xb10c ^ case);
+        let bob = Identity::generate(&mut r);
+        let store = bob.create_prekeys(r.gen_range(0..3), &mut r);
+        let kem_id = store.publish_multi_use().kem_prekey_id;
+        let bytes = store.to_bytes().to_vec();
+        // The tail of a fresh v5 store: an empty `legacy_blocked` (count 0) and two
+        // absent previous prekeys.
+        let tail = bytes.len() - 6;
+        assert_eq!(&bytes[tail..], &[0u8; 6], "case {case}: unexpected tail");
+        let len = r.gen_range(0..=3usize);
+        let list: Vec<u32> = (0..len)
+            .map(|_| {
+                if r.gen_range(0..3u8) == 0 {
+                    loop {
+                        let other: u32 = r.r#gen();
+                        if other != kem_id {
+                            break other;
+                        }
+                    }
+                } else {
+                    kem_id
+                }
+            })
+            .collect();
+        let mut spelled = bytes[..tail].to_vec();
+        spelled.extend_from_slice(&(list.len() as u32).to_be_bytes());
+        for id in &list {
+            spelled.extend_from_slice(&id.to_be_bytes());
+        }
+        spelled.extend_from_slice(&[0, 0]);
+        let canonical = list.is_empty() || list == [kem_id];
+        match PrekeyStore::from_bytes(&spelled) {
+            Ok(back) => {
+                assert!(canonical, "case {case}: list {list:?} accepted");
+                assert_eq!(
+                    back.to_bytes().to_vec(),
+                    spelled,
+                    "case {case}: list {list:?} read back to other bytes"
+                );
+                accepted += 1;
+            }
+            Err(e) => {
+                assert!(
+                    !canonical,
+                    "case {case}: canonical list {list:?} refused: {e:?}"
+                );
+                if list == [kem_id, kem_id] {
+                    refused_repeat += 1;
+                }
+            }
+        }
+    }
+    // Not vacuous: canonical lists are accepted, and the repeated identifier, which
+    // only the re-encoding check refuses, is drawn.
+    assert!(
+        accepted >= 32 && refused_repeat >= 8,
+        "{accepted} accepted, {refused_repeat} repeats refused"
+    );
 }

@@ -160,6 +160,16 @@ fn reference_composite_valid(b: &[u8]) -> bool {
         }
 }
 
+/// The lifecycle's copy of `message_type`, which `Session::decrypt` and the responder
+/// dispatch on, with its result in the public type.
+fn lifecycle_message_type(bytes: &[u8]) -> Option<MessageType> {
+    use tacenta_lifecycle::serialization::{MessageType as L, message_type};
+    message_type(bytes).map(|t| match t {
+        L::Ratchet => MessageType::Ratchet,
+        L::Initial => MessageType::Initial,
+    })
+}
+
 proptest! {
     #![proptest_config(config())]
 
@@ -499,7 +509,9 @@ proptest! {
     /// A byte string's framing names its type: version `0x01` with type `0x01` is a
     /// ratchet message and with type `0x02` an initial message; anything else (an
     /// empty or one-byte string, another version, a bundle's `0x03`, any other type)
-    /// is neither, whatever follows.
+    /// is neither, whatever follows. Asserted of the public
+    /// `tacenta_core::serialization::message_type` and of the lifecycle's copy, which
+    /// the session dispatches on.
     ///
     /// Specification: message-format.md, Message type: "Every message begins with a
     /// version byte and a type byte, so a receiver can tell what it is holding without
@@ -521,8 +533,12 @@ proptest! {
             _ => None,
         };
         prop_assert_eq!(message_type(&b), expected);
+        // The session dispatches on the lifecycle's own copy of the function, so the
+        // same property is asserted of it.
+        prop_assert_eq!(lifecycle_message_type(&b), expected);
         if short < 2 {
             prop_assert_eq!(message_type(&b[..short]), None);
+            prop_assert_eq!(lifecycle_message_type(&b[..short]), None);
         }
     }
 }
