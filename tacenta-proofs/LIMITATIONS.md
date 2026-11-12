@@ -2407,7 +2407,8 @@ island or unit, is about any function in it.
   three functions with no vector and no reader reading, L2's own elements are
   missing as well. The Session row in `ASSURANCE.md` keeps L2 as recorded, says
   that the decision covers the lifecycle operations of the P6 surface, and says
-  that L2 is not shown for these eight; it assigns no lower level to the
+  what is shown for these eight: L1 in part and L2 not shown; it assigns no
+  lower level to the
   component or to a part, and the label does not meet gate 1 for them
   (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`, whose acceptance lists
   what they need). The target is not lowered. The index's section 4 reads every
