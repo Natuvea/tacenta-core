@@ -2347,48 +2347,72 @@ island or unit, is about any function in it.
   from its three committed seeds when `cargo-fuzz` and a nightly toolchain
   are present. Whether the nightly search on private infrastructure
   (`ASSURANCE.md`, practice 10) runs it has not been checked.
-- **Where that leaves them against ADR-0008's levels.** This section counts as
-  a property test a test that checks a stated property over many generated
-  inputs on each run, in a test the hosted workflow runs: a proptest, or a run
-  of the differential harness
-  (`tacenta-test-vectors/runners/rust/tests/differential.rs`) compared with
-  the model. By that standard `classify`, `lookup`, `identity_pair_digest`,
-  `verification_number` and `verification_number_grouped` have no property
-  test of their own: no proptest names them, in their own tests or in
-  `tests/fuzz.rs`, the differential harness does not call them directly
-  (through `establish_initiator` it reaches `standing`, the rule `classify`
-  and `lookup` share, only with a one-key record), and the fuzz target's
-  assertions run only under `cargo-fuzz`. `establish_initiator` does not meet
-  that element for its expectation checks either. The differential harness
-  drives it on generated identities and the bundles they publish, under
+- **Where that leaves them against ADR-0008's levels.** They have no T1 or
+  T3 result. Before the change that added
+  `tacenta-test-vectors/property-tests.md`, none of them had a property test in
+  the sense that index applies (a generator over a stated domain, a stated
+  property, traceability to a specification sentence, replay information and
+  a case count), nor by the narrower standard this section used from
+  2026-10-28 (a stated property over many generated inputs, in a test the
+  hosted workflow runs). `establish_initiator` was the subject of two seeded
+  loops in `tests/identity_expectation.rs` that the index does not count
+  (`with_no_records_first_contact_is_the_leafs_establishment`, a comparison
+  over eight generated bundles beside a crafted table, and
+  `the_leaf_pin_never_fires_through_the_expectation`, an enumerated sweep).
+  The differential harness
+  (`tacenta-test-vectors/runners/rust/tests/differential.rs`) drives it on
+  generated identities and the bundles they publish, under
   `Expectation::known` with a one-key record and `Expectation::first_contact`
   with none, and compares only the accepted known-identity establishment with
-  the model; its refusals there (a bundle of another identity, refused as
-  `UnexpectedIdentity` before any draw, and two with a signature byte flipped)
-  are assertions in the test, and no generated input varies the records
-  (several current keys, retired keys, a malformed record, `first_contact`
-  over non-empty records). Nor do `establish_responder_unattributed` and
-  `Unattributed::attribute`: the harness drives the lifecycle's
-  `establish_responder`, which the first wraps, and neither is called by a
-  proptest, the harness or the fuzz target. Their fuzzing reaches the
-  presented key and the records but not the rest of an untrusted bundle. So
-  they meet L1 only in part: its unit tests, yes; its property tests, for none
-  of them; its fuzzing of untrusted input, partly, and not in the hosted
-  workflow. Since L2 includes L1, they do not reach L2 either, although they
-  have its other elements: the model states them, and vectors pin them that
-  are checked against the implementation and read by the specification-only,
-  project-controlled reader (`initiator-expectation.json` is written by a
-  script with each outcome checked against the model, not generated from it).
-  The Session row in `ASSURANCE.md` stays at L2, because a tick there means
-  that the component has that kind of evidence, not that every part of it
-  does, and a level is lowered only by a recorded decision (ADR-0008); the row
-  says the same of these functions. The label does not meet gate 1 for them
-  (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`). A standard that
-  counted only proptest would find no property test for the Double Ratchet,
-  the sparse post-quantum ratchet, the Triple Ratchet or the PQXDH derivation
-  either, which `ASSURANCE.md` lists at L4, or for the ML-KEM Braid (L3):
-  `proptest!` appears only in `tacenta-core/tests/fuzz.rs` and
-  `tacenta-core/erasure/src/lib.rs`.
+  the model, which is model-dependent evidence; its refusals there (a bundle
+  of another identity, refused as `UnexpectedIdentity` before any draw, and
+  two with a signature byte flipped) are assertions in the test, and no
+  generated input varies the records. That change added
+  `tests/identity_records_properties.rs` and
+  `tests/identity_establishment_properties.rs`, with properties for all eight,
+  each citing its sentence and comparing the function with a reference written
+  from the page; they passed locally, and no hosted run of them is recorded.
+  They do not meet the floor of `GAP-REGISTER.md`'s
+  `SESSION-IDENTITY-L2-SHORTFALL` (no property was stated in that row before
+  its test, the results are not compared with the model, and the
+  establishment file's seeds are fixed and its counts below 2,048). Their
+  fuzzing of untrusted input reaches the presented key and the records but not
+  the rest of an untrusted bundle, and the fuzz target's assertions run only
+  under `cargo-fuzz`, not in the hosted workflow. Which of L2's other elements
+  each function has differs:
+  - `identity_pair_digest`, `verification_number`, `classify`, `lookup` and
+    `establish_initiator` have a model statement, vectors that pin them and
+    the specification-only, project-controlled reader's reading of those
+    vectors (`initiator-expectation.json` is written by a script with each
+    outcome checked against the model, not generated from it).
+  - `verification_number_grouped` has a model statement of the digit grouping
+    (`groupsOfFive`, not the single spaces) but no vector: no vector has a
+    grouped field, the Rust runner never calls it, and the reader reads no
+    vector for it (the reader's own `verification_number_groups` is checked by
+    its own self-test only).
+  - `Unattributed::attribute` and `establish_responder_unattributed` have no
+    model statement of their own (the model states the lookup they use,
+    `Model.IdentityRecords.lookupWith`, and the lifecycle leaf the second
+    calls, not the release beside a lookup or the wrapping) and no vector (the
+    runner calls neither), so the reader reads no vector for them (its own
+    cases RC-16 and RC-17 implement attribution from the specification and are
+    not compared with the implementation). Unit and integration tests
+    (`tests/identity_responder.rs`, and a signature check in
+    `tests/public_api_compat.rs`) reach them; the fuzz target reaches neither.
+
+  The target decision of 2026-09-15 (`tacenta-model/P6-L2-TARGET-DECISION.md`)
+  predates identity records, does not cover `src/sessions/identity.rs`, and has
+  not been reopened for it, and no recorded decision places the eight functions
+  at L2. So they meet L1 only in part and L2 is not shown for them; for the
+  three functions with no vector and no reader reading, L2's own elements are
+  missing as well. The Session row in `ASSURANCE.md` keeps L2 as recorded, says
+  that the decision covers the lifecycle operations of the P6 surface, and says
+  what is shown for these eight: L1 in part and L2 not shown; it assigns no
+  lower level to the
+  component or to a part, and the label does not meet gate 1 for them
+  (`GAP-REGISTER.md`, `SESSION-IDENTITY-L2-SHORTFALL`, whose acceptance lists
+  what they need). The target is not lowered. The index's section 4 reads every
+  other component row against the same five elements.
 - **What is proved, and about what.** `Model.IdentityRecords` and
   `Model.InitiatorExpectation` state the same rules, and `CLAIMS.md` ("Proved
   (tier T2, in the model: identity records and the initiator's expectation)")

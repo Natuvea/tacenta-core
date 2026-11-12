@@ -82,8 +82,13 @@ fn assert_canonical(name: &str, canonical: &[u8], reencode: impl Fn(&[u8]) -> Op
     }
     // Not an assertion about the count, a guard against a vacuous pass: if a
     // decoder refused every mutation including ones it should accept, the loop
-    // proved nothing and the encoder pair is probably wrong.
-    let _ = accepted;
+    // proved nothing and the encoder pair is probably wrong. (Before the change
+    // that added `tacenta-test-vectors/property-tests.md`, this comment stood
+    // over `let _ = accepted;`, which guarded nothing.)
+    assert!(
+        accepted > 0,
+        "{name}: no mutation was accepted; the sweep proved nothing"
+    );
 }
 
 #[test]
