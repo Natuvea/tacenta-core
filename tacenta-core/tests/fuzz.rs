@@ -95,10 +95,15 @@ proptest! {
 
     /// A mutation of a canonical store that is still accepted re-encodes to
     /// exactly the bytes it was decoded from -- the canonicality property, now
-    /// exercised on near-valid input (CR-28). Guarded to current-version (v4)
-    /// acceptances: a mutation that relabels the store v1, v2 or v3 is
+    /// exercised on near-valid input (CR-28). Guarded to acceptances at the
+    /// version the writer emits, read from the fixture rather than written
+    /// here: a mutation that relabels the store to an earlier version is
     /// legitimately upgraded on re-encode, which is not a canonicality
-    /// violation.
+    /// violation. (Before the change that added
+    /// `tacenta-test-vectors/property-tests.md`, the guard read v4 after the
+    /// store's version had moved to v5, so the assertion was reached only by a
+    /// mutation that relabelled the store v4.) `mutations_are_accepted_at_the_current_version`
+    /// below shows the assertion is reached.
     #[test]
     fn prekey_store_accepted_mutations_reencode_identically(
         at in any::<usize>(),
@@ -107,7 +112,7 @@ proptest! {
         let mut bytes = canonical_prekey_store().to_vec();
         let i = at % bytes.len();
         bytes[i] ^= 1 << bit;
-        if bytes[0] == 0x04 {
+        if bytes[0] == canonical_prekey_store()[0] {
             if let Ok(store) = PrekeyStore::from_bytes(&bytes) {
                 let reencoded = store.to_bytes();
                 prop_assert_eq!(reencoded.as_slice(), bytes.as_slice());
@@ -194,19 +199,31 @@ proptest! {
         prop_assert!(decode_message(&encode_message(&header, &ciphertext)).is_err());
     }
 
-    /// Truncating a valid message anywhere never panics and never decodes: a
-    /// prefix is either too short or fails the framing check.
+    /// A truncated message is refused only below the header: a prefix shorter
+    /// than the 102-byte composite header is refused, and a longer one decodes
+    /// to the same header and the ciphertext's prefix, since the decoder places no
+    /// constraint on the ciphertext and the AEAD is what refuses it
+    /// (message-format.md, Ratchet message: "A decoder rejects a message
+    /// shorter than its framing and header" and "The ratchet-message decoder
+    /// places no constraint on the ciphertext's length or contents"). Before
+    /// the change that added `tacenta-test-vectors/property-tests.md`, this test
+    /// was named `truncation_is_rejected_cleanly`, said that no prefix decodes
+    /// and asserted only that a decoded prefix's ciphertext was shorter, which
+    /// every prefix satisfies.
     #[test]
-    fn truncation_is_rejected_cleanly(
+    fn a_truncated_message_is_refused_below_the_header_and_keeps_it_above(
         cut in 0usize..200,
         ciphertext in prop::collection::vec(any::<u8>(), 0..64),
     ) {
         let encoded = encode_message(&sample_composite(), &ciphertext);
         if cut < encoded.len() {
-            // A strict prefix must not decode to the original.
             let got = decode_message(&encoded[..cut]);
-            if let Ok(m) = got {
-                prop_assert_ne!(m.ciphertext.len(), ciphertext.len());
+            if cut < 102 {
+                prop_assert!(got.is_err(), "a prefix shorter than the header decoded");
+            } else {
+                let m = got.expect("a prefix holding the whole header decodes");
+                prop_assert_eq!(m.header, sample_composite());
+                prop_assert_eq!(m.ciphertext.as_slice(), &ciphertext[..cut - 102]);
             }
         }
     }
@@ -224,4 +241,37 @@ proptest! {
         let header = Composite { dh, ..sample_composite() };
         prop_assert_ne!(concat_ad(&ad1, &header), concat_ad(&ad2, &header));
     }
+}
+
+/// Both mutation properties above reach their assertion: a deterministic sweep of
+/// single-bit changes finds, for each fixture, a change the decoder accepts at the
+/// version the writer emits. Without one, the properties would pass by never asserting.
+#[test]
+fn mutations_are_accepted_at_the_current_version() {
+    let store = canonical_prekey_store();
+    let found_store = (0..store.len())
+        .step_by(7)
+        .flat_map(|i| (0..8).map(move |b| (i, b)))
+        .any(|(i, b)| {
+            let mut m = store.to_vec();
+            m[i] ^= 1 << b;
+            m[0] == store[0] && PrekeyStore::from_bytes(&m).is_ok()
+        });
+    assert!(
+        found_store,
+        "no single-bit change of the store fixture is accepted at its version"
+    );
+    let session = canonical_session();
+    let found_session = (0..session.len())
+        .step_by(7)
+        .flat_map(|i| (0..8).map(move |b| (i, b)))
+        .any(|(i, b)| {
+            let mut m = session.to_vec();
+            m[i] ^= 1 << b;
+            Session::import(&m).is_ok()
+        });
+    assert!(
+        found_session,
+        "no single-bit change of the session fixture is accepted"
+    );
 }
