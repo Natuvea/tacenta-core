@@ -33,6 +33,13 @@ must cover each non-prelude phase of the script exactly once: one part names it,
 one S is named once. A phase the script gains and the file does not assign fails every part before it
 runs a phase, and fails the combiner.
 
+A part that has no phase yet is declared with `-` in place of its phases (`hosted conversation: -`). It is
+declared and no more: CI runs no job for it, the combiner does not expect a directory for it and refuses one,
+and it can still be run by hand (it runs the prelude and no phase of its own). When it is given a phase it is
+a part like any other, and the workflow's matrix must name it. `-` stands alone; a part whose line names
+nothing at all is still refused, so that a part emptied by mistake is noticed rather than read as declared
+empty.
+
   resolve   --table T --parts F --part P          print the part's phases as `<id>\\t<slice or ->`
   manifest  --dir D --part P ...                  write D/part.json after a part has run
   combine   --table T --parts F --partition N --dir D   check a set of part directories
@@ -187,11 +194,13 @@ def read_parts(path, table):
         records.append([number, partition, part, rest.split(' ')[1:]])
     for number, partition, part, words in records:
         if not words:
-            refuse(f'{path}:{number}: part {part} names no phase')
+            refuse(f'{path}:{number}: part {part} names no phase (a part that has none yet is written `-`)')
         if part in owner:
             refuse(f'{path}:{number}: part {part} is named twice')
         listed = []
-        if words == ['*']:
+        if words == ['-']:
+            listed = []
+        elif words == ['*']:
             listed = [(p, None) for p in phases if kinds[p] != 'prelude']
         else:
             for word in words:
@@ -384,7 +393,9 @@ def cmd_combine(args):
     partitions, _, specs = read_parts(args.parts, table)
     if args.partition not in partitions:
         refuse(f'{args.parts} has no partition {args.partition!r}')
-    parts = partitions[args.partition]
+    declared = partitions[args.partition]
+    parts = [part for part in declared if specs[part]]
+    idle = [part for part in declared if not specs[part]]
     root = Path(args.dir)
     if root.is_symlink() or not root.is_dir():
         refuse(f'{root} is not a directory')
@@ -408,6 +419,9 @@ def cmd_combine(args):
         if manifest['format'] != FORMAT:
             refuse(f'{where}: part.json is not of format {FORMAT}')
         part = manifest['part']
+        if manifest['partition'] == args.partition and part in idle:
+            refuse(f'{where}: part {part} is declared with no phase yet, so it has no job and no directory in '
+                   f'partition {args.partition}')
         if manifest['partition'] != args.partition or part not in parts:
             refuse(f'{where}: part {part!r} of partition {manifest["partition"]!r} is not a part of '
                    f'partition {args.partition}')

@@ -396,10 +396,12 @@ jobs:
   # toolchain and one restored build cache, with every phase passed, and to run
   # every phase of the script once and every control of the sliced dispatcher
   # phase once; only then does it print the line a whole run prints. A pull
-  # request runs the `hosted` partition, fifteen parts on GitHub-hosted
-  # runners. A push to main runs the `single` partition, one part with every
-  # phase, on the self-hosted runner group as before the split: a push builds cold
-  # and saves the build for pull requests, and one part means one cold build.
+  # request runs the `hosted` partition, sixteen parts on GitHub-hosted
+  # runners (a seventeenth, `conversation`, is declared with no phase yet and
+  # has no job: it joins the list below when its first phase exists). A push
+  # to main runs the `single` partition, one part with every phase, on the
+  # self-hosted runner group as before the split: a push builds cold and saves
+  # the build for pull requests, and one part means one cold build.
   # The job runs whatever the matrix gave (`always()`), so that a part that
   # failed, timed out or was cancelled makes this job fail rather than be
   # skipped: a required check accepts a skipped job. Its first step fails
@@ -452,7 +454,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: ${{ fromJSON(github.event_name == 'push' && '["all"]' || '["kernel", "satisfiability", "refuted", "braid", "decrypt", "responder", "reply", "dispatch-0", "dispatch-1", "dispatch-2", "dispatch-3", "dispatch-4", "dispatch-5", "dispatch-6", "dispatch-7"]') }}
+        part: ${{ fromJSON(github.event_name == 'push' && '["all"]' || '["kernel", "satisfiability", "refuted", "braid", "decrypt", "responder", "reply", "preserve", "dispatch-0", "dispatch-1", "dispatch-2", "dispatch-3", "dispatch-4", "dispatch-5", "dispatch-6", "dispatch-7"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -603,6 +605,12 @@ jobs:
       # `run-gate-controls.sh` below.
       - id: checks_44
         run: bash tooling/check-shell-portability.sh
+      # The parts of `no-sorry.sh` cover its phases once each, and the matrix of
+      # `translation-part` names exactly the parts of the parts file, for a
+      # push and for everything else. The cases are held by
+      # `run-gate-controls.sh` below.
+      - id: checks_45
+        run: python3 tooling/check-no-sorry-parts-coverage.py
       - id: checks_10
         run: python3 tooling/check-lifecycle-boundary-surface.py
       - id: checks_11
@@ -727,14 +735,14 @@ jobs:
           id: checks
           classification: required
           command: source-and-assurance-checks
-          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_40=${{ steps.checks_40.outcome }},checks_41=${{ steps.checks_41.outcome }},checks_42=${{ steps.checks_42.outcome }},checks_43=${{ steps.checks_43.outcome }},checks_44=${{ steps.checks_44.outcome }}"
+          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_40=${{ steps.checks_40.outcome }},checks_41=${{ steps.checks_41.outcome }},checks_42=${{ steps.checks_42.outcome }},checks_43=${{ steps.checks_43.outcome }},checks_44=${{ steps.checks_44.outcome }},checks_45=${{ steps.checks_45.outcome }}"
       - if: github.event_name == 'push'
         uses: ./.github/actions/assurance-receipt
         with:
           id: checks
           classification: required
           command: source-and-assurance-checks
-          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_39=${{ steps.checks_39.outcome }},checks_40=${{ steps.checks_40.outcome }},checks_41=${{ steps.checks_41.outcome }},checks_42=${{ steps.checks_42.outcome }},checks_43=${{ steps.checks_43.outcome }},checks_44=${{ steps.checks_44.outcome }}"
+          required-outcomes: "checks_01=${{ steps.checks_01.outcome }},checks_02=${{ steps.checks_02.outcome }},checks_03=${{ steps.checks_03.outcome }},checks_04=${{ steps.checks_04.outcome }},checks_05=${{ steps.checks_05.outcome }},checks_06=${{ steps.checks_06.outcome }},checks_07=${{ steps.checks_07.outcome }},checks_08=${{ steps.checks_08.outcome }},checks_09=${{ steps.checks_09.outcome }},checks_10=${{ steps.checks_10.outcome }},checks_11=${{ steps.checks_11.outcome }},checks_12=${{ steps.checks_12.outcome }},checks_13=${{ steps.checks_13.outcome }},checks_14=${{ steps.checks_14.outcome }},checks_15=${{ steps.checks_15.outcome }},checks_16=${{ steps.checks_16.outcome }},checks_17=${{ steps.checks_17.outcome }},checks_18=${{ steps.checks_18.outcome }},checks_19=${{ steps.checks_19.outcome }},checks_20=${{ steps.checks_20.outcome }},checks_21=${{ steps.checks_21.outcome }},checks_22=${{ steps.checks_22.outcome }},checks_23=${{ steps.checks_23.outcome }},checks_24=${{ steps.checks_24.outcome }},checks_25=${{ steps.checks_25.outcome }},checks_26=${{ steps.checks_26.outcome }},checks_27=${{ steps.checks_27.outcome }},checks_28=${{ steps.checks_28.outcome }},checks_29=${{ steps.checks_29.outcome }},checks_30=${{ steps.checks_30.outcome }},checks_31=${{ steps.checks_31.outcome }},checks_32=${{ steps.checks_32.outcome }},checks_33=${{ steps.checks_33.outcome }},checks_34=${{ steps.checks_34.outcome }},checks_35=${{ steps.checks_35.outcome }},checks_36=${{ steps.checks_36.outcome }},checks_37=${{ steps.checks_37.outcome }},checks_38=${{ steps.checks_38.outcome }},checks_39=${{ steps.checks_39.outcome }},checks_40=${{ steps.checks_40.outcome }},checks_41=${{ steps.checks_41.outcome }},checks_42=${{ steps.checks_42.outcome }},checks_43=${{ steps.checks_43.outcome }},checks_44=${{ steps.checks_44.outcome }},checks_45=${{ steps.checks_45.outcome }}"
 
   # The negative cases of the attestation check
   # (`tacenta-proofs/scripts/check-attest-negatives.sh`): the unmodified tree

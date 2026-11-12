@@ -35,6 +35,11 @@
 #   purpose: every part refuses before it runs, and so does the combiner), a phase in two parts, a slice
 #   missing or twice, a phase sliced two ways, a plain or prelude phase named or sliced, more slices than
 #   controls, a malformed line, a carriage return    refused
+#   a part declared with no phase (`-`)              runs the prelude and no phase of its own when run by hand,
+#                                                    but is no part of the combined set: the combiner expects no
+#                                                    directory for it and refuses one (as an extra directory, or
+#                                                    in the place of another part's); a part line that names
+#                                                    nothing, or `-` beside a phase, is refused
 #   the variables in the wrong combination           refused
 #
 # The fixture is a git repository holding the real `no-sorry.sh`, `no-sorry-parts.py`, `no-sorry-parts.txt`
@@ -71,6 +76,17 @@ mkdir -p "$proofs/scripts" "$proofs/translation/Translation" "$proofs/Proofs" \
 for f in no-sorry-parts.py no-sorry-parts.txt no-sorry.sh check-translation-coverage.sh; do
   cp "$scripts/$f" "$proofs/scripts/$f"
 done
+# The fixture's parts file has a part with no phase (`-`), whatever the committed one has, so that the empty part is
+# run by hand here, and its directory refused by the combiner.
+python3 - "$proofs/scripts/no-sorry-parts.txt" <<'PY'
+import sys
+path = sys.argv[1]
+l = open(path).read().split("\n")
+if not any(x.endswith(": -") for x in l):
+    i = next(i for i, x in enumerate(l) if x.startswith("hosted dispatch-0:"))
+    l.insert(i, "hosted idle: -")
+open(path, "w").write("\n".join(l))
+PY
 for m in Alpha Beta; do : > "$proofs/translation/Translation/$m.lean"; done
 : > "$proofs/Proofs/Gamma.lean"
 : > "$fx/tacenta-model/Model/Delta.lean"
@@ -308,6 +324,10 @@ done
 # ---- the genuine sets ----------------------------------------------------------------------------------
 hosted_parts="$(awk '$1 == "hosted" { sub(":", "", $2); print $2 }' "$proofs/scripts/no-sorry-parts.txt")"
 [ "$(echo "$hosted_parts" | wc -l | tr -d ' ')" -ge 2 ] || { echo "control: no hosted partition" >&2; exit 2; }
+# The combiner's parts are the parts that have a phase; a part declared empty has no directory in the set.
+n_hosted="$(awk '$1 == "hosted" && $3 != "-"' "$proofs/scripts/no-sorry-parts.txt" | wc -l | tr -d ' ')"
+empty_part="$(awk '$1 == "hosted" && $3 == "-" { sub(":", "", $2); print $2; exit }' "$proofs/scripts/no-sorry-parts.txt")"
+[ -n "$empty_part" ] || { echo "control: the fixture has no part declared empty" >&2; exit 2; }
 genuine="$work/genuine"
 mkdir -p "$genuine"
 for p in $hosted_parts; do
@@ -317,6 +337,10 @@ for p in $hosted_parts; do
   grep -q "a part is not the gate" "$work/out-genuine-$p" || wrong "genuine-$p" "the part did not say it is not the gate"
   if grep -qF -- "$full_line" "$work/out-genuine-$p"; then wrong "genuine-$p" "a part printed the line of a full run"; fi
 done
+# The part declared empty ran above like the others; its directory is kept apart, out of the set the combiner takes.
+idle_parts="$work/idle-parts"
+mkdir -p "$idle_parts"
+mv "$genuine/translation-part-$empty_part" "$idle_parts/translation-part-$empty_part"
 combine genuine "$genuine"
 accepts genuine
 grep -q "initial-dispatch: 10 controls, each once" "$work/out-genuine" || wrong genuine "no count of the sliced controls"
@@ -400,14 +424,14 @@ refused_copy build-failed "exited with status"
 
 first="$(echo "$hosted_parts" | head -n 1)"
 copy missing; rm -rf "$work/set-missing/translation-part-$first"
-refused_copy missing "holds 14 part directories, not the 15"
+refused_copy missing "holds $((n_hosted - 1)) part directories, not the $n_hosted"
 
 copy repeated; rm -rf "$work/set-repeated/translation-part-refuted"
 cp -R "$work/set-repeated/translation-part-kernel" "$work/set-repeated/translation-part-kernel-again"
 refused_copy repeated "are both part kernel"
 
 copy one-more; cp -R "$work/single/translation-part-all" "$work/set-one-more/translation-part-all"
-refused_copy one-more "holds 16 part directories"
+refused_copy one-more "holds $((n_hosted + 1)) part directories"
 
 copy other-partition; rm -rf "$work/set-other-partition/translation-part-refuted"
 cp -R "$work/single/translation-part-all" "$work/set-other-partition/translation-part-all"
@@ -568,6 +592,20 @@ refused_copy log-missing "holds ['part.json'], not ['part.json', 'part.log']"
 copy manifest-missing; rm -f "$work/set-manifest-missing/translation-part-kernel/part.json"
 refused_copy manifest-missing "part.json is not a regular file"
 
+# The part with no phase: run by hand it ran the prelude and nothing else, and the combiner expects no directory for it.
+cases=$((cases + 1))
+[ "$(grep -c '^no-sorry: phase ' "$idle_parts/translation-part-$empty_part/part.log")" -eq 3 ] \
+  || wrong empty-part "the part declared empty did not run the three preludes and nothing else"
+copy empty-present; cp -R "$idle_parts/translation-part-$empty_part" "$work/set-empty-present/"
+refused_copy empty-present "holds $((n_hosted + 1)) part directories, not the $n_hosted"
+copy empty-for-kernel; rm -rf "$work/set-empty-for-kernel/translation-part-kernel"
+cp -R "$idle_parts/translation-part-$empty_part" "$work/set-empty-for-kernel/"
+refused_copy empty-for-kernel "part $empty_part is declared with no phase yet, so it has no job and no directory"
+copy empty-relabelled; rm -rf "$work/set-empty-relabelled/translation-part-kernel"
+cp -R "$idle_parts/translation-part-$empty_part" "$work/set-empty-relabelled/translation-part-kernel"
+edit empty-relabelled kernel "m['part'] = 'kernel'"
+refused_copy empty-relabelled "ran the phases"
+
 # ---- the seam -------------------------------------------------------------------------------------------
 for seam in REFUTED_RECORDS_BIN BRAIDNEG_FILTER HYPWIT_ROOT; do
   part "seam-$seam" braid "$work/seam-$seam" "$seam=x"
@@ -599,7 +637,7 @@ refuses partition-without-combine "NO_SORRY_PARTITION is set without NO_SORRY_CO
 combine no-such-partition "$genuine" no-such-partition
 refuses no-such-partition "has no partition 'no-such-partition'"
 combine hosted-as-single "$genuine" single
-refuses hosted-as-single "holds 15 part directories, not the 1 of partition single"
+refuses hosted-as-single "holds $n_hosted part directories, not the 1 of partition single"
 run list-other NO_SORRY_LIST=yes
 refuses list-other "NO_SORRY_LIST takes the value 1"
 run run-without-part NO_SORRY_PART_RUN="$work/z"
@@ -696,6 +734,21 @@ parts_case header-without-phase "part braid names no phase" \
 while l[j].startswith('  '): del l[j]"
 parts_case star-and-phase "'*' is not a phase or" \
   "l.insert(l.index('single all: *') + 1, '  repair')"
+# A part with no phase is written `-`, alone. A line that names nothing is still refused (a part emptied by mistake),
+# `-` beside a phase is not a phase, and `-` does not stand in for a phase that has no part.
+parts_case dash-and-phase "'-' is not a phase or" \
+  "i = next(i for i, x in enumerate(l) if x.startswith('hosted braid:')); l[i] += ' -'"
+parts_case dash-continuation-and-phase "'-' is not a phase or" \
+  "l.insert(l.index('  repair') + 1, '  -')"
+parts_case dash-does-not-hold-a-phase "partition hosted: phase repair is in no part" \
+  "l.remove('  repair'); l.insert(l.index('single all: *'), 'hosted nothing-yet: -')"
+parts_case dash-part-twice "part $empty_part is named twice" \
+  "l.insert(l.index('single all: *'), 'hosted $empty_part: -')"
+cases=$((cases + 1))
+python3 "$fixture_helper" resolve --table "$work/table" --parts "$proofs/scripts/no-sorry-parts.txt" \
+  --part "$empty_part" > "$work/out-resolve-empty" 2>&1 || wrong resolve-empty "the part declared empty was refused"
+[ "$(grep -vc '^partition' "$work/out-resolve-empty")" -eq 0 ] \
+  || wrong resolve-empty "the part declared empty resolved to a phase"
 cases=$((cases + 1))
 python3 - "$proofs/scripts/no-sorry-parts.txt" "$work/parts-one-line" <<'PY'
 import sys
@@ -769,4 +822,4 @@ for count in range(1, len(names) + 1):
     assert sorted(picked) == sorted(names) and len(picked) == len(names), count
 PY2
 
-echo "no-sorry-parts-cases: $cases cases (the genuine hosted and single sets and the whole run, what the parts called; a part missing, repeated, relabelled or of another partition, commit, tree, script, parts file, cache, toolchain or checkout; a failed phase, a failure line; the dispatcher's slices; the seam; the variables; the parts file; the committed parts file against the committed script, the real dispatcher's options) gave the expected result"
+echo "no-sorry-parts-cases: $cases cases (the genuine hosted and single sets and the whole run, what the parts called, a part with no phase run by hand and refused by the combiner; a part missing, repeated, relabelled or of another partition, commit, tree, script, parts file, cache, toolchain or checkout; a failed phase, a failure line; the dispatcher's slices; the seam; the variables; the parts file; the committed parts file against the committed script, the real dispatcher's options) gave the expected result"

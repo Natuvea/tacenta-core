@@ -39,7 +39,6 @@ hosted refuted:
 hosted braid:
   braid-agreement
   encrypt-compose
-  encrypt-preservation
   atomicity
   repair
   responder-second-send
@@ -55,11 +54,8 @@ hosted decrypt:
   tampered-reply
   discharge-native-decide
   kdf-realisation
-  out-of-order-receive
-  receive-preservation
   audit-negatives
   decrypt-compose
-  decrypt-preservation
 hosted responder:
   restored
   encrypt
@@ -76,8 +72,30 @@ hosted reply:
   initiator-repeated-reply
   responder-reply
   responder-reply-receipt
-  send-preservation
   initiator-second-send
+# `preserve` groups the phases that prove the session invariant is kept across a send or a
+# receive, by kind and not by length: send-preservation, encrypt-preservation,
+# receive-preservation, decrypt-preservation and out-of-order-receive (receive preservation at
+# every frame). They were in `reply`, `braid` and `decrypt`. Hosted seconds from one pull-request
+# run of the lifecycle proof stack (#288), in that order: 145, 1,102, 556, 587 and 140, so 2,530 s in all, run one after
+# another in the one job. On a warm build cache that makes `preserve` the longest part, about 90 s
+# longer than `braid` was (2,442 s) and about 160 s longer than `responder` (2,372 s); on a cold
+# cache `responder` (5,207 s with its build) likely stays the longest. A phase that only composes the
+# invariant with another step, or restates its witnesses (`encrypt-compose`, `decrypt-compose`), stays with
+# the part of that step.
+hosted preserve:
+  send-preservation
+  encrypt-preservation
+  receive-preservation
+  decrypt-preservation
+  out-of-order-receive
+# `conversation` is declared with no phase yet (`-`) and has no job: the workflow's matrix does
+# not name it and the combiner expects no directory for it, so a pull request runs sixteen hosted
+# parts. The first conversation-level module's negatives script replaces `-` with its phase; from
+# then the part needs a job, and the coverage check refuses the workflow until the matrix (and
+# the pinned form) names `conversation`. Reverting the commit that took the name out of the
+# matrix would also bring back its older check and combiner rules, so add the name instead.
+hosted conversation: -
 hosted dispatch-0: initial-dispatch@0/8
 hosted dispatch-1: initial-dispatch@1/8
 hosted dispatch-2: initial-dispatch@2/8
