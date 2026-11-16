@@ -36,7 +36,25 @@
 # added here and given to no part fails every part and the combiner; its header says what the combiner
 # requires. The variables a phase's script reads to run less than all of it, or to run something else
 # in its place, are refused here in every mode: a run with one of them set is not this gate.
+#
+# The end marker is "no-sorry: all N phases passed", printed by a whole run and by the combiner and by
+# nothing else. A part ends on "no-sorry: part <part> exited <status> and wrote <dir>; a part is not the
+# gate", which is not an end marker: a part whose run stopped early is caught by the combiner's check of its
+# manifest, not by that line. NO_SORRY_LIST prints the phases and no marker. On macOS /bin/bash 3.2 a
+# shell-fatal error after the EXIT trap below would otherwise exit 0; the exit-status guard makes it 1.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 cd "$(dirname "$0")/.."
 
@@ -166,7 +184,7 @@ modules() {
 # A body records a failure by setting `fail=1`; a build that does not succeed stops the script.
 
 translation_log=""
-trap '[ -z "$translation_log" ] || rm -f "$translation_log"' EXIT
+trap 'exit_guard_rc=$?; set +e; [ -z "$translation_log" ] || rm -f "$translation_log"; exit_guard "$exit_guard_rc"' EXIT
 
 phase_build_translation() {
 translation_log="$(mktemp)"
@@ -897,7 +915,7 @@ parts_file="scripts/no-sorry-parts.txt"
 case "$mode" in
   list)
     phases
-    exit 0 ;;
+    done_ok ;;
   part)
     # The parent of a part: check the directory and the selection before anything runs, run the part
     # as a child whose output is the part's log, then write the manifest from what the child recorded.
@@ -929,7 +947,7 @@ case "$mode" in
     rm -rf "$work"
     echo "no-sorry: part $NO_SORRY_PART exited $rc and wrote $part_dir; a part is not the gate"
     [ "$rc" -eq 0 ] || exit "$rc"
-    exit 0 ;;
+    done_ok ;;
   combine)
     [ -n "${NO_SORRY_PARTITION:-}" ] || usage_error "NO_SORRY_COMBINE needs NO_SORRY_PARTITION"
     echo "no-sorry: combining the parts of partition $NO_SORRY_PARTITION on $(git rev-parse --short HEAD)"
@@ -943,7 +961,7 @@ case "$mode" in
     count="$(grep -c '^phase' "$work/table")"
     rm -rf "$work"
     final_line "$count"
-    exit 0 ;;
+    done_ok ;;
 esac
 
 phases
@@ -962,4 +980,5 @@ else
   echo "no-sorry: phases that failed:$phases_failed" >&2
 fi
 
+finished=yes
 exit "$fail"

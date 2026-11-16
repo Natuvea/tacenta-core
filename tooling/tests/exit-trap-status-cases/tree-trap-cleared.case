@@ -1,0 +1,5 @@
+# expect: accept
+set -euo pipefail
+trap - EXIT
+trap 'exit 143' TERM
+echo "clearing a trap, or trapping other signals only, installs no EXIT trap"

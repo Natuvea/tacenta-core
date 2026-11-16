@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # Hold actionlint's added expression coverage to a passing and failing control.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 actionlint="${ACTIONLINT_BIN:-}"
@@ -14,7 +26,7 @@ fi
 
 work="$(mktemp -d)"
 cleanup() { rm -rf "$work"; }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 
 cat > "$work/pass.yml" <<'YAML'
 name: actionlint pass control
@@ -82,3 +94,4 @@ if [[ "$out" != *'unexpected key "unknown_top_level"'* ]]; then
   exit 1
 fi
 echo "check-actionlint-cases: pass, malformed-expression and unknown-schema-key controls gave the expected result"
+finished=yes

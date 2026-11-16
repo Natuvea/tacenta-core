@@ -21,10 +21,22 @@
 # What this does not show: that the generators are right. Each has its own controls; this holds the script
 # that runs them after a merge.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/regenerate-cases.XXXXXX")"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 cases=0
 out=""
 clone="$work/clone"
@@ -257,3 +269,4 @@ done
 reset
 
 echo "regenerate-generated-cases: $cases cases (a hand-written file unmerged or holding a marker and an unmerged case count refused with nothing written; a line both sides changed and overlapping insertions refused; two modules' insertions at one place resolved under diff3 style and the generated files written again, staged and checked; a squash-merged predecessor's entries kept once; a planted duplicate named) gave the expected result"
+finished=yes

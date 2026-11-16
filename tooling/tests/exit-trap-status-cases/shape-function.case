@@ -1,0 +1,15 @@
+# shape: function. A cleanup function that ends in `return 0`, also trapped for INT and TERM on a line of its
+# own. Run by /bin/bash with the work directory as $1.
+set -euo pipefail
+@GUARD@
+work="$1"
+cleanup() {
+  [ -n "$work" ] && rm -rf "$work"
+  return 0
+}
+mkdir -p "$work"
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
+trap cleanup INT TERM
+@BODY@
+echo END
+finished=yes

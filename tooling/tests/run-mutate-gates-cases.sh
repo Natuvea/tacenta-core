@@ -20,10 +20,22 @@
 #   one per run, in the harness's temporary directory, and none is left there after the run; only this case
 #   sets TMPDIR and records the directories, so the cleanup is checked on this runner's path alone)
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 repo="$work/repo"
 cases=0
 
@@ -170,3 +182,4 @@ fi
 cases=$((cases + 1))
 
 echo "mutate-gates-cases: $cases cases (a red baseline, accepted, behaviour, message only and survived edits, listed and stale reasons, a wrong reason, an edit that does not apply, a build cache in a shared CARGO_TARGET_DIR, one target directory per run and none left behind) gave the expected result"
+finished=yes

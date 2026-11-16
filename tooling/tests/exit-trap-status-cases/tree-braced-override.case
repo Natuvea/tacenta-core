@@ -1,0 +1,8 @@
+# expect: refuse 17: a trap command the check cannot classify (it reads only a plain `trap HANDLER SIGNAL...` line of its own); write it so, or exempt the script by name
+set -euo pipefail
+@GUARD@
+work="$(mktemp -d)"
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
+{ trap 'rm -rf "$work"' EXIT; }
+echo ok
+finished=yes

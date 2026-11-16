@@ -22,12 +22,24 @@
 # (a script whose record entry counts no projection has none to plant, and the count gate holds its copy to the same text
 # as the others), and the unmodified labels are accepted. Needs no Lean toolchain.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 scripts="$root/tacenta-proofs/scripts"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 cases=0
 # Every lifecycle negatives script, by name, one per line (`new-lifecycle-module.py scaffold` adds a new script here
 # after the entry its name sorts after); the list must equal the scripts the record lists (the gate itself requires
@@ -590,3 +602,4 @@ rm "$work/template-missing/$tp"
 expect_fail template-missing "$tp cannot be read as Python"
 
 echo "check-negatives-control-counts cases: $cases passed"
+finished=yes

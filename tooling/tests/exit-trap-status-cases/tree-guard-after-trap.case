@@ -1,0 +1,7 @@
+# expect: refuse 4: the exit-status guard, word for word, is not above the first EXIT trap
+set -euo pipefail
+work="$(mktemp -d)"
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
+@GUARD@
+echo ok
+finished=yes

@@ -52,6 +52,18 @@
 #
 # The cases are tooling/tests/run-lockfile-check-cases.sh.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 cd "$(git rev-parse --show-toplevel)"
 # A rustup proxy would otherwise download a toolchain a directory names that is not installed.
@@ -106,7 +118,7 @@ if ! command -v cargo >/dev/null 2>&1 || ! cargo --version >/dev/null 2>&1; then
 fi
 
 err="$(mktemp)"
-trap 'rm -f "$err"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -f "$err"; exit_guard "$exit_guard_rc"' EXIT
 for dir in "${dirs[@]}"; do
   if [ ! -f "$dir/Cargo.lock" ]; then
     fail "$dir" "git lists $dir/Cargo.lock but the working tree has no such file"
@@ -147,3 +159,4 @@ fi
 if [ "$skipped" -gt 0 ]; then
   echo "lockfiles: passed WITH SKIPS -- the skipped lockfiles above were not checked"
 fi
+finished=yes

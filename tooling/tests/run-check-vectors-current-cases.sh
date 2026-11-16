@@ -10,12 +10,24 @@
 # committed vector file and requires the check to fail and to name that file. Needs the model built. What is
 # tested is the committed tree, as in `check-port-negatives.sh`.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 [ -d "$root/tacenta-model/.lake/build" ] || { echo "check-vectors-current cases: the model is not built; run 'lake build' in tacenta-model first" >&2; exit 1; }
 work="$(mktemp -d)"
 cleanup() { git -C "$root" worktree remove --force "$work/tree" >/dev/null 2>&1 || true; rm -rf "$work"; }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 git -C "$root" worktree add -q --detach "$work/tree" HEAD >/dev/null
 tree="$work/tree"
 ln -s "$root/tacenta-model/.lake" "$tree/tacenta-model/.lake"
@@ -101,3 +113,4 @@ if [ "$rc" -eq 0 ] || ! grep -qF "DIFFERS  ${target##*/}" <<<"$out" || ! grep -q
 fi
 
 echo "check-vectors-current cases: the unchanged tree was accepted, and a changed committed vector, a changed initiator vector and a changed inventory vector were each refused, naming their file"
+finished=yes

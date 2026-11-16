@@ -19,6 +19,18 @@
 # after first requiring the unchanged files to elaborate. Each file takes about three seconds. Needs the
 # translation package built (`no-sorry.sh` runs this after its builds). What is tested is the committed tree.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 for package in tacenta-model tacenta-proofs tacenta-proofs/translation; do
@@ -27,7 +39,7 @@ for package in tacenta-model tacenta-proofs tacenta-proofs/translation; do
 done
 work="$(mktemp -d)"
 cleanup() { git -C "$root" worktree remove --force "$work/tree" >/dev/null 2>&1 || true; rm -rf "$work"; }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 git -C "$root" worktree add -q --detach "$work/tree" HEAD >/dev/null
 tree="$work/tree"
 for package in tacenta-model tacenta-proofs tacenta-proofs/translation; do
@@ -91,3 +103,4 @@ first "$statements" 'axiom_base_satisfiable : ∃ I R rc,' 'axiom_base_satisfiab
 refused 'a statement pin with its text changed' "$statements"
 
 echo "pin negatives: $cases cases (two files elaborate unchanged; an axiom pin missing an axiom, one with an axiom added and a statement pin with changed text are each refused by Lean) gave the expected result"
+finished=yes

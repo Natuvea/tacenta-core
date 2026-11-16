@@ -16,10 +16,22 @@
 # Two guards stay unreached by design: the clean-tree check (the manifest's own `--validate` refuses first) and an
 # allowlisted source missing at build time (it needs a tree whose manifest is built after the file is gone).
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 fixture="$root/tooling/tests/assurance-receipts-fixture.json"
 export ASSURANCE_FIXTURE_COMMIT="$(git -C "$root" rev-parse HEAD)"
 export ASSURANCE_FIXTURE_TREE="$(git -C "$root" rev-parse 'HEAD^{tree}')"
@@ -103,3 +115,4 @@ refused non-empty-output 'refusing non-empty pack output' "$work/manifest.json" 
   || { echo "WRONG  evidence-pack build: a non-empty output directory was changed" >&2; exit 1; }
 
 echo "build-evidence-pack-build-cases: a real pack builds and verifies; $((cases - 1)) refusals (invalid manifest, receipts of another schema or candidate, that fail, or that disagree with the manifest, a non-empty output) gave the expected result"
+finished=yes

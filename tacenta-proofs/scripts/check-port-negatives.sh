@@ -3,11 +3,23 @@
 # standalone source proof at one anchor in a disposable worktree and require the port script to
 # refuse, naming a unit edit.  The caller's tree is not touched.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 work="$(mktemp -d)"
 cleanup() { git -C "$root" worktree remove --force "$work" >/dev/null 2>&1 || rm -rf "$work"; }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 git -C "$root" worktree add -q --detach "$work" HEAD >/dev/null
 t=tacenta-proofs/translation/Translation
 
@@ -81,3 +93,4 @@ expect_refused preserve-declaration-after-pins port-session-braid-preserve.sh "$
 
 /-! ## Definition pins" "would be dropped from the unit"
 echo "port negatives: each broken anchor is refused by the port script that edits it"
+finished=yes

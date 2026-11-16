@@ -46,6 +46,18 @@
 # a Lean toolchain. The mutation harness reruns a runner with its `exit 1` and `set -e` lines removed, so the
 # text of a plant never contains either.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 tmp_base="${TMPDIR:-/tmp}"
@@ -64,7 +76,7 @@ cleanup() {
   git -C "$root" worktree prune >/dev/null 2>&1 || true
   rm -rf "$work"
 }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 git -C "$root" worktree add -q --detach "$tree" HEAD >/dev/null
 
 gate="tacenta-proofs/scripts/check-attest-negatives.sh"
@@ -285,7 +297,7 @@ fresh wrong-exit-0
 stub wrong-exit-0
 plant wrong-exit-0 "$stub_call" '  { (cd "$work" && echo "stub: attest.py $*" && [ "$shard" -ne 1 ]); } 2>&1'
 plant wrong-exit-0 "$report_line" "$report_line"'
-    if [ "$shard" -eq 1 ]; then exit 0; fi'
+    if [ "$shard" -eq 1 ]; then done_ok; fi'
 plant wrong-exit-0 '      verdict=wrong' '      verdict=ok'
 start wrong-exit-0 2 2
 
@@ -296,7 +308,7 @@ stub wrong-unlabelled
 plant wrong-unlabelled "$stub_call" '  { (cd "$work" && echo "stub: attest.py $*" && [ "$shard" -ne 1 ]); } 2>&1'
 plant wrong-unlabelled 'echo "WRONG  $1: expected acceptance, was refused:" >&2' 'echo "planted  $1: expected acceptance, was refused:" >&2'
 plant wrong-unlabelled "$report_line" "$report_line"'
-    if [ "$shard" -eq 1 ]; then exit 0; fi'
+    if [ "$shard" -eq 1 ]; then done_ok; fi'
 start wrong-unlabelled 2 2
 
 # (f) Shard 1 reports itself as shard 0.
@@ -746,3 +758,4 @@ if [ -n "$leftover" ]; then
 fi
 
 echo "attest-negatives-shard-cases: $cases cases (JOBS=1 and JOBS=4 agree; the environment a shard alone reads, a worktree add that fails after it registered, the seam without its marker, a refused run that wrote a file, the helpers that expect an acceptance; a wrong modulus in one shard or in all, a shard that runs nothing, a different total, an exit status, a wrong case with and without its label, a repeated index, a killed shard, a failed cd, the premise skipped, never run or gone, a different walk, a case that reads the one before it, an attest.py never run, the seam and a hand-started shard in CI, SIGINT and SIGTERM) gave the expected result"
+finished=yes

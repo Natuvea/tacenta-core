@@ -40,10 +40,23 @@
 #               the proof plan changed, so that the module that proves it must refuse; the decoder
 #               invariant changed, so that the glue must refuse.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 cd "$(dirname "$0")/.."
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT INT TERM
+trap 'exit_guard_rc=$?; set +e; rm -rf "$tmp"; exit_guard "$exit_guard_rc"' EXIT
+trap 'rm -rf "$tmp"' INT TERM
 
 TMP="$tmp" python3 - <<'PY'
 import os, re, subprocess, sys
@@ -503,3 +516,4 @@ if wrong:
 print("braid-agreement negatives: %d cases gave the expected result "
       "(%d unmodified inputs accepted, %d mutations refused)" % (cases, accepted, cases - accepted))
 PY
+finished=yes

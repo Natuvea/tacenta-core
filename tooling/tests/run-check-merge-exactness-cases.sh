@@ -15,10 +15,22 @@
 #   a merge that is not signed off                  FAIL
 #   a commit that is not a merge, two merge bases   refused (exit 2); an explicit base is used
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 script="$(cd "$(dirname "$0")/.." && pwd)/check-merge-exactness.sh"
 work="$(mktemp -d "${TMPDIR:-/tmp}/merge-exactness-cases.XXXXXX")"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 repo="$work/repo"
 cases=0
 git init -q -b main "$repo"
@@ -162,3 +174,4 @@ check two-bases 2 "have 2 merge bases; name the base"
 BASE_ARG="$x" check named-base 3 "over base $(g rev-parse --short "$x")" "resolved by hand where git's own merge conflicts, to read (the rest of each is git's merge): y.txt"
 
 echo "merge-exactness-cases: $cases cases (a clean merge, the same change on both sides and a merge followed by an adapting commit passed; a resolved conflict sent to review; a one-side-whole resolution and an adapting edit inside the merge failed; a dropped hunk, an added hunk, a file added beside a resolution, a conflict marker and a missing sign-off failed; a generated-only difference allowed; a non-merge, an unknown base and two merge bases refused; a named base used) gave the expected result"
+finished=yes

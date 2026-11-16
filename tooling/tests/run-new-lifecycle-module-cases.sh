@@ -24,10 +24,22 @@
 #   genpins           from Lean's messages (canned), the pins section is written; an error, a missing message and
 #                     a stale section are refused
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/new-module-cases.XXXXXX")"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 clone="$work/clone"
 git clone -q --shared --no-checkout "$root" "$clone"
 git -C "$clone" checkout -q --detach "$(git -C "$root" rev-parse HEAD)"
@@ -392,3 +404,4 @@ run genpins-error 2 python3 tacenta-proofs/scripts/genpins.py "$work/pkg/Mod/M.l
 says genpins-error "Lean reports an error at line 3"
 
 echo "new-lifecycle-module-cases: $cases cases (a missing, a doubled and a packed anchor, an unknown or sliced part and bad names refused with nothing written; a late name placed before the last evidence item; the scaffold changed exactly the expected files at the expected places and the tree passed the attestation, inventory, form, shell, JSON and parts checks, the control-count gate and the parts runner, the module set the two pretty-printer options, and a second run changed nothing; the template refused no controls, a broken inside or projection label, a guard missing any one of its six spellings and a run with no Lean behind it, the count gate refused a control planted without its record entry and a missing entry, and the parts runner named a stub left out; the pins step placed the names on the four lists and the two deletion lists, moved the count by its cases, changed nothing the second time, left the ledger to be written and refused a pin it cannot read; genpins wrote, checked and refused an error, a missing and a warning message) gave the expected result"
+finished=yes

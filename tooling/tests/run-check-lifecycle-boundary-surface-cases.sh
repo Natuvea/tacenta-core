@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 checker="$root/tooling/check-lifecycle-boundary-surface.py"
 source_file="$root/tacenta-proofs/translation/Translation/TacentaLifecycle.lean"
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$tmp"; exit_guard "$exit_guard_rc"' EXIT
 
 python3 "$checker" --translation "$source_file" >/dev/null
 
@@ -108,3 +120,4 @@ fi
 grep -q 'missing proof root(s): lifecycle.Session.encrypt' "$tmp/out"
 
 echo "10 lifecycle boundary-surface cases gave the expected result"
+finished=yes

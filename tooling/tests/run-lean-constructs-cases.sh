@@ -14,10 +14,22 @@
 # plus one planted model module where a case needs a hand-written file that is not an audit
 # module.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 
 fresh_copy() {
   rm -rf "$work/T"
@@ -394,3 +406,4 @@ if [ $fail -ne 0 ]; then
   exit 1
 fi
 echo 'lean-constructs-cases: '"$pass"' cases (the unmodified copy and a tag in a comment accepted; a wrapper before an invocation, with a line or block comment between, or open-in; an indented invocation; a continuation, a declaration and a pin after the last invocation, in two packages; narrowed prefixes and a deleted invocation; a namespace, an open, a declaration and two commands on a line in an audit module; a notation and an infix; the Lean namespace by _root_ and in guillemets; the audit log tag in a string, a printed string, #reduce, dbg_trace and an interpolated string elsewhere; an interpolating head, a qualified, a goal and an aesop trace, a named-at head, and a bang macro with its string on the same or the next line elsewhere; a string literal holding a brace in the audit, in the shapes a brace count cannot read, with a string gap and in a raw string (a plain lone brace elsewhere, and a string ending in a bang, accepted); a doc comment opened by `/--/`, a `/--` inside a comment, `/-/- -/`, a char literal and a raw string after the `!` operator and after `λ`, each followed by hidden code; a char literal or raw string straight after a token, refused as ambiguous; a literal or comment opener after a non-space (a token ending in a prime, an opener inside a token, an identifier character outside `\\w`), refused as adjacent; a fifth library and a widened glob in a lakefile; a quote inside an interpolation in the audit, after an argument too, as unbalanced-brace strings, each refused; a char literal holding a newline, an identifier of char-literal shape and a lone carriage return, each refused; four instance declarations of notation and default classes and five instance, default_instance or coe attributes refused, and the same names in lists split over lines, an instance attribute added later, the bare coe and default_instance tokens, an instance after open-in and a derived instance for a type another file declares; the coercion counterexample from review in the held-encoder module refused; a derived instance of a type the file declares accepted; an allow-listed instance changed on its first line, a copy with another class or exact in another namespace, a second copy, moved to another namespace, a changed class on a continuation line and a changed default value refused, one moved down a line accepted, and one that is no longer an instance refused as a missing entry)'
+finished=yes

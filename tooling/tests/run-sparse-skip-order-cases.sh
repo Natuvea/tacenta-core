@@ -15,6 +15,18 @@
 # exactly the tests named below (a test file compiled out by a cfg runs 0 tests and passes), and when a named
 # test does not report `ok`.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 file="$root/tacenta-core/tests/sparse_skip_order.rs"
@@ -52,7 +64,7 @@ if ! command -v cargo > /dev/null 2>&1; then
 fi
 
 out="$(mktemp)"
-trap 'rm -f "$out"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -f "$out"; exit_guard "$exit_guard_rc"' EXIT
 set +e
 (cd "$root/tacenta-core" && cargo test --locked --test sparse_skip_order -- --test-threads=1) > "$out" 2>&1
 status=$?
@@ -127,3 +139,4 @@ if [ "$status" -ne 0 ]; then
   exit 1
 fi
 echo "sparse-skip-order: ${#expected[@]} tests ran and passed (the two bounds' order, another epoch's keys, the edge at the cap)"
+finished=yes

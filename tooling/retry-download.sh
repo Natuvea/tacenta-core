@@ -41,6 +41,18 @@
 #
 # The cases are in tooling/tests/run-install-script-cases.sh (retry-download section).
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 if [ "${1:-}" != "--" ] || [ "$#" -lt 2 ]; then
   echo "retry-download: usage: bash tooling/retry-download.sh -- <command> [args...]" >&2
@@ -70,7 +82,7 @@ INTEGRITY_TEXT='checksum|sha256|hash mismatch|did not match|integrity'
 CURL_TRANSIENT=" 5 6 7 18 28 35 52 55 56 "
 
 logs="$(mktemp -d)"
-trap 'rm -rf "$logs"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$logs"; exit_guard "$exit_guard_rc"' EXIT
 summary=""
 command_name="${1##*/}"
 
@@ -86,7 +98,7 @@ while :; do
     if [ "$attempt" -gt 1 ]; then
       echo "retry-download: attempt ${attempt}/${attempts} succeeded after ${summary}" >&2
     fi
-    exit 0
+    done_ok
   fi
 
   reason=""

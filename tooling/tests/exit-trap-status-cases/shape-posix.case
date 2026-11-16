@@ -1,0 +1,14 @@
+# shape: posix. The function shape in POSIX syntax. Run by /bin/sh with the work directory as $1.
+set -eu
+@GUARD@
+work="$1"
+cleanup() {
+  [ -n "$work" ] && rm -rf "$work"
+  return 0
+}
+mkdir -p "$work"
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
+trap cleanup INT TERM
+@BODY@
+echo END
+finished=yes

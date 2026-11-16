@@ -51,7 +51,10 @@
 # NOT CHECKED and the verdict is "ok WITH UNCHECKED" (exit 0). When GITHUB_ACTIONS is set the same step is a failure, the rule
 # `tooling/ci.sh` and its siblings follow: a runner must not report green on a check it did not run.
 #
-# Exit status: 0 when no step failed, 1 otherwise (including a base that cannot be found).
+# Exit status: 0 when no step failed, 1 otherwise (including a base that cannot be found). A run ends on
+# its verdict, the end marker: `fast: FAILED`, or a `fast: ok` line (plain, WITH SKIPS or WITH UNCHECKED);
+# `--plan` ends after the plan and prints no verdict. A run that stopped part way prints none, and on macOS
+# /bin/bash 3.2 its status is not 0 either (the exit-status guard under `set -euo pipefail`).
 # Environment: FAST_BASE (default origin/main), PROPTEST_CASES (default 256 here; ci.sh uses 2048).
 #
 # Limits, stated because they are the ways this can be green while the gate is not:
@@ -65,6 +68,18 @@
 #   * The cases for the selection, the failure rule and the skip rule are
 #     `tooling/tests/run-check-fast-cases.sh`.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 SECONDS=0
@@ -85,7 +100,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 
 # --- the changed paths -------------------------------------------------------
 merge_base="-"
@@ -112,7 +127,7 @@ echo "fast: base ${base} (merge base ${merge_base}), ${changed} changed path(s)"
 echo "fast: plan"
 sed 's/^/  /' "$work/plan"
 if [ "$mode" = plan ]; then
-  exit 0
+  done_ok
 fi
 # The slow case runners of the cheap section run when asked, or when the diff touches what they hold.
 if grep -qx 'deep' "$work/plan"; then
@@ -301,10 +316,11 @@ if [ -n "$skipped" ]; then
   if [ -n "$unchecked" ]; then
     echo "fast: and WITH UNCHECKED -- the changed Rust under NOT CHECKED was not checked"
   fi
-  exit 0
+  done_ok
 fi
 if [ -n "$unchecked" ]; then
   echo "fast: ok WITH UNCHECKED -- the changed Rust under NOT CHECKED was not checked"
-  exit 0
+  done_ok
 fi
 echo "fast: ok (no step that ran failed; see NOT RUN above)"
+finished=yes

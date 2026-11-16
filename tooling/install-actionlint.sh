@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # Download the pinned actionlint release and verify its published SHA-256.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 if [ "$#" -ne 1 ]; then
   echo "usage: $0 <destination-directory>" >&2
@@ -27,7 +39,7 @@ esac
 mkdir -p "$destination"
 archive_path="$(mktemp)"
 cleanup() { rm -f "$archive_path"; }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 
 url="https://github.com/rhysd/actionlint/releases/download/v${version}/${archive}"
 # A dropped connection is tried again, a bounded number of times (tooling/retry-download.sh); the digest check
@@ -46,3 +58,4 @@ if [ ! -x "$destination/actionlint" ]; then
   exit 1
 fi
 "$destination/actionlint" -version
+finished=yes

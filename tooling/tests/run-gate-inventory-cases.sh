@@ -22,10 +22,22 @@
 #                                                     refused
 #   the real tree's workflow with its jobs reversed   the same inventory as the committed one
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 repo="$work/repo"
 cases=0
 
@@ -201,3 +213,4 @@ cmp -s "$work/inventory-as-is.md" "$work/inventory-reversed.md" \
        diff "$work/inventory-as-is.md" "$work/inventory-reversed.md" | head -n 20 >&2; exit 1; }
 
 echo "gate-inventory-cases: $cases cases (a stale file, row or mutation; a step with or without an id that runs an unlisted script; a control or gate that is not a file; a hand flag against the walk; a named verdict step that is gone or repointed; a row's own step and its verdict steps; the order of steps and jobs, a combining step, the real tree with its jobs reversed) gave the expected result"
+finished=yes

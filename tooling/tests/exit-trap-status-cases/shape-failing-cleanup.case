@@ -1,0 +1,14 @@
+# shape: failing-cleanup. A cleanup function whose last command fails, which `set +e` in the trap keeps from
+# deciding the status. Run by /bin/bash with the work directory as $1.
+set -euo pipefail
+@GUARD@
+work="$1"
+cleanup() {
+  rm -rf "$work"
+  test -e "$work/a file that is never there"
+}
+mkdir -p "$work"
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
+@BODY@
+echo END
+finished=yes
