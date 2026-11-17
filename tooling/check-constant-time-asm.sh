@@ -394,6 +394,23 @@ main() {
     kdf_targets="$(RUSTUP_AUTO_INSTALL=0 rustup +"$kdf_tc" target list --installed 2>/dev/null || true)"
   fi
 
+  # Where cargo leaves an `--emit=asm` output. Up to cargo 1.99 it is
+  # `target/<t>/release/deps/<stem>-<hash>.s`; from 1.100 intermediate artifacts
+  # live in the build directory's per-package layout,
+  # `target/<t>/release/build/<package>/<hash>/out/<stem>-<hash>.s`. Both are
+  # searched; the caller still requires exactly one file.
+  find_asm() {
+    local t="$1" stem="$2" f
+    for f in "target/$t/release/deps/${stem}"-*.s target/"$t"/release/build/*/*/out/"${stem}"-*.s; do
+      [ -e "$f" ] && printf '%s\n' "$f"
+    done
+    return 0
+  }
+  rm_asm() {
+    local f
+    while IFS= read -r f; do rm -f "$f"; done < <(find_asm "$1" "$2")
+  }
+
   for t in "${targets[@]}"; do
   case "$t" in
     x86_64-*) arch=x86 ;;
@@ -406,12 +423,12 @@ main() {
     # Start from nothing for this crate, target and profile: see the header
     # on why a warm target directory otherwise yields no assembly.
     cargo clean --release --target "$t" -p "$crate" --quiet
-    rm -f "target/$t/release/deps/${file_stem}"-*.s
+    rm_asm "$t" "$file_stem"
     cargo rustc --release --locked -p "$crate" --lib --target "$t" --quiet -- \
       --emit=asm -C codegen-units=1
-    files=( "target/$t/release/deps/${file_stem}"-*.s )
+    files=(); while IFS= read -r f; do files+=("$f"); done < <(find_asm "$t" "$file_stem")
     [ "${#files[@]}" -eq 1 ] \
-      || fail "$t: expected one assembly file for $crate under target/$t/release/deps, found ${#files[@]} (${files[*]:-none})"
+      || fail "$t: expected one assembly file for $crate under target/$t/release/{deps,build/*/*/out}, found ${#files[@]} (${files[*]:-none})"
     case "$crate" in
       tacenta-braid)
         sym=mac_eq; allow=1; label="tacenta_braid::mac_eq"
@@ -456,12 +473,12 @@ main() {
     continue
   fi
   RUSTUP_AUTO_INSTALL=0 cargo +"$kdf_tc" clean --release --target "$t" -p tacenta-kdf --quiet
-  rm -f "target/$t/release/deps/tacenta_kdf"-*.s
+  rm_asm "$t" tacenta_kdf
   RUSTUP_AUTO_INSTALL=0 cargo +"$kdf_tc" rustc --release --locked -p tacenta-kdf --lib --target "$t" --quiet -- \
     --emit=asm -C codegen-units=1
-  files=( "target/$t/release/deps/tacenta_kdf"-*.s )
+  files=(); while IFS= read -r f; do files+=("$f"); done < <(find_asm "$t" tacenta_kdf)
   [ "${#files[@]}" -eq 1 ] \
-    || fail "$t: expected one assembly file for tacenta-kdf under target/$t/release/deps, found ${#files[@]} (${files[*]:-none})"
+    || fail "$t: expected one assembly file for tacenta-kdf under target/$t/release/{deps,build/*/*/out}, found ${#files[@]} (${files[*]:-none})"
   kdf_file="${files[0]}"
   kdf_inv="$(kdf_inventory "$kdf_file" "$arch" | LC_ALL=C sort)"
   kdf_base="$root/tooling/ct-baselines/tacenta_kdf-$t.txt"

@@ -211,10 +211,13 @@ while [ $# -gt 0 ]; do
 done
 stem="${crate//-/_}"
 [ -n "${STUB_LOG:-}" ] && echo "$crate $target $tc" >>"$STUB_LOG"
-mkdir -p "target/$target/release/deps"
+# STUB_LAYOUT=build: cargo 1.100's per-package build directory instead of `deps`.
+dir="target/$target/release/deps"
+[ "${STUB_LAYOUT:-}" = "build" ] && dir="target/$target/release/build/$crate/0123abcd/out"
+mkdir -p "$dir"
 files=1; [ "${STUB_FILES_CRATE:-$crate}" = "$crate" ] && files="${STUB_FILES:-1}"
 for n in $(seq 1 "$files"); do
-  cp "$STUB_FIXTURES/$stem.s" "target/$target/release/deps/${stem}-$n.s"
+  cp "$STUB_FIXTURES/$stem.s" "$dir/${stem}-$n.s"
 done
 STUB
 chmod +x "$sandbox/bin/"*
@@ -276,6 +279,10 @@ main_case 'a conditional branch in calculate_key_pair is a failure' 1 'condition
 reset_fixtures
 printf 'fixture_calculate_key_pair:\n  .cfi_startproc\n  callq memcmp\n  retq\n  .cfi_endproc\n' >"$fixtures/tacenta_boundary.s"
 main_case 'an unexpected callee is a failure' 1 'the gate refuses or does not know' STUB_HOST=x86_64-unknown-linux-gnu
+reset_fixtures
+main_case 'assembly written under the per-package build directory (cargo 1.100 layout) is found' 0 'every constant-time function compiles to straight-line code' STUB_HOST=x86_64-unknown-linux-gnu STUB_LAYOUT=build
+main_case 'two assembly files under the per-package build directory are a failure' 1 'expected one assembly file for tacenta-braid' STUB_HOST=x86_64-unknown-linux-gnu STUB_LAYOUT=build STUB_FILES=2 STUB_FILES_CRATE=tacenta-braid
+main_case 'the key derivation is found under the per-package build directory' 0 'tacenta_kdf: inventory matches the reviewed baseline' STUB_HOST=x86_64-unknown-linux-gnu STUB_LAYOUT=build
 reset_fixtures
 main_case 'two assembly files for a straight-line crate are a failure' 1 'expected one assembly file for tacenta-braid' STUB_HOST=x86_64-unknown-linux-gnu STUB_FILES=2 STUB_FILES_CRATE=tacenta-braid
 reset_fixtures
