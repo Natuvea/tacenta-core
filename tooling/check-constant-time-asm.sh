@@ -395,16 +395,24 @@ main() {
   fi
 
   # Where cargo leaves an `--emit=asm` output. Up to cargo 1.99 it is
-  # `target/<t>/release/deps/<stem>-<hash>.s`; from 1.100 intermediate artifacts
-  # live in the build directory's per-package layout,
-  # `target/<t>/release/build/<package>/<hash>/out/<stem>-<hash>.s`. Both are
-  # searched; the caller still requires exactly one file.
+  # `target/<t>/release/deps/<stem>-<hash>.s`. The per-package build-directory
+  # layout, `target/<t>/release/build/<package>/<hash>/out/<stem>-<hash>.s`, is
+  # inferred for cargo 1.100 from a nightly reproduction and the timing of the
+  # first failure, not observed on 1.100 itself. Both places are searched and
+  # the caller still requires exactly one file in all: a copy in both is a
+  # failure, not a guess. When the count is not one, the failure lists every
+  # `.s` under target/<t>, so the layout in use is shown, not assumed.
   find_asm() {
     local t="$1" stem="$2" f
     for f in "target/$t/release/deps/${stem}"-*.s target/"$t"/release/build/*/*/out/"${stem}"-*.s; do
       [ -e "$f" ] && printf '%s\n' "$f"
     done
     return 0
+  }
+  list_asm() {
+    local f out=""
+    while IFS= read -r f; do out="$out $f"; done < <(find "target/$1" -name '*.s' 2>/dev/null | LC_ALL=C sort)
+    printf '%s' "${out:- none}"
   }
   rm_asm() {
     local f
@@ -428,7 +436,7 @@ main() {
       --emit=asm -C codegen-units=1
     files=(); while IFS= read -r f; do files+=("$f"); done < <(find_asm "$t" "$file_stem")
     [ "${#files[@]}" -eq 1 ] \
-      || fail "$t: expected one assembly file for $crate under target/$t/release/{deps,build/*/*/out}, found ${#files[@]} (${files[*]:-none})"
+      || fail "$t: expected one assembly file for $crate under target/$t/release/{deps,build/*/*/out}, found ${#files[@]} (${files[*]:-none}); every .s file under target/$t:$(list_asm "$t")"
     case "$crate" in
       tacenta-braid)
         sym=mac_eq; allow=1; label="tacenta_braid::mac_eq"
@@ -478,7 +486,7 @@ main() {
     --emit=asm -C codegen-units=1
   files=(); while IFS= read -r f; do files+=("$f"); done < <(find_asm "$t" tacenta_kdf)
   [ "${#files[@]}" -eq 1 ] \
-    || fail "$t: expected one assembly file for tacenta-kdf under target/$t/release/{deps,build/*/*/out}, found ${#files[@]} (${files[*]:-none})"
+    || fail "$t: expected one assembly file for tacenta-kdf under target/$t/release/{deps,build/*/*/out}, found ${#files[@]} (${files[*]:-none}); every .s file under target/$t:$(list_asm "$t")"
   kdf_file="${files[0]}"
   kdf_inv="$(kdf_inventory "$kdf_file" "$arch" | LC_ALL=C sort)"
   kdf_base="$root/tooling/ct-baselines/tacenta_kdf-$t.txt"
