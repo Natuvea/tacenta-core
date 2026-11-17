@@ -72,8 +72,11 @@ predicate itself is asserted, and nowhere else.
 
 ## What this is not
 
-`tests/fuzz.rs` runs property tests with proptest at 2,048 cases per push. That
-is not this, and the difference is not academic. Proptest generates from a
+`tests/fuzz.rs` and the other property tests that
+`tacenta-test-vectors/property-tests.md` lists generate inputs with proptest or a
+seeded generator; the hosted `rust` job sets `PROPTEST_CASES` to 2,048, and which
+hosted runs they passed in is recorded only where a `GAP-REGISTER.md` row asks for
+it. That is not this, and the difference is not academic. Proptest generates from a
 declared shape and cannot see which branches it reached, so it cannot search
 toward the ones it has not. It does not generate a length field near
 `u32::MAX` unless the declared shape pushes it there, and it does not notice a
