@@ -1,0 +1,5 @@
+# expect: refuse 4: a trap command the check cannot classify (it reads only a plain `trap HANDLER SIGNAL...` line of its own); write it so, or exempt the script by name
+set -euo pipefail
+work="$(mktemp -d)"
+t''rap 'rm -rf "$work"' EXIT
+echo ok

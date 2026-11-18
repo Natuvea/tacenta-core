@@ -32,13 +32,25 @@
 # A case that goes wrong prints a line that starts `WRONG  ` and stops the run, as in the other runners of this
 # directory. It needs PyYAML (the checks job installs it) and no Lean toolchain.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 checker="$root/tooling/check-no-sorry-parts-coverage.py"
 scripts="$root/tacenta-proofs/scripts"
 work="$(mktemp -d "${TMPDIR:-/tmp}/no-sorry-coverage-cases.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 cases=0
 
 wrong() {  # name message...
@@ -411,3 +423,4 @@ run no-script --script "$work/no-such-no-sorry.sh" --parts "$work/base.parts" --
 refuses no-script "did not list its phases"
 
 echo "check-no-sorry-parts-coverage-cases: $cases cases (the files of the tree and of a tree with a part declared empty; a phase in no part or in two, and a slice of the dispatcher in none or two, with the parts reader's refusals in place and removed; a phase the script gains or loses; a part name in the workflow with no part, a part missing from the workflow, in the pull-request list and the push list; a hosted part in the push list; a part declared empty named in the list, and one given a phase and left out; a list that names a part twice, the partitions swapped, an expression or a job of another shape, two combining steps; a part job that could skip a leg or a step; files that cannot be read) gave the expected result"
+finished=yes

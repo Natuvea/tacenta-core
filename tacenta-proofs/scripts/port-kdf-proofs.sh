@@ -22,6 +22,18 @@
 # The lifecycle and Braid-and-erasure translations include the bodies too and have no theorem about
 # them, so they get no copy.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 cd "$(dirname "$0")/../.."
 
@@ -37,7 +49,8 @@ src=tacenta-proofs/translation/Translation
 out="$src"
 tmp=""
 cleanup() { [ -n "$tmp" ] && rm -rf "$tmp"; return 0; }
-trap cleanup EXIT INT TERM
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
+trap cleanup INT TERM
 if [ "$check" -eq 1 ]; then
   tmp=$(mktemp -d)
   out="$tmp"
@@ -110,7 +123,7 @@ PY
 
 if [ "$check" -eq 0 ]; then
   echo "port-kdf-proofs: wrote the key derivation's proofs for five translations"
-  exit 0
+  done_ok
 fi
 
 status=0
@@ -123,4 +136,5 @@ for f in "$tmp"/Kdf*.lean; do
   fi
 done
 [ "$status" -eq 0 ] && echo "port-kdf-proofs: the committed copies are deterministic"
+finished=yes
 exit "$status"

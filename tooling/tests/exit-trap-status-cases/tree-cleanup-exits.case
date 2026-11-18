@@ -1,0 +1,7 @@
+# expect: refuse 16: the guarded trap's cleanup leaves through exit, exec or return, past the guard
+set -euo pipefail
+@GUARD@
+work="$(mktemp -d)"
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit 0; exit_guard "$exit_guard_rc"' EXIT
+echo ok
+finished=yes

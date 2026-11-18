@@ -1,0 +1,5 @@
+# expect: refuse 4: an EXIT trap without the exit-status guard
+set -u -e
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+echo ok

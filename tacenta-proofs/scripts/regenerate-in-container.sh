@@ -68,6 +68,18 @@
 # regenerated tree) is created under $TMPDIR and removed on exit, on success and on failure; on a difference the
 # first hunks are printed, and --keep DIR keeps the whole regenerated tree for reading.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 IMAGE="ubuntu@sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60"
 # The linux/amd64 manifest the index above resolves to is sha256:f610ab94648195aa356059f5b41d6085c9d4d903c072430cdd1af7bdb646106b
@@ -114,7 +126,7 @@ cleanup() {
   if [ -s "$cidfile" ]; then docker rm -f "$(cat "$cidfile")" >/dev/null 2>&1 || true; fi
   case "$work" in */tacenta-regen.*) rm -rf "$work" ;; esac
 }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 
 sha256() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
@@ -257,6 +269,7 @@ if [ "$mode" = compare ]; then
   echo "regenerate-in-container: comparing $(wc -l <"$work/tracked.txt" | tr -d ' ') tracked files of $(git -C "$root" rev-parse HEAD), $(dirty_count) tracked path(s) differ from HEAD, with $compare_dir"
   rc=0
   compare_tree "$compare_dir" "$root" "$work/tracked.txt" "$compare_dir" || rc=$?
+  finished=yes
   exit "$rc"
 fi
 
@@ -396,4 +409,5 @@ fi
 rc=0
 compare_tree "$work/out/tree" "$work/src" "$work/tracked.txt" "the regenerated tree" || rc=$?
 keep_results
+finished=yes
 exit "$rc"

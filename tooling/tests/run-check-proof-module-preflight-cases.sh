@@ -45,10 +45,22 @@
 #     (e) a stand-in term on a local list given by TACENTA_PRIVATE_TERMS_FILE, planted with other separators, as one
 #         word and split inside a word
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/preflight-cases.XXXXXX")"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 clone="$work/clone"
 git clone -q --shared --no-checkout "$root" "$clone"
 git -C "$clone" checkout -q --detach "$(git -C "$root" rev-parse HEAD)"
@@ -455,3 +467,4 @@ run planted-strict 1 UnitLifecycleResponderFirstReceipt --strict
 finds planted-strict "ERROR    UnitLifecycleResponderFirstReceipt: CLAIMS.md lists as not shown \"that a tampered or foreign frame is refused"
 
 echo "check-proof-module-preflight-cases: $cases cases (the committed tree with its baseline passed; a stale key warned, and refused with --strict or a base, also one stale at the base; a short baseline, a key added for a finding that does not occur, a grown one with no reason or a placeholder, a baselined count at another value and an empty or unresolved base refused; a module with no section and no script refused; warnings alone not failing; the template's mechanism passed and a stub of it refused; a first-named result with no pin or matched by a substring, a padded named list, an unnamed compiler-trusted result named; an unread count warned and the theorems form read; the trust the naming sentence states checked in every case and an ambiguous name refused; a weakened guard, a dropped label check, baseline or timeout sample, four counts off by one, a dropped not-shown item, a marker, stand-in plan identifier, private path and private term, and an attribution line each named; the seam only adds) gave the expected result"
+finished=yes

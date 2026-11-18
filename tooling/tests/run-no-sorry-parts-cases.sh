@@ -50,12 +50,24 @@
 # Lean toolchain. The mutation harness reruns a runner with its `exit 1` and `set -e` lines removed, so the
 # text of a plant never contains either.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 scripts="$root/tacenta-proofs/scripts"
 work="$(mktemp -d "${TMPDIR:-/tmp}/no-sorry-parts-cases.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 cases=0
 
 wrong() {  # name message...
@@ -823,3 +835,4 @@ for count in range(1, len(names) + 1):
 PY2
 
 echo "no-sorry-parts-cases: $cases cases (the genuine hosted and single sets and the whole run, what the parts called, a part with no phase run by hand and refused by the combiner; a part missing, repeated, relabelled or of another partition, commit, tree, script, parts file, cache, toolchain or checkout; a failed phase, a failure line; the dispatcher's slices; the seam; the variables; the parts file; the committed parts file against the committed script, the real dispatcher's options) gave the expected result"
+finished=yes

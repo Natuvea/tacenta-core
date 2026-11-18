@@ -60,7 +60,27 @@
 # it is run by fast mode without anyone editing one (or, marked `deep_only` or
 # `full_only`, listed as not run). With neither switch this
 # script behaves as it always has.
+#
+# How a run ends. A full run's last line is `ci: all checks green`, printed after the last step and nowhere
+# else, so a run that stopped part way does not print it. It does not say that every step ran: a step whose
+# optional tool is absent prints a `skipping` line and the run goes on, and so does the no-sorry step without
+# the translation's Mathlib cache. `--fast` ends on `== fast mode: the cheap section passed ==` and the list of
+# what it did not run, which is not the gate's line. The exit status agrees with the last line on macOS
+# /bin/bash 3.2 too, where a shell-fatal error with the EXIT trap below set would otherwise exit 0 (the
+# exit-status guard under `set -euo pipefail`).
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
@@ -150,7 +170,7 @@ deep_only bash tooling/tests/run-regenerate-in-container-cases.sh
 echo "== Workflow expressions and schema are valid =="
 actionlint_dir="$(mktemp -d)"
 cleanup_actionlint() { rm -rf "$actionlint_dir"; }
-trap cleanup_actionlint EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup_actionlint; exit_guard "$exit_guard_rc"' EXIT
 bash tooling/install-actionlint.sh "$actionlint_dir"
 ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/check-actionlint.sh
 ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/tests/run-check-actionlint-cases.sh
@@ -217,6 +237,15 @@ deep_only bash tooling/tests/run-lockfile-check-cases.sh
 echo "== No shell script pipes a producer into a quiet grep =="
 bash tooling/check-shell-portability.sh
 bash tooling/tests/run-check-shell-portability-cases.sh
+
+# On macOS /bin/bash 3.2 and /bin/sh, a `set -e` script stopped by a shell-fatal error (an unset variable under
+# -u, ${x:?}, a missing sourced file) while an EXIT trap is set exits 0, so a step above or below could pass
+# here after stopping part way; bash 5 and dash keep the status. Every tracked shell script with an EXIT trap
+# carries the exit-status guard, and this textual check refuses one that does not, or a trap it cannot read;
+# its cases show the guard turning each such abort into a failure under each trap shape, and keeping 0, exit
+# codes and cleanups as they were.
+echo "== Every script with an EXIT trap keeps the status of an abort =="
+bash tooling/tests/run-exit-trap-status-cases.sh
 
 # The Session refinement gives every opaque primitive operation a named,
 # reviewed contract.  Pin the operations actually reachable in the generated
@@ -334,7 +363,7 @@ if [ "$fast" -eq 1 ]; then
   echo "fast mode: not run (the steps below this point in tooling/ci.sh):"
   fast_not_run
   echo "fast mode: this is not the gate. Only a run without --fast ends on the gate's own green line."
-  exit 0
+  done_ok
 fi
 # ---- fast mode stops here: everything below is the part that is not cheap ----
 
@@ -531,3 +560,4 @@ else
 fi
 
 echo "ci: all checks green"
+finished=yes

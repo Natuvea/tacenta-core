@@ -1,0 +1,6 @@
+# expect: refuse 16: no `finished=yes` and no done_ok after the trap
+set -euo pipefail
+@GUARD@
+work="$(mktemp -d)"
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
+echo ok

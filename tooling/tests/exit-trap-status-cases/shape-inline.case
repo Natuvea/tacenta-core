@@ -1,0 +1,9 @@
+# shape: inline. The trap's body is the cleanup command itself. Run by /bin/bash with the work directory as $1.
+set -euo pipefail
+@GUARD@
+work="$1"
+mkdir -p "$work"
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
+@BODY@
+echo END
+finished=yes

@@ -1,0 +1,22 @@
+# shape: nested. The trap is installed inside a function, its cleanup clears the traps before it runs, and the
+# function's success is a done_ok of its own. Run by /bin/bash with the work directory as $1.
+set -euo pipefail
+@GUARD@
+work="$1"
+parent_cleanup() {
+  trap - EXIT INT TERM
+  if [ -n "$work" ]; then
+    rm -rf "$work"
+  fi
+}
+run_parent() {
+  mkdir -p "$work"
+  trap 'exit_guard_rc=$?; set +e; parent_cleanup; exit_guard "$exit_guard_rc"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  @BODY@
+  echo END
+  done_ok
+}
+run_parent
+exit 1  # run_parent ends in an exit of its own; reaching here is a fault

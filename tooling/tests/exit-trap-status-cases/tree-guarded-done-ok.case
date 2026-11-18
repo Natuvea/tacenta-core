@@ -1,0 +1,12 @@
+# expect: accept
+set -euo pipefail
+@GUARD@
+main() {
+  work="$(mktemp -d)"
+  trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
+  trap 'exit 143' TERM
+  echo ok
+  done_ok
+}
+main
+exit 1

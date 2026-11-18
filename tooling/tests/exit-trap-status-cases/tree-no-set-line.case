@@ -1,0 +1,5 @@
+# expect: refuse 4: an EXIT trap without the exit-status guard
+# No set line: errexit from a `#!/bin/bash -ue` shebang, or from `bash -e` in the caller, is just as exposed.
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+echo ok

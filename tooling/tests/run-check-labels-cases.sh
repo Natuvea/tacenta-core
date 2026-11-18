@@ -10,12 +10,24 @@
 # prefix check makes this runner fail in the same CI job as the production
 # check.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 checker="$root/tooling/check-labels.sh"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 
 collect_labels() {
   local dirs=()
@@ -100,3 +112,4 @@ printf 'const P_NINE_DUPLICATE_LABEL: &[u8] = b"%s";\n' "$duplicate" \
 expect_fail duplicate-label 'REFUSING: the same label value is declared more than once'
 
 echo 'check-labels-cases: pass case and 4 refusal cases gave the expected result'
+finished=yes

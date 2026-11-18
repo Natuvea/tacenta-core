@@ -51,6 +51,18 @@
 # stops the run. Nothing here needs a Lean toolchain. The mutation harness reruns a runner with its `exit 1`
 # and `set -e` lines removed, so the text of a plant never contains either.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 tmp_base="${TMPDIR:-/tmp}"
@@ -69,7 +81,7 @@ cleanup() {
   git -C "$root" worktree prune >/dev/null 2>&1 || true
   rm -rf "$work"
 }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 git -C "$root" worktree add -q --detach "$tree" HEAD >/dev/null
 
 gate="tacenta-proofs/scripts/check-attest-negatives.sh"
@@ -720,3 +732,4 @@ if [ -n "$leftover" ]; then
 fi
 
 echo "attest-negatives-slice-cases: $cases cases (the genuine set accepted with the count of one process, and as the gate refused for its seam; a slice missing, repeated or one more, manifests swapped, slices relabelled with their files, another commit, tree or script, another K, L, N or walk length, a shard that ran nothing, a sum that is wrong, a case run twice or by none, another walk, a WRONG line, an exit status, a premise skipped, a file missing, extra or a link, a manifest missing, a stray entry, the variables combined wrongly, a failing shard, the seam in CI, a slice and the combiner in CI, the real attest.py, files read strictly, the pinned case count, the count of cases and its refusal in CI) gave the expected result"
+finished=yes

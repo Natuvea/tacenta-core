@@ -17,11 +17,23 @@
 # What this does not show: that a control script, run for real, would fail. Each of those has its own
 # negative controls (`check-port-negatives.sh` and the others), which `no-sorry.sh` runs.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 scripts="$root/tacenta-proofs/scripts"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 cases=0
 
 fail_case() {
@@ -348,3 +360,4 @@ printf 'name = "Translation"\n[[lean_lib]]\nname = "Translation"\n' > "$proofs/t
 run_coverage 'a library with no glob' nonzero 'no longer globs exactly Translation.*'
 
 echo "proof-script-cases: $cases cases (no-sorry.sh: calls, failing controls, log scan, audit lines, kernel replay; verify.sh; check-translation-coverage.sh) gave the expected result"
+finished=yes

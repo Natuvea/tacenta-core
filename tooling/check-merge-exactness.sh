@@ -38,6 +38,18 @@
 # What it does not check: that the generated files are current (`attest.py --check`, `gate-inventory.py --check`),
 # that a resolution is right, or that a change that appears on both sides unchanged was meant to.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 usage() {
   echo "usage: check-merge-exactness.sh <merge-commit> [<base>]" >&2
@@ -70,7 +82,7 @@ short() { git rev-parse --short "$1"; }
 echo "merge-exactness: $(short "$merge") merges $(short "$p1") and $(short "$p2") over base $(short "$base")"
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/merge-exactness.XXXXXX")"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 git diff --no-renames --no-ext-diff --binary -U0 "$p1" "$merge" > "$work/p1-m"
 git diff --no-renames --no-ext-diff --binary -U0 "$base" "$p2" > "$work/b-p2"
 git diff --no-renames --no-ext-diff --binary -U0 "$p2" "$merge" > "$work/p2-m"
@@ -259,4 +271,5 @@ case "$status" in
   3) echo "merge-exactness: verdict: REVIEW (exact outside the files resolved by hand; read those)" ;;
   *) echo "merge-exactness: verdict: FAIL"; status=1 ;;
 esac
+finished=yes
 exit "$status"

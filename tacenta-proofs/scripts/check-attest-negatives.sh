@@ -158,6 +158,18 @@
 # tool, and prints only the count, never a line of a run. CI refuses it, as it
 # refuses the test seam, because it runs no case.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 root="$(git rev-parse --show-toplevel)"
@@ -586,7 +598,7 @@ PY
 run_parent() {
   local i g pid rc start rev total
   parent_logs="$(mktemp -d "$tmp_base/attest-negatives-logs.XXXXXX")"
-  trap parent_cleanup EXIT
+  trap 'exit_guard_rc=$?; set +e; parent_cleanup; exit_guard "$exit_guard_rc"' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
   start=$SECONDS
@@ -642,7 +654,7 @@ run_parent() {
     total="$(cat "$parent_logs/total")"
     [[ "$total" =~ ^[1-9][0-9]*$ ]] || { echo "check-attest-negatives: the verification left no count of cases" >&2; exit 1; }
     final_line "$total"
-    exit 0
+    done_ok
   fi
   i=0
   while [ "$i" -lt "$jobs" ]; do
@@ -710,7 +722,7 @@ pathlib.Path(path).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "
 PY
   echo "check-attest-negatives: slice $slice/$slices wrote the reports of shards $shard_first to $last of $jobs" \
     "to $slice_dir in $2 s; a slice is not the gate, which is the combination of all $slices slices"
-  exit 0
+  done_ok
 }
 
 # The combiner. It reads the K slice directories, requires that they are the K slices of one run (one K, one
@@ -721,7 +733,7 @@ PY
 run_combine() {
   local rev tree total
   parent_logs="$(mktemp -d "$tmp_base/attest-negatives-logs.XXXXXX")"
-  trap parent_cleanup EXIT
+  trap 'exit_guard_rc=$?; set +e; parent_cleanup; exit_guard "$exit_guard_rc"' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
   rev="$(git -C "$root" rev-parse HEAD)"
@@ -846,7 +858,7 @@ PY
       exit 1
     fi
     final_line "$total"
-    exit 0
+    done_ok
   fi
   echo "check-attest-negatives: the combined slices do not hold the gate" >&2
   exit 1
@@ -894,7 +906,7 @@ cleanup() {
     git -C "$root" worktree remove --force "$work" >/dev/null 2>&1 || rm -rf "$work"
   fi
 }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -963,7 +975,7 @@ finish() {
   flush_case
   if [ "$count_only" -eq 1 ]; then
     echo "check-attest-negatives: the walk has $seen cases (ATTEST_NEGATIVES_COUNT: none was run, so this is not the gate)"
-    exit 0
+    done_ok
   fi
   if [ "$is_shard" -eq 1 ]; then
     echo "shard $shard/$jobs: premise $premise of $premise_reached"
@@ -972,14 +984,14 @@ finish() {
       echo "check-attest-negatives: shard $shard/$jobs gave $wrong wrong result(s) in the $ran cases it ran" >&2
       exit 1
     fi
-    exit 0
+    done_ok
   fi
   if [ "$wrong" -ne 0 ]; then
     echo "check-attest-negatives: $wrong of $seen cases gave the wrong result" >&2
     exit 1
   fi
   final_line "$seen"
-  exit 0
+  done_ok
 }
 
 # Every case passes through here, whichever process runs it, so that every shard counts the same

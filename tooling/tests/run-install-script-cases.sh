@@ -21,6 +21,18 @@
 # What this does not show: that the digests pinned in the scripts and in the workflow are the digests of the
 # real releases. Only a run that downloads them shows that, and the hosted `checks` and `proofs` jobs do.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 # The hosted job exports the pinned version and digest to every step. A case that sets only one of the two
 # must see the other unset, or the 'no version' and 'no digest' cases pass for the caller's environment.
@@ -28,7 +40,7 @@ unset ELAN_VERSION ELAN_SHA256 RETRY_DOWNLOAD_ATTEMPTS RETRY_DOWNLOAD_WAITS
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$work"; exit_guard "$exit_guard_rc"' EXIT
 cases=0
 bin="$work/bin"
 mkdir -p "$bin"
@@ -458,3 +470,4 @@ PATH="$bin:$PATH" bash "$root/tooling/seed-lake-packages.sh" "$pkg2" "$mirrors2"
   || fail_case 'seed: a revision fetched into the mirror is not kept under refs/pinned'
 
 echo "install-script-cases: $cases cases (elan and actionlint digest checks, the pinned release and Lean toolchain, the retry of transient download failures and the refusal to retry anything else, seed-lake-packages revision pin) gave the expected result"
+finished=yes

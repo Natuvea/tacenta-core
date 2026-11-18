@@ -62,11 +62,23 @@
 #
 # Run from any directory. Needs the model package and `Translation.DispatchEvidenceVacuity` built.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 cd "$(dirname "$0")/../.."
 
 root=$(mktemp -d)
-trap 'rm -rf "$root"' EXIT
+trap 'exit_guard_rc=$?; set +e; rm -rf "$root"; exit_guard "$exit_guard_rc"' EXIT
 mkdir -p "$root/Translation"
 probe="$root/Translation/AuditProbe.lean"
 
@@ -408,3 +420,4 @@ if [ $fail -ne 0 ]; then
   exit 1
 fi
 echo "refuted-records-negatives: the walk called all $pass planted cases correctly (each record taken directly; open-in, alias, set_option-in, nonrec, where, notation, macro, structure-field, variable, proof-term-only, own-namespace, private and constructor-route takers, an alias wearing the def record's flat-constructor name, a taker in a Unit-named module, and records of the probe's own, structure, inductive and def, with their machinery set aside; honest look-alikes, the replacement record, prose mentions and an example clean; every record absent when unimported; an expected name that takes nothing, an empty record list and a record outside the prefixes refused; the executable over a compiled module with a taker, a forging initializer and a notation on its name reports the taker and nothing else)"
+finished=yes

@@ -1,0 +1,7 @@
+# expect: refuse 16: the trap is not `trap 'exit_guard_rc=$?; set +e; <cleanup>; exit_guard "$exit_guard_rc"' EXIT`
+set -eu
+@GUARD@
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+echo ok
+finished=yes

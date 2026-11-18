@@ -29,11 +29,23 @@
 # The unchanged tree must be accepted first by every script, so a refusal is the change and not the script.
 # What is tested is the committed tree, as in `check-port-negatives.sh`. No Lean toolchain is needed.
 set -euo pipefail
+# Exit-status guard. With an EXIT trap set, macOS /bin/bash 3.2 and /bin/sh exit 0 when a shell-fatal error
+# (an unset variable under -u, ${x:?}, a missing sourced file) stops a `set -e` script, so the trap refuses a
+# run that reached neither `finished=yes` nor done_ok. Cases: tooling/tests/run-exit-trap-status-cases.sh.
+finished=no
+done_ok() { finished=yes; exit 0; }
+exit_guard() {  # <status the EXIT trap began with>
+  if [ "$1" -eq 0 ] && [ "$finished" != yes ]; then
+    echo "$0: stopped before its end with status 0 (a shell-fatal error, a signal, or exit 0 without done_ok); not a pass" >&2
+    exit 1
+  fi
+  exit "$1"
+}
 
 root="$(git rev-parse --show-toplevel)"
 work="$(mktemp -d)"
 cleanup() { git -C "$root" worktree remove --force "$work/tree" >/dev/null 2>&1 || true; rm -rf "$work"; }
-trap cleanup EXIT
+trap 'exit_guard_rc=$?; set +e; cleanup; exit_guard "$exit_guard_rc"' EXIT
 git -C "$root" worktree add -q --detach "$work/tree" HEAD >/dev/null
 tree="$work/tree"
 t=tacenta-proofs/translation/Translation
@@ -274,3 +286,4 @@ port port-session-braid-import "bash $s/port-session-braid-import-proof.sh" "$di
 port port-kdf "bash $s/port-kdf-proofs.sh" 'committed copy' KdfRatchetT3Kdf.lean KdfT3Kdf.lean '' 'tacenta_session_unit.tacenta_kdf'
 
 echo "generation negatives: $cases cases (three assemblers and nine port scripts: hand edit, stale source, moved rewrite target, extra and missing files) gave the expected result"
+finished=yes
