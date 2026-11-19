@@ -14,13 +14,18 @@ at every step.
 
 | Scoped operation or invariant | Model/proof evidence | Differential and vector evidence | Specification-only, project-controlled reader evidence | Scope still open |
 | --- | --- | --- | --- | --- |
-| Initialization and direction | `Model.SparseRatchet.init`; persisted-state semantic rules | Fresh starts in templates 0--1; canonical export/import at each step; committed sparse-state fixtures | Clean-room `tacenta_reader/spqr.py`; CR-12--CR-17 | Fixed vectors pin each direction's initial state; generated templates cover operation variations. |
-| Advance only to the next epoch, and never onto the reserved epoch | `advance`, `advance_epoch_lt` | Generated agreement outputs; templates 6--7 reach the reserved boundary and require the same refusal; `advance-onto-u64-max-refused` is a fixed vector | Clean-room SP-07 and CR-17 advance/retention exercises | `EpochOutOfOrder` is generated-only: it has no separate fixed-vector contract. |
-| Send and receive counters | `send`, `receive`, `send_number_le` | Templates 2--5 force both chain ceilings and compare every accepted/refused result; fixed vectors pin both ceiling outcomes | Clean-room CR-12 and CR-13 | Counter/refusal permutations beyond the named ceiling cases are generated-only. |
-| Skip/store bound, lookup and one-time use | `skipMessageKeys`, `trySkipped`; `deriveInto_*`, `skipMessageKeys_store_bounded`, `trySkipped_store_lt`; `Proofs.SparseReplacementBound` (the total-bound theorems) | Generated gaps, `TooManySkipped`/`SkippedStoreFull` counter, template 8 stored-key recovery, and byte/read-back comparison; templates 10--12 start from stored states and each checks, from the stored bytes before and after its one step, the count of the store a skip leaves (a replacement ending at the cap, one key past it refused with the state unchanged, and the range of keys replaced), with `replacement-bound-counts-resulting-store` and `replacement-range-excludes-the-chain-counter` fixing the first and third as vectors | Clean-room CR-15 and SP-06 | The differential counter combines the two store-bound kinds. |
-| Retention removes old chains and their stored keys | `clearOldEpochs`, `clearOldEpochs_store_le` | Template 9 advances twice and requires the store to shrink by more than one; `bob-retires-an-epoch-with-its-keys` is the fixed accepted trace | Clean-room SP-07 | Generated cases vary skipped keys and message numbers. |
-| An operation on a retired epoch refuses | `findChains`/`send` model transition | Template 9 requires Rust `NoChain`, model refusal, unchanged bytes, and a coverage counter; `retired-epoch-no-chain-refused` fixes the same state and final send | Clean-room CR-14 and SP-07 | Closed for the named `NoChain` observable. |
-| Persisted-state acceptance and canonicalization | Persisted-state model encoding/decoding | Every generated start and resulting state is exported, re-imported, and corrupted-import classifications are compared | Clean-room state reader and committed persistence fixtures | KEM/Braid delegation is outside this leaf format. |
+| Initialization and direction | `Model.SparseRatchet.init`; persisted-state semantic rules | Fresh starts in templates 0--1; canonical export/import at each step; committed sparse-state fixtures | Reader `tacenta_reader/spqr.py`; CR-12--CR-17 | Fixed vectors pin each direction's initial state; generated templates cover operation variations. |
+| Advance only to the next epoch, and never onto the reserved epoch | `advance`, `advance_epoch_lt` | Generated agreement outputs; templates 6--7 reach the reserved boundary and require the same refusal; `advance-onto-u64-max-refused` is a fixed vector | Reader SP-07 and CR-17 advance/retention exercises | `EpochOutOfOrder` is generated-only: it has no separate fixed-vector contract. |
+| Send and receive counters | `send`, `receive`, `send_number_le` | Templates 2--5 force both chain ceilings and compare every accepted/refused result; fixed vectors pin both ceiling outcomes | Reader CR-12 and CR-13 | Counter/refusal permutations beyond the named ceiling cases are generated-only. |
+| Skip/store bound, lookup and one-time use | `skipMessageKeys`, `trySkipped`; `deriveInto_*`, `skipMessageKeys_store_bounded`, `trySkipped_store_lt`; `Proofs.SparseReplacementBound` (the total-bound theorems) | Generated gaps, `TooManySkipped`/`SkippedStoreFull` counter, template 8 stored-key recovery, and byte/read-back comparison; templates 10--12 start from stored states and each checks, from the stored bytes before and after its one step, the count of the store a skip leaves (a replacement ending at the cap, one key past it refused with the state unchanged, and the range of keys replaced), with `replacement-bound-counts-resulting-store` and `replacement-range-excludes-the-chain-counter` fixing the first and third as vectors | Reader CR-15 and SP-06 | The differential counter combines the two store-bound kinds. |
+| Retention removes old chains and their stored keys | `clearOldEpochs`, `clearOldEpochs_store_le` | Template 9 advances twice and requires the store to shrink by more than one; `bob-retires-an-epoch-with-its-keys` is the fixed accepted trace | Reader SP-07 | Generated cases vary skipped keys and message numbers. |
+| An operation on a retired epoch refuses | `findChains`/`send` model transition | Template 9 requires Rust `NoChain`, model refusal, unchanged bytes, and a coverage counter; `retired-epoch-no-chain-refused` fixes the same state and final send | Reader CR-14 and SP-07 | Closed for the named `NoChain` observable. |
+| Persisted-state acceptance and canonicalization | Persisted-state model encoding/decoding | Every generated start and resulting state is exported, re-imported, and corrupted-import classifications are compared | The reader's state reader and committed persistence fixtures | KEM/Braid delegation is outside this leaf format. |
+
+In the reader column, "Reader" is the specification-only, project-controlled reader. That is a name for a reader
+written from the specification and the vectors under the conditions its passes' self-reported isolation records
+state, not a claim of strict isolation or of independent review
+(`tacenta-test-vectors/runners/independent/reader/README.md`, Isolation, The records read together).
 
 ### Fixed-vector decision
 
@@ -78,16 +83,16 @@ or a delegated-layout exclusion as interchangeable.
 
 | Obligation | Current evidence | Next closure step |
 | --- | --- | --- |
-| Sparse operation/invariant inventory | Scoped map above; the fixed-vector decision names the ceiling and retired-epoch observations, while generated differential and the clean-room reader cover combinations | Closed for P7's sparse vector target. |
+| Sparse operation/invariant inventory | Scoped map above; the fixed-vector decision names the ceiling and retired-epoch observations, while generated differential and the specification-only reader cover combinations | Closed for P7's sparse vector target. |
 | Braid persisted-state tags | Model/vector/reader/import comparison for tags 0 and 5--11; invalid-length check for 1--4 | Keep the delegated key-pair layout exclusion narrow and add valid tag evidence only with a specified independent producer. |
-| Braid MAC behavior | Differential check of a persisted-key header MAC and mutation, with model recomputation; real-ML-KEM runner check of accepted `ct2 || MacCt` and a MAC-only-codeword mutation to `Failed`; clean-room BR-10 | Keep the KEM-backed control separate from the persisted-state bridge and add a committed operation vector only if the target decision requires one. |
-| Braid state machine | `Ct2Sampled` boundaries, empty-`NoHeaderReceived` transition (6), real-ML-KEM transition (5) MAC controls, and a seeded real-ML-KEM run covering all transitions (1)--(13) across five delivery schedules; clean-room BR-09 covers the specified abstract table | Closed for the Braid operation target below. |
+| Braid MAC behavior | Differential check of a persisted-key header MAC and mutation, with model recomputation; real-ML-KEM runner check of accepted `ct2 || MacCt` and a MAC-only-codeword mutation to `Failed`; the reader's BR-10 | Keep the KEM-backed control separate from the persisted-state bridge and add a committed operation vector only if the target decision requires one. |
+| Braid state machine | `Ct2Sampled` boundaries, empty-`NoHeaderReceived` transition (6), real-ML-KEM transition (5) MAC controls, and a seeded real-ML-KEM run covering all transitions (1)--(13) across five delivery schedules; the reader's BR-09 covers the specified abstract table | Closed for the Braid operation target below. |
 
 ### Braid operation target decision
 
 P7's Braid operation target is a real-ML-KEM execution control for every
-documented state-machine transition, paired with the clean-room reader's
-specification-only transition-table test. It is not a committed persisted
+documented state-machine transition, paired with the specification-only reader's
+transition-table test. It is not a committed persisted
 operation-vector corpus: such a corpus would have to embed valid `key_pair` or
 encapsulation values in the KEM implementation's delegated layout. It could
 only be produced by the same layout-aware implementation, while a reader

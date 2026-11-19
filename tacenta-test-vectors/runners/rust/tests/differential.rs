@@ -3138,7 +3138,7 @@ fn check_composed(exe: &Path, seed: u64, sequences: usize, long: bool, seen: &mu
 
     // The stored-state model cannot construct the delegated KEM fields, but
     // the production API can. These schedules are the real-KEM counterpart of
-    // the clean-room reader's BR-09 and must collectively hit every transition
+    // the specification-only reader's BR-09 and must collectively hit every transition
     // in mlkem-braid.md's state table.
     let real_transitions = braid_all_transitions_run(seed ^ 0xe7e7_e7e7_e7e7_e7e7);
     let expected_real_transitions = BTreeSet::from([
