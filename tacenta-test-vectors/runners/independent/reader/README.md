@@ -534,6 +534,58 @@ implementation"). Those are each pass's own
 statement or released history, are not changed, and are to be read with this
 subsection.
 
+## Pass record
+
+ADR-0006, point 6, says what a pass's record states; this section says how it is
+written. As that point says, it applies to passes, and to changes made to a reader outside
+a pass, begun after the amendment's pull request was merged. Earlier records are described
+in Isolation, The records read together, or in the evidence file that holds them, and are
+not rewritten. The same form serves every reader offered as evidence of sufficiency,
+including the P6 operation reader and the ML-KEM packet's reader
+(`../mlkem-replay-packet/RECORD-TEMPLATE.md`).
+
+- **Layout.** One file per pass, beside its gap report, with one heading per item (1 to
+  7), then "Who, control and assistance", then "Context check". An item that does not
+  apply says "none". An item that cannot be stated completely says what is missing and why.
+- **Permitted inputs.** A manifest of each allowed file with its SHA-256 and size; the
+  specification revision as a commit, or a statement that it is not one; any earlier
+  reader code by revision and file hashes, with the passes or changes that wrote it; the
+  toolchain with its versions.
+- **Context supplied at the start.** Every instruction (the brief and any standing
+  instructions), any catalogue or description of tools, skills or commands, any memory,
+  notes or index of notes, any earlier gap reports given, prior conversation, files loaded
+  unasked, and a description of the workspace.
+- **Context check.** The checker's role, their relationship to the project and to the
+  author, the method, the time (before the first specification read), what they could
+  inspect, and what they could not, listed as a limitation.
+- **Accesses and outputs.** How each was recorded: by the execution environment, by
+  another directly checkable mechanism (its kind), or by the author's account; when it was
+  captured; and its coverage and omissions. Files the toolchain reads on its own are one
+  entry with their location. Outputs written outside the pass's directory, by the pass or
+  its environment, are listed.
+- **Subsequent exposure and later edits.** What the author or the record's author saw
+  after the pass and before the record was finalised. For each later edit to the record or
+  the outputs: the date, who made it (by role), what was in view, what changed, and the
+  revision that carries it, kept apart from the pass's original outputs; where it was made
+  with excluded material in view, the affected part and the conclusions that depend on it.
+- **Demonstrated use.** A pointer to the citations in the reader code and the gap report,
+  not a copy of them; anything implemented without a citable sentence; anything used from
+  outside the permitted inputs, knowledge included; and, for each context or access entry,
+  whether an output or access record ties it to the work ("not shown" otherwise, which does
+  not mean unused).
+- **Withheld content.** The complete original is kept privately with the pass. The record
+  in the tree gives a description enough to tell what kind of thing it was, and a SHA-256
+  of the content concatenated with a random value of at least 128 bits kept privately with
+  it, and marks the item "withheld".
+- **Changes made outside a pass.** Each is entered under "In this repository" (or the
+  evidence file of the reader concerned): the date, who made it (by role), what was in
+  view, the files changed, and the words "not made in a pass".
+- **Wording.** Records describe events plainly and give no absolute paths. They state the
+  toolchain and its versions, the kind of assistance used and the recording methods, as
+  items 1, 3 and 4 and "Who, control and assistance" require. Public text may describe
+  people by generic role and redact sensitive identifiers; the complete original is kept
+  privately, and each redaction is marked.
+
 ## What changed in pass 14
 
 - **`tacenta_reader/records.py`, new.** The identity pair digest and the
