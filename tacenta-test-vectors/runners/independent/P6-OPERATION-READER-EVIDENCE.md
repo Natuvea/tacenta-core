@@ -20,15 +20,16 @@ Maintainer's note, 2026-11-19. The three SHA-256 values above were
 recomputed on that date from the files kept in the project's private
 records, and each matches the value recorded here. The reader as delivered
 is identical to the file first committed here. The packet manifest lists 55
-files; 54 of them match their listed hashes, and the trace corpus does not,
-because the corpus now kept with that packet has 27 traces and differs from
+files; 54 of them match their listed hashes, and the trace corpus does not:
+the corpus now kept with that packet has 27 traces and differs from
 the one the manifest lists, and the corpus committed here differs from both.
 So a match with the record's hash does not establish that the packet as it
 stands today is the packet as manifested. The record does not state where
 the reader's outputs were written, any exposure after the run, or any
-context not retained, and it does not state what context was in view at the
-start of the work beyond naming the packet, the brief and the author's
-earlier reader. The
+context not retained, and it does not state what other context was in view at
+the start of the work: it names the packet, the brief, the author's earlier
+reader and earlier rounds, and declares in general terms that no excluded
+source was consulted. The
 record is kept privately and is not published here. This check was made by
 the maintainer with tool assistance; it is project-controlled and is not an
 independent review. Nothing was reconstructed.
@@ -38,7 +39,10 @@ from `tacenta-test-vectors/traces/session-operation-trace.json`. Its 36
 ordinary steps passed. All five controls failed as required: the original
 wrong durable effect and missing responder message, an incorrectly accepted
 duplicate, a missing terminal-failure receive message, and an incorrectly
-pending malformed initiator bundle. Every diagnostic cites the source rule. The corpus's `source` string was relabelled on 2026-10-28 ("independent clean-room author" to "specification-only author (related party)"); no trace, step or control changed.
+pending malformed initiator bundle. Every diagnostic cites the source rule.
+The corpus's `source` string was relabelled on 2026-10-28 ("independent
+clean-room author" to "specification-only author (related party)"); no trace,
+step or control changed.
 
 This is related-party, specification-only evidence for the committed corpus
 only; it is not independent review. It now covers the
