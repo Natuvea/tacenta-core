@@ -934,6 +934,11 @@ is SemVer against the specified protocol (not the implementation).
     the sentence.
 
 ### Fixed
+- `tacenta-test-vectors/README.md`, the session end-to-end vector (2026-11-19): the README said every refused message in both
+  vectors is refused before any random draw and that the runner requires it. In each vector the message that
+  established the session, sent again, is refused by the ratchet after the receive may have drawn, and the runner
+  offers it `bob_repeat_random` and accepts it unused or used. The paragraph now says so. No vector or runner changes.
+
 - `protocol/sparse-pq-ratchet.md`, The store also has a total bound: the
   passage on what the proofs cover said which refusal a skip returns was not
   proved. The leaf refinement fixes it in one direction (a `SkippedStoreFull`
