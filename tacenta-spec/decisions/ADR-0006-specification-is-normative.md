@@ -21,6 +21,14 @@ taking their *content* from implementation files (`GAPS-5.md`, G5-07).
 Amended 2026-10-28: the reader is called the specification-only, project-controlled reader;
 nothing else changed (`tacenta-spec/CHANGELOG.md`).
 
+Amended by #NNN, effective when that pull request was merged into `main`: point 6 says
+what each pass of a reader offered as evidence of sufficiency records, and what a pass
+may be called given its record. It had not said what a pass records. No requirement of
+the point is relaxed, the amendment is not retrospective, and no target, closure or
+level changes (`tacenta-spec/CHANGELOG.md`). The next change to `tacenta-spec/` records
+here the date and the commit on `main` that #NNN produced; until then the pull request's
+merge record is the reference.
+
 ## Context
 
 `tacenta-spec/README.md` has always called the specification the source that
@@ -91,6 +99,70 @@ implementations, and what it promises ends up being whatever that code does.
    Coverage is stated: until the reader covers a page, that page's
    sufficiency has not been shown, and the reader's README says which pages
    it covers.
+   - **Passes.** These rules apply to every reader offered as evidence that the
+     specification is sufficient. A pass is work that writes, extends or checks such a
+     reader from the specification; running an unchanged reader, in the gate or elsewhere,
+     is not a pass. A change to such a reader made outside a pass is recorded with who made
+     it and what was in view.
+   - **The record.** Each pass keeps a record stating, as separate items: (1) its permitted
+     inputs, with hashes, including any earlier reader code and the toolchain; (2) the
+     context supplied before its first action, instructions and any catalogue of tools or
+     skills included; (3) the files it accessed, inside and outside the permitted inputs;
+     (4) its outputs; (5) its subsequent exposure, and every later edit to the record or the
+     outputs; (6) any context not retained, stated as such and never reconstructed; (7) its
+     demonstrated use, as its outputs and access records show it. It says who ran the pass,
+     under whose control, with what assistance, and how items 3 and 4 were recorded. Content
+     that cannot be published is recorded as withheld, never omitted. The reader's README
+     says how each item is written.
+   - **The context check.** Before the pass's first read of the specification, someone
+     other than its author checks the supplied context and records the check: their role,
+     their relationship to the project and to the author, the method, and what they could
+     actually inspect. Context they could not inspect is stated as a limitation, never as
+     absent. A check made within the project is project-controlled; it is not independent
+     review.
+   - **Context and use are different facts, and both are recorded.** Context in view does
+     not establish that a pass used knowledge of an implementation, and its absence from a
+     record does not establish that none was in view. A record that cannot state an item
+     completely says so, and the pass is described with that qualification.
+   - **Strict clean-room isolation** is claimed only for a pass whose record states every
+     item completely and meets these conditions. Apart from the specification, the vectors
+     and any earlier reader code listed under item 1 by revision and file hashes, neither its
+     permitted inputs nor the context the check found includes anything that describes the
+     implementation, the model, the proofs, project notes, prior findings or review
+     histories; names of such things inside the permitted inputs are text, and the files
+     they name stay excluded. Where the check records context it could not inspect, that
+     limitation stays in the record and the claim is not made. Its accesses and outputs are
+     captured as the pass runs, by the execution environment or by another directly
+     checkable recording mechanism not kept by the pass's author, with their coverage and
+     omissions stated. The coverage includes every means by which the pass could read or
+     write files, and a recording that covers only the pass's own directory does not support
+     the claim; the records show no access outside the permitted inputs and the toolchain's
+     own files. An account by the author, alone or corroborated only by the author, does not
+     qualify. Without such records a pass may be qualified evidence, never a strict claim. A
+     fresh directory or session is not enough by itself. These exclusions bind the strict
+     claim only; this point's existing prohibitions bind every pass. A pass given earlier gap
+     reports says so, and is not presented as a fresh, strict derivation.
+   - **What a claim covers.** A strict claim names the pass, its outputs and the revision
+     it covers, and does not extend to inherited reader code. An edit made later with
+     excluded material in view is identified as a separate revision, and the original
+     outputs are kept. Recording the edit does not preserve the claim: the affected part,
+     and every conclusion whose justification depends on the change, fall outside it.
+     Unaffected parts keep it where the separation is supported.
+   - **Names.** After #NNN was merged, an unqualified claim that a pass was isolated or
+     clean-room is a strict claim; earlier statements are read as the reader's README
+     describes them. "Specification-only" names a second reader written from the
+     specification and the vectors under the conditions its passes' records state. It is not
+     a claim of strict isolation, nor that every line was written that way. A pass run by
+     the project, its maintainer or a related party is project-controlled checking.
+     Independent review is a reading by someone outside the project, independent of the
+     maintainer and not a related party; a target or register row may ask more. Neither
+     stands in for review under ADR-0008, decision 7. A pass that opened anything this
+     point's second sentence names is not a test of sufficiency.
+   - **From when.** These rules bind passes, and changes made to a reader outside a pass,
+     begun after #NNN was merged. A pass begun earlier may follow them and say so. Earlier
+     records are kept as they stand. None is reconstructed; adding an authentic existing
+     record verified against its previously recorded hash is not reconstruction. This point
+     changes no target, closure or level.
 
 7. **Evidence may be cited; content may not.** A normative page may cite
    non-normative evidence for a status it states: a Lean theorem, a test, a
@@ -122,6 +194,10 @@ implementations, and what it promises ends up being whatever that code does.
   at review.
 - Changes are slower: the specification is written before the code, and the
   specification-only, project-controlled reader has to be maintained alongside both.
+- A pass's record states the items of point 6, or says which it cannot state and why,
+  before the pass is offered as evidence, and someone other than its author checks the
+  supplied context first. Records made before the amendment took effect are described by
+  the reader's README or the evidence file that holds them, and are not rewritten.
 - `tacenta-proofs/CLAIMS.md` remains the record of what is proven. This
   record decides what is specified.
 - This would be reopened if the project chose a different normative artifact

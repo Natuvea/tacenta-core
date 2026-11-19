@@ -170,6 +170,22 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `decisions/ADR-0006-specification-is-normative.md`, point 6, amended by #NNN and recorded
+  in Status: effective when that pull request was merged into `main`, not retrospectively;
+  the next change to this directory records that date and the commit in Status. Point 6 had
+  not said what a pass records. Every reader offered as evidence of sufficiency now keeps,
+  for each pass, a record of its permitted inputs, the context supplied at the start, the
+  files accessed, the outputs, the subsequent exposure, any context not retained, its
+  demonstrated use, and who ran it under whose control; content that cannot be published is
+  recorded as withheld. Running an unchanged reader is not a pass, and changes made to a
+  reader outside a pass are recorded too. Someone other than the author checks the supplied
+  context before the first specification read, and states what could be inspected; a check
+  made within the project is project-controlled, not independent review. A strict
+  clean-room claim needs access and output records captured as the pass runs by the
+  execution environment or another directly checkable mechanism, applies the further
+  exclusions to the inputs and the context, is not made over context the check could not
+  inspect, and covers only the named pass, outputs and revision. No target, closure or
+  level changes. Register item `READER-INDEPENDENCE`.
 - `decisions/ADR-0006-specification-is-normative.md` (Status and
   Consequences), `decisions/ADR-0007-behaviours-kept-as-built.md` (Context)
   and `decisions/ADR-0008-assurance-expectations.md` (decisions 4, 6 and 7,
