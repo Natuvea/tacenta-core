@@ -2,7 +2,7 @@
 
 An implementation of parts of the Tacenta protocol specification, written to
 test whether the specification alone is enough to build from. Passes 2 to 7 were
-each run in a separate directory, on the author's own isolation records, which for
+each run in a separate directory, on each pass's own isolation records, which for
 passes 3 to 7 also name what else was in view, and for passes 2, 3, 6 and 7 something
 done or left outside that directory (Isolation, The records read together); pass 1 has none.
 Passes 8 to 11 and later maintenance were made with the implementation in view. Passes 12, 13 and 14 have isolation records written by their own author, as
@@ -432,8 +432,12 @@ point here.
 - **Whose records.** Each record is the account of the pass it describes,
   written by that pass's author. The records are self-reported: none names its
   author, and no check of any of them by anyone outside the project is recorded
-  in this repository (`GAP-REGISTER.md`, `READER-INDEPENDENCE`). The import of pass 3 reworded two
-  of its isolation notes (commit `dac126c0`); their first wording is not kept.
+  in this repository (`GAP-REGISTER.md`, `READER-INDEPENDENCE`). The message
+  of the commit that imported pass 3 (`dac126c0`) says it gave "two isolation
+  notes" a plainer wording, and does not say which. That commit gave pass 2's
+  note its present wording; the first wording, which opened "A slip in the
+  second pass", is in commit `c76850fd`. The wording of pass 3's notes before
+  that commit is not in this repository.
 - **Pass 1** has no isolation record in this tree. The README as first imported
   (commit `ca1e4578`) said it was written "without reading or searching
   anything outside this clean-room directory"; that sentence was removed when
@@ -443,7 +447,8 @@ point here.
   opened or searched. The message of its import commit (`c76850fd`) also
   records a temporary file written in that directory, then moved in and
   deleted; no file in this tree records that. The record says nothing about
-  other context in view.
+  other context in view. Its present wording dates from the import of pass 3
+  (above).
 - **Context in view, passes 3 to 7 and 12 to 14.** Each of these records says
   that an index of notes from other work was there: the working environment
   "carried" it (passes 3, 4, 6 and 7), it was "present in the working
@@ -462,14 +467,15 @@ point here.
   Passes 6 and 7 say that the index names several of the repositories the pass
   must not consult, and `../GAPS-7.md` adds that it summarises work on them;
   neither record says how that was known.
-- **No copy was kept.** No copy of the index or of the list is kept in this
-  repository, so what they held is not recorded beyond what passes 6 and 7 say
-  of it, and it is not reconstructed here.
+- **No copy in this repository.** No copy of the index or of the list is kept
+  in this repository, so what they held is not recorded beyond what passes 6
+  and 7 say of it, and it is not reconstructed here.
 - **What each pass was given.** Passes 1, 2, 7 and 12 refer to the request or
   brief they worked to ("the requested priorities", `../GAPS.md` and
   `../GAPS-2.md`; "this pass's brief", pass 7; "as the pass was directed",
   `../GAPS-12.md`). No pass's brief or request is kept in this repository, so
-  what each pass was told is not recorded here.
+  what each pass was told is not recorded here. `../GAPS-3.md` also names "this
+  pass's priorities", without saying who set them.
 - **Outside the directory.** Pass 6 opened one file outside its directory, the
   empty output file of its own background command. Pass 12 attempted one read
   outside its directory, which failed because the file did not exist. Passes 3,
@@ -481,8 +487,11 @@ point here.
   were made in the repository with the implementation in view and have no
   isolation record (Provenance).
 - **The P6 operation reader** (`../session-operation-reader.py`) is not one of
-  these passes. Its isolation record is not in this tree; only its hash is
-  (`../P6-OPERATION-READER-EVIDENCE.md`).
+  these passes. Its isolation record is not in this tree; its hash and a
+  one-sentence summary of it are (`../P6-OPERATION-READER-EVIDENCE.md`). The
+  reader's own docstring, its author's delivered text, calls it "deliberately
+  independent" and its packet "clean-room"; that wording is left as delivered
+  and is to be read with this subsection.
 - **The ML-KEM packet's dry run** is not one of these passes either. The
   project ran an earlier form of the packet's brief itself on 2026-10-03; that
   run is project-controlled, and its result is held and not published
@@ -508,15 +517,19 @@ what they ran, not independent review). So, in this repository:
   and 12 to 14, whose records name an index of notes from other work;
 - **independent review**: none of them is one.
 
-The names "specification-only reader", "clean-room pass" and "clean-room
-directory", in this README and in the assurance documents that point here, name
-the rule a pass worked under, as its record states, and the directory it worked
-in, under the conditions above; they claim nothing beyond them. The opening
-lines of the gap reports of passes 1 to 7 and 12 to 14 (`../GAPS.md` to
-`../GAPS-7.md` and `../GAPS-12.md` to `../GAPS-14.md`), and the released
-`[0.1.0]` and `[0.2.0]` entries of `tacenta-spec/CHANGELOG.md`, say that the
-reader was written from the specification and the vectors "alone" (the released
-entries add "with no access to the implementation"). Those are each pass's own
+The name "specification-only reader" is defined at the top of this README. The
+names "clean-room pass" and "clean-room directory", here and in the assurance
+documents that point here, name the rule a pass worked under, as its record
+states, and the directory it worked in, under the conditions above; they claim
+nothing beyond them. The opening lines of the gap reports of passes 1 to 7 and
+12 to 14 (`../GAPS.md` to `../GAPS-7.md` and `../GAPS-12.md` to
+`../GAPS-14.md`) call it "the clean-room reader" ("A clean-room reader" in
+pass 1) and say that it was extended or updated from `tacenta-spec` and
+`tacenta-test-vectors` "alone" (pass 1: written from them "only", under the
+title "building from tacenta-spec alone"), and the released `[0.1.0]` and
+`[0.2.0]` entries of `tacenta-spec/CHANGELOG.md` say that the reader was written
+from the specification and the vectors "alone" (they add "with no access to the
+implementation"). Those are each pass's own
 statement or released history, are not changed, and are to be read with this
 subsection.
 
