@@ -76,7 +76,7 @@ The pass added rules to the reader that the specification did not state, and the
 review found statements in the specification and the vector documentation that
 were incomplete or wrong. Each is now stated in the specification or the vector
 README by the pull request that carries this record. None is closed until a
-clean-room pass reads the new text (`clean-room-pass`), so each is listed as open.
+clean-room pass reads the new text, so each is listed as open.
 
 - **G11-01, AMBIGUOUS.** The v5
   `legacy_blocked` list: which identifiers migration writes, that the list is

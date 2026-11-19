@@ -79,6 +79,8 @@ they are skipped, not checked, and a green run of this reader says nothing
 about them. The same holds for the operation-trace supplement
 (`../../../session-operation-trace-supplement.md`), which no specification-only reader reads.
 
+On 2026-11-19 the maintainer removed one parenthesis naming an internal process from `../GAPS-11.md` as an editorial redaction; the report's findings, severities, dispositions and provenance are unchanged, and the report is otherwise as its pass wrote it.
+
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
 `../GAPS-4.md` (fourth), `../GAPS-5.md` (fifth), `../GAPS-6.md` (sixth),
