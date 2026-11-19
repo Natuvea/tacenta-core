@@ -490,7 +490,8 @@ point here.
   these passes. Its isolation record is not in this tree; its hash and a
   one-sentence summary of it are (`../P6-OPERATION-READER-EVIDENCE.md`). The
   reader's own docstring, its author's delivered text, calls it "deliberately
-  independent" and its packet "clean-room"; that wording is left as delivered
+  independent of tacenta-core, tacenta-model and any other implementation" and
+  its packet "clean-room"; that wording is left as delivered
   and is to be read with this subsection.
 - **The ML-KEM packet's dry run** is not one of these passes either. The
   project ran an earlier form of the packet's brief itself on 2026-10-03; that

@@ -283,7 +283,8 @@ the passes' own isolation records show, read against `main` at `9071dcf7`; the f
 written "from the specification alone"; practice 9, the Session orchestration row and the Roadmap no longer call the
 reader or the P6 operation reader "isolated": for the P6 operation reader they say that its isolation record is not in
 this tree and only its hash is, and for the project's reader practices 6 and 9 point to the README's statement. The requirement in practice 9's next step of "a new
-isolated run" is kept. No level, tick, target or status changed, and nothing else was re-read. The edit was made with
+isolated run" is kept. Practice 6 also names passes 12 to 14, which extended the reader with their own records, and
+says the records are each pass's own. No level, tick, target or status changed, and nothing else was re-read. The edit was made with
 tool assistance under the maintainer's account; no reader independent of the maintainer has read it.
 
 Parts of this project are written and reviewed with tool assistance. The
