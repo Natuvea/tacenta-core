@@ -214,7 +214,7 @@ prekey creation takes `bob_signed_prekey_secret`,
 names `unrelated_ephemeral_secret`, which is not a draw. Every refusal in both vectors that comes before the receive of a
 ratchet message draws nothing, and the runner requires that. In each vector one refused message reaches that receive: the message that established the session,
 sent again, which the ratchet has already read. It is offered `bob_repeat_random` on a source of its own, and the
-runner accepts it drawn or not; no page fixes whether it draws.
+runner accepts it drawn or not.
 `bob_repeat_random` is consumed and no output depends on it: the repeat takes
 no Diffie-Hellman step, so the fresh key the receive draws is never used. For
 the same reason the `z` half of each `d || z` draw, which only matters to
