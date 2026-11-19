@@ -21,12 +21,12 @@ taking their *content* from implementation files (`GAPS-5.md`, G5-07).
 Amended 2026-10-28: the reader is called the specification-only, project-controlled reader;
 nothing else changed (`tacenta-spec/CHANGELOG.md`).
 
-Amended by #NNN, effective when that pull request was merged into `main`: point 6 says
+Amended by #297, effective when that pull request was merged into `main`: point 6 says
 what each pass of a reader offered as evidence of sufficiency records, and what a pass
 may be called given its record. It had not said what a pass records. No requirement of
 the point is relaxed, the amendment is not retrospective, and no target, closure or
 level changes (`tacenta-spec/CHANGELOG.md`). The next change to `tacenta-spec/` records
-here the date and the commit on `main` that #NNN produced; until then the pull request's
+here the date and the commit on `main` that #297 produced; until then the pull request's
 merge record is the reference.
 
 ## Context
@@ -148,7 +148,7 @@ implementations, and what it promises ends up being whatever that code does.
      outputs are kept. Recording the edit does not preserve the claim: the affected part,
      and every conclusion whose justification depends on the change, fall outside it.
      Unaffected parts keep it where the separation is supported.
-   - **Names.** After #NNN was merged, an unqualified claim that a pass was isolated or
+   - **Names.** After #297 was merged, an unqualified claim that a pass was isolated or
      clean-room is a strict claim; earlier statements are read as the reader's README
      describes them. "Specification-only" names a second reader written from the
      specification and the vectors under the conditions its passes' records state. It is not
@@ -159,7 +159,7 @@ implementations, and what it promises ends up being whatever that code does.
      stands in for review under ADR-0008, decision 7. A pass that opened anything this
      point's second sentence names is not a test of sufficiency.
    - **From when.** These rules bind passes, and changes made to a reader outside a pass,
-     begun after #NNN was merged. A pass begun earlier may follow them and say so. Earlier
+     begun after #297 was merged. A pass begun earlier may follow them and say so. Earlier
      records are kept as they stand. None is reconstructed; adding an authentic existing
      record verified against its previously recorded hash is not reconstruction. This point
      changes no target, closure or level.

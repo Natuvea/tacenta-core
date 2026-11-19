@@ -319,10 +319,10 @@ status, class or target changed, and no acceptance asks for less: each added sen
 asks for nothing. The edit was made with tool assistance under the maintainer's account; no reader independent of the
 maintainer has read it, and no approval of it by the owner is recorded by an authenticated mechanism.
 
-On 2026-11-19, with #NNN, ADR-0006 point 6 came to say what each pass of a reader offered as evidence of sufficiency
+On 2026-11-19, with #297, ADR-0006 point 6 came to say what each pass of a reader offered as evidence of sufficiency
 records, who checks its supplied context, and when a strict clean-room claim may be made; the reader README's Pass
 record section says how a record is written. It binds passes, and changes made to a reader outside a pass, begun
-after #NNN was merged and changes no earlier record. No row's status, class, target or acceptance changed,
+after #297 was merged and changes no earlier record. No row's status, class, target or acceptance changed,
 `READER-INDEPENDENCE` included; the edit was made with tool assistance under the maintainer's account, and no reader
 independent of the maintainer has read it.
 

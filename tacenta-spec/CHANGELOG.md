@@ -170,7 +170,7 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
-- `decisions/ADR-0006-specification-is-normative.md`, point 6, amended by #NNN and recorded
+- `decisions/ADR-0006-specification-is-normative.md`, point 6, amended by #297 and recorded
   in Status: effective when that pull request was merged into `main`, not retrospectively;
   the next change to this directory records that date and the commit in Status. Point 6 had
   not said what a pass records. Every reader offered as evidence of sufficiency now keeps,
