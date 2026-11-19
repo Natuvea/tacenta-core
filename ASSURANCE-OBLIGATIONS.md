@@ -91,7 +91,7 @@ than security requirements.
 
   **Current evidence and remaining work:**
   The committed 27-trace corpus, allowlisted v4 packet, Jie Sun's reader, record (kept outside this repository; only its hash is here) and five passing controls (Jie Sun is a director of Natuvea Ltd, so this is related-party evidence, not independent review) are recorded in `tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md`.
-  The record's hash was re-verified on 2026-11-19 (see that file).
+  The record was located and matched its recorded hash on 2026-11-19 (see that file).
   [The L2 target decision](tacenta-model/P6-L2-TARGET-DECISION.md) records the covered families, declared-crypto boundary and reopen triggers.
 
   **Revisit or completion trigger:**

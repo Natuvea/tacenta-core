@@ -21,11 +21,14 @@ recomputed on that date from the files kept in the project's private
 records, and each matches the value recorded here. The reader as delivered
 is identical to the file first committed here. The packet manifest lists 55
 files; 54 of them match their listed hashes, and the trace corpus does not,
-because the corpus was extended after the manifest was made. So a match with
-the record's hash does not establish that the packet as it stands today is
-the packet as manifested. The record does not state the context in view at
-the start of the reader's work beyond naming the brief, where its outputs
-were written, any exposure after the run, or any context not retained. The
+because the corpus now kept with that packet has 27 traces and differs from
+the one the manifest lists, and the corpus committed here differs from both.
+So a match with the record's hash does not establish that the packet as it
+stands today is the packet as manifested. The record does not state where
+the reader's outputs were written, any exposure after the run, or any
+context not retained, and it does not state what context was in view at the
+start of the work beyond naming the packet, the brief and the author's
+earlier reader. The
 record is kept privately and is not published here. This check was made by
 the maintainer with tool assistance; it is project-controlled and is not an
 independent review. Nothing was reconstructed.
