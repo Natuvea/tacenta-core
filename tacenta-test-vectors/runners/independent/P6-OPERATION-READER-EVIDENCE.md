@@ -16,6 +16,20 @@ renewed clean-room declaration, manifest verification and a Darwin
 arm64/Python 3.9.6 run; its SHA-256 is
 `4be190a449a58f92141fc674a54c6c8d8a69293d1e71b0326721580fcfa2501d`.
 
+Maintainer's note, 2026-11-19. The three SHA-256 values above were
+recomputed on that date from the files kept in the project's private
+records, and each matches the value recorded here. The reader as delivered
+is identical to the file first committed here. The packet manifest lists 55
+files; 54 of them match their listed hashes, and the trace corpus does not,
+because the corpus was extended after the manifest was made. So a match with
+the record's hash does not establish that the packet as it stands today is
+the packet as manifested. The record does not state the context in view at
+the start of the reader's work beyond naming the brief, where its outputs
+were written, any exposure after the run, or any context not retained. The
+record is kept privately and is not published here. This check was made by
+the maintainer with tool assistance; it is project-controlled and is not an
+independent review. Nothing was reconstructed.
+
 The reader evaluates the committed 27-trace, 41-step session/prekey corpus
 from `tacenta-test-vectors/traces/session-operation-trace.json`. Its 36
 ordinary steps passed. All five controls failed as required: the original
