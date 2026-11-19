@@ -202,14 +202,19 @@ and exact lengths in `one-time-prekeys-first-message` are:
    `alice_kem_encapsulation_m` (32), `alice_ratchet_secret` (32);
 3. initiator's first send: `alice_braid_keygen_d_z` (64);
 4. responder establishment: `bob_ratchet_secret` (32);
-5. the responder's repeated receive: `bob_repeat_random` (32).
+5. each later receive of the responder that reaches the receive of a ratchet message, from a source of its own:
+   `bob_repeat_random` (32), offered both to the refused receive of the message that established the session,
+   sent again, and to the accepted repeat. A later message refused as `NotARepeatedInitial` is given an empty
+   source, and must draw nothing.
 
 `last-resort-first-message` draws the same way without the one-time entries:
 prekey creation takes `bob_signed_prekey_secret`,
 `bob_signed_prekey_signature_nonce`, `bob_last_resort_kem_d_z` and
 `bob_last_resort_kem_signature_nonce`, and steps 2 to 5 are unchanged. It also
-names `unrelated_ephemeral_secret`, which is not a draw. Every refused message
-in both vectors is refused before any random draw, and the runner requires that.
+names `unrelated_ephemeral_secret`, which is not a draw. Every refusal in both vectors that comes before the receive of a
+ratchet message draws nothing, and the runner requires that. In each vector one refused message reaches that receive: the message that established the session,
+sent again, which the ratchet has already read. It is offered `bob_repeat_random` on a source of its own, and the
+runner accepts it drawn or not; no page fixes whether it draws.
 `bob_repeat_random` is consumed and no output depends on it: the repeat takes
 no Diffie-Hellman step, so the fresh key the receive draws is never used. For
 the same reason the `z` half of each `d || z` draw, which only matters to
