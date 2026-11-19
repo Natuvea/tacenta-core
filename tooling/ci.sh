@@ -345,10 +345,11 @@ deep_only bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 
 # A second reader of the same vectors. At run time it reads the vectors and
 # imports nothing from tacenta-core or tacenta-model (ADR-0006). Its first
-# passes were written from tacenta-spec and the vectors alone; later
-# maintenance, including the real-primitive session handler, was done in this
-# repository with the implementation in view (its README, Provenance, says
-# which). What it cannot reproduce, or a refusal the specification states that
+# passes were written from tacenta-spec and the vectors, on their own
+# self-reported isolation records, which also name context in view (its
+# README, Isolation, says what they show); later maintenance, including the
+# real-primitive session handler, was done in this repository with the
+# implementation in view (its README, Provenance, says which). What it cannot reproduce, or a refusal the specification states that
 # it cannot confirm, is a question about the specification, not about this
 # runner. The sweep corrupts every byte it says it checks and requires it to
 # notice.
