@@ -92,7 +92,7 @@ or a delegated-layout exclusion as interchangeable.
 
 P7's Braid operation target is a real-ML-KEM execution control for every
 documented state-machine transition, paired with the specification-only reader's
-specification-only transition-table test. It is not a committed persisted
+transition-table test. It is not a committed persisted
 operation-vector corpus: such a corpus would have to embed valid `key_pair` or
 encapsulation values in the KEM implementation's delegated layout. It could
 only be produced by the same layout-aware implementation, while a reader
