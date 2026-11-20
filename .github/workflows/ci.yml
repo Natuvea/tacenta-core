@@ -113,8 +113,8 @@ jobs:
       # a committed expected file (`tests/kem_incremental_package.rs`) that was
       # written from this portable build and is also checked by the default
       # build in the `rust_test` step. The third command runs the vendored NIST
-      # ACVP sample vectors (`tests/kem_acvp_vectors.rs`) the same way: tested
-      # agreement with their expected answers, not certification. The last lines
+      # ACVP sample vectors (`tests/kem_acvp_vectors.rs`) on this portable build:
+      # tested agreement with their expected answers, not certification. The last lines
       # then read cargo's own
       # record of libcrux's build script (`--message-format=json`, the
       # `build-script-executed` message, which does not depend on how the
@@ -123,7 +123,7 @@ jobs:
       # build that was not forced fails here, and so does finding no record,
       # more than one, or one without its `cfgs` list in the form cargo writes
       # (the record is selected by its own `package_id`, and any mention of
-      # `simd` in it fails). The third cargo line writes its messages to a
+      # `simd` in it fails). The fourth cargo line writes its messages to a
       # file, so a cargo failure stops the step before anything is read.
       # This shows what was compiled in, not which backend a default
       # build executes. A separate target

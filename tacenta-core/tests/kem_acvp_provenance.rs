@@ -36,7 +36,7 @@ const DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/acvp-ml-kem"
 
 /// SHA-256 of `SHA256SUMS.txt`. Written here so that editing the list of
 /// hashes is not enough to change what the test accepts.
-const SUMS_SHA256: &str = "cbaf526d3f28e340a78c055191c203c27eb6226155d6bdab0994cd38d8c7afb9";
+const SUMS_SHA256: &str = "ebd49536832a4aed2a7ca49e2a3828cd40bcc650941d94ca37502ceeab3ed045";
 
 /// Every file the sums list must name, and nothing else.
 const LISTED: [&str; 19] = [

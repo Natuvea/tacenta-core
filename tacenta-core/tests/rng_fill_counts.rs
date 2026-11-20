@@ -229,7 +229,7 @@ fn incremental_key_generation_fills_one_64_byte_seed() {
 
 /// `encapsulate1` fills one 32-byte buffer and touches the random source
 /// nowhere else, and its three outputs (the ciphertext half, the shared secret,
-/// the serialised state) depend on those 32 bytes and the header only. On a
+/// the serialised state) are the same when a second source type yields the same 32 bytes for the same header. On a
 /// header of the wrong length it refuses before reading the random source (no
 /// call at all). Every 64-byte header tried, genuine or not, succeeds with one
 /// 32-byte fill; no refusal after a draw was found.
@@ -292,7 +292,7 @@ fn encapsulate1_fills_one_32_byte_buffer() {
 /// to count and the test is that they are deterministic: the same inputs give
 /// the same outputs on repeat calls.
 #[test]
-fn encapsulate2_and_decapsulate_draw_nothing() {
+fn encapsulate2_and_decapsulate_are_deterministic_on_repeat_calls() {
     let (mut rng, _) = Counting::new(9);
     let pair = IncrementalKeyPair::generate(&mut rng).expect("generates");
     let (state, ct1, ss) = tacenta_kem::encapsulate1(&pair.header(), &mut rng).expect("ok");

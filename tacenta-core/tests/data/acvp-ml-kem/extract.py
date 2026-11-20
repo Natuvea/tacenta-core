@@ -1,5 +1,5 @@
 """Deterministic re-arrangement of upstream NIST ACVP ML-KEM-1024 sample vectors.
-Usage: python3 -I record/extract.py original/ record/mlkem1024-acvp-fixture.json
+Usage, from this directory: python3 -I extract.py original mlkem1024-acvp-fixture.json
 Pure joins by tgId/tcId; no value is computed. Fails loudly on any anomaly."""
 import json, sys, os
 

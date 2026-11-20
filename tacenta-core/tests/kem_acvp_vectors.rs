@@ -32,13 +32,18 @@
 //!   - key generation: the wrapper's `generate`, given the ACVP seed, has the
 //!     public parts of the expected `ek` (`ek_vector` and `rho`) and the hash
 //!     `H(ek)` that sits in the expected `dk`. Direct for the public parts.
-//!     Its private half is exercised only through decapsulation below.
+//!     Its private half is not compared with the expected `dk`; it is
+//!     exercised only through decapsulation of the seed-format group's own
+//!     seeds, below.
 //!   - encapsulation: `encapsulate1` then `encapsulate2` from the expected
 //!     `ek` and `m` give the expected `c` and `k`. Direct. The wrapper only
 //!     encapsulates to a header (`rho || H(ek)`) and an `ek_vector`, so the
 //!     header is derived from the ACVP `ek` here with a test-only SHA3-256
-//!     (checked first against FIPS 202 known answers and against the `H(ek)`
-//!     stored in the ACVP decapsulation keys).
+//!     (checked, in `the_test_only_sha3_is_correct_on_published_values`, against
+//!     three published SHA3-256 values (empty string, "abc", 200 bytes of 0xA3)
+//!     and the 25 `H(ek)` values stored in the ACVP decapsulation keys; a wrong
+//!     hash also fails the incremental encapsulation and key-check tests, since
+//!     `H(ek)` feeds `k` and `c`).
 //!   - decapsulation: only the `FIPS203-tr1` seed-format group carries the
 //!     seeds `d`, `z` that the wrapper can be given; its `decapsulate` of the
 //!     expected `c` (split at 1,408 bytes), on cases upstream labels valid and modified, gives the
@@ -72,7 +77,7 @@
 //!
 //! `encapsulationKeyCheck` is run through libcrux's `validate_public_key` and
 //! the wrapper's `validate_ek`; `decapsulationKeyCheck` through libcrux's
-//! `validate_private_key_only` (the hash check). The "valid" or "modified"
+//! portable `validate_private_key_only` (the hash check). The "valid" or "modified"
 //! label of each case is UPSTREAM'S, carried in the fixture as `reason` (from
 //! upstream's internal projection file), and
 //! the expected `testPassed` is upstream's. Not exercised: the checks of FIPS
@@ -388,8 +393,11 @@ impl CryptoRng for TestOnlyFixedRng {}
 /// header `rho || H(ek)` and `ek_vector`, so building a header from an ACVP
 /// `ek` needs `H(ek) = SHA3-256(ek)`; the root package has no SHA3 dependency
 /// and adding one would change the lockfile. Written from FIPS 202, and
-/// checked below before any use against two published known answers and
-/// against the 25 `H(ek)` values stored in the ACVP keys.
+/// checked, in `the_test_only_sha3_is_correct_on_published_values`, against
+/// three published SHA3-256 values (empty string, "abc", 200 bytes of 0xA3) and
+/// the 25 `H(ek)` values stored in the ACVP decapsulation keys; a wrong hash
+/// also fails the incremental encapsulation and key-check tests, since `H(ek)`
+/// feeds `k` and `c`.
 fn test_only_sha3_256(msg: &[u8]) -> [u8; 32] {
     const RC: [u64; 24] = [
         0x0000_0000_0000_0001,
@@ -854,7 +862,7 @@ fn fips203_tr1_encapsulation_key_checks_agree_with_the_expected_results() {
     check_encapsulation_key_checks_agree_with_the_expected_results(FIPS203_TR1);
 }
 
-/// `decapsulationKeyCheck`: libcrux's `validate_private_key_only` (the check
+/// `decapsulationKeyCheck`: libcrux's portable `validate_private_key_only` (the check
 /// that the stored hash of the encapsulation key is right) agrees with
 /// upstream's expected `testPassed`, on the keys upstream labels valid and those it
 /// labels "modified H" (upstream's labels).
