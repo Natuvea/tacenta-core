@@ -112,7 +112,10 @@ jobs:
       # incremental path against libcrux's standard ML-KEM-1024 API and against
       # a committed expected file (`tests/kem_incremental_package.rs`) that was
       # written from this portable build and is also checked by the default
-      # build in the `rust_test` step. The last lines then read cargo's own
+      # build in the `rust_test` step. The third command runs the vendored NIST
+      # ACVP sample vectors (`tests/kem_acvp_vectors.rs`) the same way: tested
+      # agreement with their expected answers, not certification. The last lines
+      # then read cargo's own
       # record of libcrux's build script (`--message-format=json`, the
       # `build-script-executed` message, which does not depend on how the
       # target directory is laid out): its `cfgs` list a `simd128` or
@@ -131,6 +134,7 @@ jobs:
         run: |
           cargo test --locked -p tacenta-kem -p tacenta-braid -p tacenta-lifecycle --target-dir target/portable
           cargo test --locked -p tacenta-core --test kem_incremental_package --target-dir target/portable
+          cargo test --locked -p tacenta-core --test kem_acvp_vectors --target-dir target/portable
           cargo test --locked -p tacenta-core --test kem_incremental_package --target-dir target/portable --no-run --message-format=json > target/portable/build-messages.json
           grep '"reason":"build-script-executed"' target/portable/build-messages.json | grep -E '"package_id":"([^"]*#)?libcrux-ml-kem[@ ]' > target/portable/libcrux-build-record.json || { echo "no libcrux build-script record found"; exit 1; }
           test "$(wc -l < target/portable/libcrux-build-record.json)" -eq 1 || { echo "expected one libcrux build-script record"; exit 1; }
