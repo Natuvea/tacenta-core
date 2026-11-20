@@ -2,3 +2,5 @@ tacenta-core
 Copyright 2026 Natuvea Ltd
 
 This product includes software developed by Natuvea Ltd (https://natuvea.com).
+
+Third-party test data. The files under `tacenta-core/tests/data/acvp-ml-kem/original/` are from the National Institute of Standards and Technology's ACVP-Server repository and are reproduced unchanged; `tacenta-core/tests/data/acvp-ml-kem/mlkem1024-acvp-fixture.json` is a data fixture derived from them by re-arrangement. Those files retain their accompanying notices and terms, which are reproduced with their provenance in `tacenta-core/tests/data/acvp-ml-kem/PROVENANCE.md`. This does not extend to the project's own test code or to the extraction script in that directory.

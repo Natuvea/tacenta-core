@@ -695,9 +695,13 @@ This tree contains no libsignal implementation source, compiled libsignal
 objects, reference-adapter implementation, research transcripts, or
 libsignal-derived fixtures.
 
+Test data only: NIST's ACVP sample vectors for ML-KEM, vendored unchanged under `tacenta-core/tests/data/acvp-ml-kem/`, with their notices and provenance in that directory's `PROVENANCE.md`.
+
 ## License
 
 Apache-2.0. See `LICENSE`.
+
+The NIST test data and the fixture derived from it, identified in `NOTICE`, retain their accompanying notices and terms; see `tacenta-core/tests/data/acvp-ml-kem/PROVENANCE.md`.
 
 ## Trademarks and non-affiliation
 
