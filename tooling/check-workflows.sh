@@ -108,6 +108,15 @@
 #    `PROMPT_COMMAND`. Any of them could make a step such as rule 8's guard
 #    succeed without testing anything. This is a deny-list of the variables
 #    known to do that, not a proof that no environment can change a script.
+# 12. In the job `assurance-receipts`, the step that verifies the downloaded
+#    evidence pack is the last step, is exactly the command
+#    `python3 tooling/build-evidence-pack.py --verify
+#    .assurance/evidence-pack-downloaded --candidate-repo .`, and has no key
+#    but `name` and `run`: no `if`, no `continue-on-error`, so a job that ends
+#    successful has run it and it passed. The step-level `continue-on-error`
+#    refusal has one exception, the first two attempts to download that pack
+#    (ids `download_pack_1` and `download_pack_2`, each the pinned
+#    download action with the literal `true`); the third attempt has none.
 #
 # What this script does not do, said plainly. It runs from the tree it is
 # checking. A pull request runs its own copy of the workflow, of this script and
@@ -502,6 +511,49 @@ def allowed_step_if(job_name, step):
             and normalized_expression(step.get("if")) == entry[0]
             and step.get("run") == entry[1])
 
+# Rule 12. The one job that downloads the stored evidence pack and verifies it
+# may retry the download, which needs `continue-on-error` on the first two
+# attempts: a failed attempt must not fail the job, since the next attempt
+# may succeed. This is the whole list of exceptions to the step-level
+# `continue-on-error` refusal, keyed by job and step id; the step must be the
+# pinned download action, and the value must be the literal `true`. The third
+# attempt has none, so a third failure fails the job. The job's last
+# command, the verification of the downloaded pack, must carry no `if` and no
+# `continue-on-error` and no other key but a label, so that it runs, and must
+# pass, in every job that ends successful: a step with no `if` is skipped only
+# after an earlier step failed or the run was cancelled, and either leaves the
+# job unsuccessful.
+EVIDENCE_JOB = "assurance-receipts"
+VERIFY_DOWNLOADED_RUN = ("python3 tooling/build-evidence-pack.py --verify "
+                         ".assurance/evidence-pack-downloaded --candidate-repo .")
+ALLOWED_STEP_CONTINUE_ON_ERROR = {
+    (EVIDENCE_JOB, "download_pack_1"),
+    (EVIDENCE_JOB, "download_pack_2"),
+}
+
+def allowed_continue_on_error(job_name, step):
+    """Whether this step's `continue-on-error` is one of `ALLOWED_STEP_CONTINUE_ON_ERROR`."""
+    return ((job_name, step.get("id")) in ALLOWED_STEP_CONTINUE_ON_ERROR
+            and step.get("continue-on-error") is True
+            and isinstance(step.get("uses"), str)
+            and step["uses"].startswith("actions/download-artifact@"))
+
+def check_evidence_verification(f, name, steps):
+    """Rule 12: the verification of the downloaded pack is unconditional."""
+    found = [s for s in steps if isinstance(s, dict) and s.get("run") == VERIFY_DOWNLOADED_RUN]
+    if len(found) != 1:
+        complain("%s job '%s' must have exactly one step that runs `%s`, found %d"
+                 % (f, name, VERIFY_DOWNLOADED_RUN, len(found)))
+        return
+    extra = sorted(set(found[0]) - {"name", "run"})
+    if extra:
+        complain("%s job '%s' step that verifies the downloaded evidence pack has %s -- it "
+                 "must carry no `if`, `continue-on-error` or other key, so that a successful "
+                 "job has run it and it passed" % (f, name, ", ".join("`%s`" % k for k in extra)))
+    if steps[-1] is not found[0]:
+        complain("%s job '%s': the step that verifies the downloaded evidence pack must be the "
+                 "last step" % (f, name))
+
 def receipt_steps(steps):
     """The steps that call the receipt action, however the path is spelled."""
     return [s for s in steps
@@ -877,7 +929,7 @@ for f in files:
                     complain("%s job '%s' has required command step '%s' with "
                              "an unapproved step-level `if` -- required "
                              "commands must run" % (f, name, step.get("id") or "(no id)"))
-            if "continue-on-error" in step:
+            if "continue-on-error" in step and not allowed_continue_on_error(name, step):
                 if required_receipt or is_truthy_continue_on_error(step.get("continue-on-error")):
                     complain("%s job '%s' has a step-level `continue-on-error` "
                              "that can mask a required command" % (f, name))
@@ -917,6 +969,10 @@ for f in files:
             run = step.get("run")
             if isinstance(run, str):
                 check_run(f, name, run)
+
+        # Rule 12.
+        if name == EVIDENCE_JOB:
+            check_evidence_verification(f, name, steps)
 
         # A receipt must account for every command step that can run for the
         # event that receipt represents, and for nothing else. The rule is that

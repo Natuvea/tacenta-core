@@ -944,8 +944,67 @@ jobs:
       # The pack as GitHub stores it: downloaded again and verified against this
       # commit, so what a reader fetches is what was checked, hidden files
       # included.
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      #
+      # The download is tried at most three times, by the same pinned action
+      # with the same name and path: once, again after 20 seconds if the step
+      # did not succeed, and a last time after 60 seconds. This is decided by
+      # the step's outcome, never by the error text. It exists because the
+      # download failed once, on a first attempt, with "No artifacts found for
+      # ID" for an artifact the same job had just uploaded and that was listed
+      # afterwards (run 44761187583); the cause of that one failure is not
+      # established. The first two attempts have `continue-on-error` so the job
+      # goes on to the next; the third does not, so a third failure fails the
+      # job. Each later attempt is conditioned on the outcome 'failure' of
+      # every earlier one, never on "not success": a skipped step has the
+      # outcome 'skipped', and must not start the next attempt. The directory
+      # is removed before each later attempt, so nothing a failed attempt left
+      # behind is verified.
+      #
+      # Whatever happens above, the verification step at the end has no `if`
+      # and no `continue-on-error`: it runs after every earlier step succeeded,
+      # so a job cannot end successful without it having run and passed.
+      # It is not retried. tooling/check-workflows.sh holds all of this.
+      - id: download_pack_1
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: evidence-pack
           path: .assurance/evidence-pack-downloaded
+      - id: download_pack_wait_2
+        if: steps.download_pack_1.outcome == 'failure'
+        run: rm -rf .assurance/evidence-pack-downloaded && sleep 20
+      - id: download_pack_2
+        if: steps.download_pack_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack-downloaded
+      - id: download_pack_wait_3
+        if: steps.download_pack_1.outcome == 'failure' && steps.download_pack_2.outcome == 'failure'
+        run: rm -rf .assurance/evidence-pack-downloaded && sleep 60
+      - id: download_pack_3
+        if: steps.download_pack_1.outcome == 'failure' && steps.download_pack_2.outcome == 'failure'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack-downloaded
+      # Says which attempt succeeded, and fails when none did, whatever is in
+      # the directory.
+      - id: download_pack_result
+        env:
+          ATTEMPT_1: ${{ steps.download_pack_1.outcome }}
+          ATTEMPT_2: ${{ steps.download_pack_2.outcome }}
+          ATTEMPT_3: ${{ steps.download_pack_3.outcome }}
+        run: |
+          if [ "$ATTEMPT_1" = success ]; then
+            echo "evidence-pack download: attempt 1 of 3 succeeded"
+          elif [ "$ATTEMPT_1" = failure ] && [ "$ATTEMPT_2" = success ]; then
+            echo "evidence-pack download: attempt 2 of 3 succeeded (attempt 1 failed)"
+          elif [ "$ATTEMPT_1" = failure ] && [ "$ATTEMPT_2" = failure ] && [ "$ATTEMPT_3" = success ]; then
+            echo "evidence-pack download: attempt 3 of 3 succeeded (attempts 1 and 2 failed)"
+          else
+            echo "evidence-pack download: no attempt succeeded (outcomes: 1=$ATTEMPT_1 2=$ATTEMPT_2 3=$ATTEMPT_3)" >&2
+            exit 1
+          fi
       - run: python3 tooling/build-evidence-pack.py --verify .assurance/evidence-pack-downloaded --candidate-repo .

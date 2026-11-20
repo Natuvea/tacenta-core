@@ -368,10 +368,48 @@ def job_bash_func(w): w["jobs"]["attest-negatives"]["env"] = {"BASH_FUNC_test%%"
 def translation_bash_env(w): w["jobs"]["translation"]["env"] = {"BASH_ENV": "/tmp/bypass"}
 def translation_part_bash_func(w): w["jobs"]["translation-part"]["env"] = {"BASH_FUNC_bash%%": "() { return 0; }"}
 
+# The evidence pack's download is retried, and the verification of what was downloaded must stay unconditional
+# (rule 12). Each edit below is made to the repository's own workflow and rewrites
+# `tooling/required-steps.json` to match, as the person making the edit would: the rule itself must refuse it.
+def verify_step(w):
+    return [s for s in w["jobs"]["assurance-receipts"]["steps"]
+            if str(s.get("run", "")).endswith("--verify .assurance/evidence-pack-downloaded --candidate-repo .")][0]
+def verify_if(w): verify_step(w)["if"] = "steps.download_pack_result.outcome == 'success'"
+def verify_if_always(w): verify_step(w)["if"] = "always()"
+def verify_continue(w): verify_step(w)["continue-on-error"] = True
+def verify_continue_dynamic(w): verify_step(w)["continue-on-error"] = "${{ github.run_id > 0 }}"
+def verify_masked(w): verify_step(w)["run"] += " || true"
+def verify_not_last(w): w["jobs"]["assurance-receipts"]["steps"].append({"run": "echo done"})
+def verify_removed(w): w["jobs"]["assurance-receipts"]["steps"].remove(verify_step(w))
+def third_continue(w): step(w, "assurance-receipts", "download_pack_3")["continue-on-error"] = True
+def wait_continue(w): step(w, "assurance-receipts", "download_pack_wait_2")["continue-on-error"] = True
+def result_continue(w): step(w, "assurance-receipts", "download_pack_result")["continue-on-error"] = True
+def upload_continue(w):
+    for s in w["jobs"]["assurance-receipts"]["steps"]:
+        if str(s.get("uses", "")).startswith("actions/upload-artifact@"): s["continue-on-error"] = True; return
+    raise SystemExit("real-tree case: no upload step")
+def other_job_continue(w):
+    step(w, "rust", "rust_test")["continue-on-error"] = True
+evidence_edits = [
+    ("evidence-verify-01", verify_if, "step that verifies the downloaded evidence pack has `if`"),
+    ("evidence-verify-02", verify_if_always, "step that verifies the downloaded evidence pack has `if`"),
+    ("evidence-verify-03", verify_continue, "step that verifies the downloaded evidence pack has `continue-on-error`"),
+    ("evidence-verify-04", verify_continue_dynamic, "step that verifies the downloaded evidence pack has `continue-on-error`"),
+    ("evidence-verify-05", verify_masked, "must have exactly one step that runs"),
+    ("evidence-verify-06", verify_not_last, "must be the last step"),
+    ("evidence-verify-07", verify_removed, "must have exactly one step that runs"),
+    ("evidence-verify-08", third_continue, "step-level `continue-on-error` that can mask a required command"),
+    ("evidence-verify-09", wait_continue, "step-level `continue-on-error` that can mask a required command"),
+    ("evidence-verify-10", result_continue, "step-level `continue-on-error` that can mask a required command"),
+    ("evidence-verify-11", upload_continue, "step-level `continue-on-error` that can mask a required command"),
+    ("evidence-verify-12", other_job_continue, "step-level `continue-on-error` that can mask a required command"),
+]
+
 guard_needle = "emits a required receipt and needs another job"
 rule_edits = [("needs-guard-%02d" % i, fn, guard_needle) for i, fn in enumerate(
     guard_edits("attest-negatives", "negatives_slices_passed")
     + guard_edits("translation", "translation_parts_passed"), 1)]
+rule_edits += evidence_edits
 rule_edits += [("shell-env-01", job_bash_env, "sets BASH_ENV in `env` at the job level"),
                ("shell-env-02", workflow_bash_env, "sets BASH_ENV in `env` at the workflow level"),
                ("shell-env-03", job_bash_func, "sets BASH_FUNC_test%% in `env` at the job level"),
