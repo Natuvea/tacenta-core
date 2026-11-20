@@ -595,7 +595,16 @@ target-closing slice or a target change as `GAP-REGISTER.md`'s class key defines
   `tooling/check-workflows.sh`
 
   **Protected property:**
-  Workflow files parse and obey the ten rules in the checker's header (pinned actions and images, a `permissions` block, checkout credentials, no download piped to a shell, `self-hosted` only on a push to `main`, no disabled job, the receipt form and the expected form), and the required workflow equals its expected form in `tooling/required-steps.json`.
+  Workflow files parse and obey the twelve rules in the checker's header (pinned actions and images,
+  a `permissions` block,
+  checkout credentials,
+  no download piped to a shell,
+  `self-hosted` only on a push to `main`,
+  no disabled job,
+  the receipt form and the expected form,
+  no `env` variable that changes how bash runs a script,
+  and the exact retry of the evidence-pack download with a last verification step that has no condition of its own),
+  and the required workflow equals its expected form in `tooling/required-steps.json`.
   It does not refuse a `pull_request_target` trigger or write permissions in a further workflow.
 
   **Current negative-control evidence:**

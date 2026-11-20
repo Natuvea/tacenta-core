@@ -108,15 +108,21 @@
 #    `PROMPT_COMMAND`. Any of them could make a step such as rule 8's guard
 #    succeed without testing anything. This is a deny-list of the variables
 #    known to do that, not a proof that no environment can change a script.
-# 12. In the job `assurance-receipts`, the step that verifies the downloaded
-#    evidence pack is the last step, is exactly the command
-#    `python3 tooling/build-evidence-pack.py --verify
+# 12. In the job `assurance-receipts`, the steps between the upload of the
+#    `evidence-pack` artifact and the verification of the downloaded pack equal
+#    an exact list in this script: three attempts of the pinned download action
+#    (the commit, artifact name and path included), the removal and wait steps,
+#    and the result step, each with its `if`, its `continue-on-error` (the
+#    literal true on the first two attempts only), `env` and script. No other
+#    step of the job, and not the job, has a `continue-on-error` key in any
+#    form. The step that verifies the downloaded pack is the last step, is
+#    exactly the command `python3 tooling/build-evidence-pack.py --verify
 #    .assurance/evidence-pack-downloaded --candidate-repo .`, and has no key
-#    but `name` and `run`: no `if`, no `continue-on-error`, so a job that ends
-#    successful has run it and it passed. The step-level `continue-on-error`
-#    refusal has one exception, the first two attempts to download that pack
-#    (ids `download_pack_1` and `download_pack_2`, each the pinned
-#    download action with the literal `true`); the third attempt has none.
+#    but `name` and `run`, so it has no condition of its own. That a job which
+#    ends successful has run it and it passed rests on this and on GitHub's
+#    documented step semantics (an implicit `success() &&` on a step without a
+#    status function, `outcome` recorded before `continue-on-error`, `skipped`
+#    for a step not run), which this script does not exercise.
 #
 # What this script does not do, said plainly. It runs from the tree it is
 # checking. A pull request runs its own copy of the workflow, of this script and
@@ -512,47 +518,101 @@ def allowed_step_if(job_name, step):
             and step.get("run") == entry[1])
 
 # Rule 12. The one job that downloads the stored evidence pack and verifies it
-# may retry the download, which needs `continue-on-error` on the first two
-# attempts: a failed attempt must not fail the job, since the next attempt
-# may succeed. This is the whole list of exceptions to the step-level
-# `continue-on-error` refusal, keyed by job and step id; the step must be the
-# pinned download action, and the value must be the literal `true`. The third
-# attempt has none, so a third failure fails the job. The job's last
-# command, the verification of the downloaded pack, must carry no `if` and no
-# `continue-on-error` and no other key but a label, so that it runs, and must
-# pass, in every job that ends successful: a step with no `if` is skipped only
-# after an earlier step failed or the run was cancelled, and either leaves the
-# job unsuccessful.
+# may retry the download. Retrying needs `continue-on-error` on the first two
+# attempts: a failed attempt must not fail the job, since the next attempt may
+# succeed. In this job the steps between the upload of `evidence-pack` and the
+# verification of the downloaded pack must equal EVIDENCE_RETRY_STEPS exactly
+# (every key but the `name:` label: ids, `if`, `continue-on-error`, `uses`,
+# `with`, `env`, `run`), so a changed condition, a missing wait, removal or
+# result step, a different action commit, name or path, or a fourth attempt is
+# refused here and not only shown as a difference of required-steps.json. No
+# other step of the job, and not the job itself, may carry a `continue-on-error`
+# key of any form. The verification step must be the step right after them, the
+# last step, exactly the command below, and have no key but `name` and `run`:
+# it has no condition of its own, and a step with no `if` is skipped only after
+# an earlier step failed or the run was cancelled, which leaves the job
+# unsuccessful. What the checker cannot see is GitHub's behaviour: that rests on
+# the documented step semantics (an implicit `success() &&`, `outcome` before
+# `continue-on-error`, `skipped` for a step not run).
 EVIDENCE_JOB = "assurance-receipts"
 VERIFY_DOWNLOADED_RUN = ("python3 tooling/build-evidence-pack.py --verify "
                          ".assurance/evidence-pack-downloaded --candidate-repo .")
-ALLOWED_STEP_CONTINUE_ON_ERROR = {
-    (EVIDENCE_JOB, "download_pack_1"),
-    (EVIDENCE_JOB, "download_pack_2"),
-}
+DOWNLOAD_ACTION = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
+DOWNLOAD_PATH = ".assurance/evidence-pack-downloaded"
+_FAIL1 = "steps.download_pack_1.outcome == 'failure'"
+_FAIL12 = _FAIL1 + " && steps.download_pack_2.outcome == 'failure'"
+def _attempt(ident, condition, mask):
+    step = {"id": ident}
+    if condition:
+        step["if"] = condition
+    if mask:
+        step["continue-on-error"] = True
+    step["uses"] = DOWNLOAD_ACTION
+    step["with"] = {"name": "evidence-pack", "path": DOWNLOAD_PATH}
+    return step
+EVIDENCE_RETRY_STEPS = [
+    _attempt("download_pack_1", None, True),
+    {"id": "download_pack_wait_2", "if": _FAIL1, "run": "rm -rf %s && sleep 20" % DOWNLOAD_PATH},
+    _attempt("download_pack_2", _FAIL1, True),
+    {"id": "download_pack_wait_3", "if": _FAIL12, "run": "rm -rf %s && sleep 60" % DOWNLOAD_PATH},
+    _attempt("download_pack_3", _FAIL12, False),
+    {"id": "download_pack_result",
+     "env": {"ATTEMPT_1": "${{ steps.download_pack_1.outcome }}",
+             "ATTEMPT_2": "${{ steps.download_pack_2.outcome }}",
+             "ATTEMPT_3": "${{ steps.download_pack_3.outcome }}"},
+     "run": ('''if [ "$ATTEMPT_1" = success ]; then
+  echo "evidence-pack download: attempt 1 of 3 succeeded"
+elif [ "$ATTEMPT_1" = failure ] && [ "$ATTEMPT_2" = success ]; then
+  echo "evidence-pack download: attempt 2 of 3 succeeded (attempt 1 failed)"
+elif [ "$ATTEMPT_1" = failure ] && [ "$ATTEMPT_2" = failure ] && [ "$ATTEMPT_3" = success ]; then
+  echo "evidence-pack download: attempt 3 of 3 succeeded (attempts 1 and 2 failed)"
+else
+  echo "evidence-pack download: no attempt succeeded (outcomes: 1=$ATTEMPT_1 2=$ATTEMPT_2 3=$ATTEMPT_3)" >&2
+  exit 1
+fi
+''')},
+]
 
-def allowed_continue_on_error(job_name, step):
-    """Whether this step's `continue-on-error` is one of `ALLOWED_STEP_CONTINUE_ON_ERROR`."""
-    return ((job_name, step.get("id")) in ALLOWED_STEP_CONTINUE_ON_ERROR
-            and step.get("continue-on-error") is True
-            and isinstance(step.get("uses"), str)
-            and step["uses"].startswith("actions/download-artifact@"))
-
-def check_evidence_verification(f, name, steps):
-    """Rule 12: the verification of the downloaded pack is unconditional."""
-    found = [s for s in steps if isinstance(s, dict) and s.get("run") == VERIFY_DOWNLOADED_RUN]
+def check_evidence_verification(f, name, job):
+    """Rule 12: the retry steps are exactly as listed, no mask is anywhere else, and the verification of the
+    downloaded pack has no condition of its own."""
+    steps = [s for s in (job.get("steps") or []) if isinstance(s, dict)]
+    if "continue-on-error" in job:
+        complain("%s job '%s' has a job-level `continue-on-error` of some form -- this job may have none"
+                 % (f, name))
+    excepted = {s["id"] for s in EVIDENCE_RETRY_STEPS if s.get("continue-on-error") is True}
+    for step in steps:
+        if "continue-on-error" in step and not (step.get("id") in excepted
+                                                 and step.get("continue-on-error") is True):
+            complain("%s job '%s' has a step-level `continue-on-error` that can mask a required command "
+                     "(step '%s'); only the first two attempts to download the evidence pack may have the "
+                     "literal true" % (f, name, step.get("id") or "(no id)"))
+    found = [s for s in steps if s.get("run") == VERIFY_DOWNLOADED_RUN]
     if len(found) != 1:
         complain("%s job '%s' must have exactly one step that runs `%s`, found %d"
                  % (f, name, VERIFY_DOWNLOADED_RUN, len(found)))
         return
-    extra = sorted(set(found[0]) - {"name", "run"})
+    verify = found[0]
+    extra = sorted(set(verify) - {"name", "run"})
     if extra:
         complain("%s job '%s' step that verifies the downloaded evidence pack has %s -- it "
-                 "must carry no `if`, `continue-on-error` or other key, so that a successful "
-                 "job has run it and it passed" % (f, name, ", ".join("`%s`" % k for k in extra)))
-    if steps[-1] is not found[0]:
+                 "must carry no `if`, `continue-on-error` or other key, so that it has no condition of its "
+                 "own" % (f, name, ", ".join("`%s`" % k for k in extra)))
+    if steps[-1] is not verify:
         complain("%s job '%s': the step that verifies the downloaded evidence pack must be the "
                  "last step" % (f, name))
+    index = steps.index(verify)
+    uploads = [i for i, s in enumerate(steps)
+               if str(s.get("uses", "")).startswith("actions/upload-artifact@")
+               and isinstance(s.get("with"), dict) and s["with"].get("name") == "evidence-pack"]
+    if len(uploads) != 1 or uploads[0] >= index:
+        complain("%s job '%s' must upload `evidence-pack` once, before the steps that download it" % (f, name))
+        return
+    between = [{k: v for k, v in s.items() if k != "name"} for s in steps[uploads[0] + 1:index]]
+    if between != EVIDENCE_RETRY_STEPS:
+        complain("%s job '%s': the steps between the upload and the verification of the evidence pack differ "
+                 "from the exact retry structure rule 12 holds (three attempts of the pinned download "
+                 "action, the removals and waits, the result step)" % (f, name))
 
 def receipt_steps(steps):
     """The steps that call the receipt action, however the path is spelled."""
@@ -929,7 +989,7 @@ for f in files:
                     complain("%s job '%s' has required command step '%s' with "
                              "an unapproved step-level `if` -- required "
                              "commands must run" % (f, name, step.get("id") or "(no id)"))
-            if "continue-on-error" in step and not allowed_continue_on_error(name, step):
+            if "continue-on-error" in step and name != EVIDENCE_JOB:
                 if required_receipt or is_truthy_continue_on_error(step.get("continue-on-error")):
                     complain("%s job '%s' has a step-level `continue-on-error` "
                              "that can mask a required command" % (f, name))
@@ -972,7 +1032,7 @@ for f in files:
 
         # Rule 12.
         if name == EVIDENCE_JOB:
-            check_evidence_verification(f, name, steps)
+            check_evidence_verification(f, name, job)
 
         # A receipt must account for every command step that can run for the
         # event that receipt represents, and for nothing else. The rule is that

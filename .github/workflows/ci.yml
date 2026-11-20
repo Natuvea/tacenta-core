@@ -960,10 +960,15 @@ jobs:
       # is removed before each later attempt, so nothing a failed attempt left
       # behind is verified.
       #
-      # Whatever happens above, the verification step at the end has no `if`
-      # and no `continue-on-error`: it runs after every earlier step succeeded,
-      # so a job cannot end successful without it having run and passed.
-      # It is not retried. tooling/check-workflows.sh holds all of this.
+      # The verification step at the end has no `if` and no `continue-on-error`,
+      # so it has no condition of its own: it runs after every earlier step
+      # succeeded, and is not retried. Rule 12 of tooling/check-workflows.sh
+      # holds this step, the exact list of steps from here to it, and the two
+      # `continue-on-error` exceptions; the expected form in
+      # tooling/required-steps.json pins the whole file besides, so a change is
+      # a reviewed difference there. That a successful job has run and passed
+      # the verification also rests on GitHub's documented step semantics,
+      # which have not been exercised on a hosted runner for the retry path.
       - id: download_pack_1
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
