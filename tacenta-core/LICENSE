@@ -1,9 +1,12 @@
 SPDX-License-Identifier: Apache-2.0
 
-This component of tacenta-core is licensed under the Apache License,
-Version 2.0. The text below is the same licence as the LICENSE file at the
-repository root, repeated here so that the component carries its own copy
-when it is lifted into a repository of its own. A copy is also at:
+Except for third-party material identified in NOTICE and accompanying
+provenance notices, this component is licensed under the Apache License,
+Version 2.0. The NIST source test data and derived data fixture identified
+in NOTICE retain their accompanying notices and terms. The text below is
+the same licence as the LICENSE file at the repository root, repeated here
+so that the component carries its own copy when it is lifted into a
+repository of its own. A copy is also at:
 
     http://www.apache.org/licenses/LICENSE-2.0
 

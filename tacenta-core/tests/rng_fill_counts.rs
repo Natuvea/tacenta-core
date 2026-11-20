@@ -227,6 +227,82 @@ fn incremental_key_generation_fills_one_64_byte_seed() {
     }
 }
 
+/// `encapsulate1` fills one 32-byte buffer and touches the random source
+/// nowhere else, and its three outputs (the ciphertext half, the shared secret,
+/// the serialised state) are the same when a second source type yields the same 32 bytes for the same header. On a
+/// header of the wrong length it refuses before reading the random source (no
+/// call at all). Every 64-byte header tried, genuine or not, succeeds with one
+/// 32-byte fill; no refusal after a draw was found.
+#[test]
+fn encapsulate1_fills_one_32_byte_buffer() {
+    for seed in [1u8, 2, 77] {
+        let (mut krng, _) = Counting::new(seed ^ 0x40);
+        let pair = IncrementalKeyPair::generate(&mut krng).expect("generates");
+        let header = pair.header();
+
+        let (mut rng, log) = Counting::new(seed);
+        let (state, ct1, ss) = tacenta_kem::encapsulate1(&header, &mut rng).expect("encapsulates");
+        assert_eq!(
+            *log.borrow(),
+            vec![Call::Fill(32)],
+            "one 32-byte fill and no other call"
+        );
+
+        let mut same = SameBytes { state: seed };
+        let (state2, ct1b, ss2) =
+            tacenta_kem::encapsulate1(&header, &mut same).expect("encapsulates");
+        assert_eq!(ct1, ct1b, "ct1 depends on the 32 bytes only");
+        assert_eq!(ss, ss2, "the secret depends on the 32 bytes only");
+        assert_eq!(
+            *state.to_bytes(),
+            *state2.to_bytes(),
+            "the state depends on the 32 bytes only"
+        );
+    }
+
+    // Refusal before the draw: a header of the wrong length.
+    for bad_len in [0usize, 1, 63, 65, 1568] {
+        let (mut rng, log) = Counting::new(5);
+        assert!(tacenta_kem::encapsulate1(&vec![7u8; bad_len], &mut rng).is_err());
+        assert!(
+            log.borrow().is_empty(),
+            "a wrong-length header is refused with no call to the random source"
+        );
+    }
+
+    // Every 64-byte header tried succeeded, including headers whose second
+    // half is not the hash of any key, each with one 32-byte fill. No refusal
+    // after a draw was found among them. If a 64-byte header were ever
+    // refused, this loop fails and the draw count on that refusal has to be
+    // stated; the test says nothing about headers not tried.
+    let mut s = 11u64;
+    let mut headers = vec![vec![0u8; 64], vec![0xffu8; 64]];
+    for _ in 0..32 {
+        headers.push(bytes(&mut s, 64));
+    }
+    for h in &headers {
+        let (mut rng, log) = Counting::new(5);
+        assert!(tacenta_kem::encapsulate1(h, &mut rng).is_ok());
+        assert_eq!(*log.borrow(), vec![Call::Fill(32)]);
+    }
+}
+
+/// `encapsulate2` and `decapsulate` take no random source: their signatures
+/// are `(&EncapsState, &[u8])` and `(&self, &[u8], &[u8])`, so there is no draw
+/// to count and the test is that they are deterministic: the same inputs give
+/// the same outputs on repeat calls.
+#[test]
+fn encapsulate2_and_decapsulate_are_deterministic_on_repeat_calls() {
+    let (mut rng, _) = Counting::new(9);
+    let pair = IncrementalKeyPair::generate(&mut rng).expect("generates");
+    let (state, ct1, ss) = tacenta_kem::encapsulate1(&pair.header(), &mut rng).expect("ok");
+    let a = tacenta_kem::encapsulate2(&state, &pair.ek_vector()).expect("ok");
+    let b = tacenta_kem::encapsulate2(&state, &pair.ek_vector()).expect("ok");
+    assert_eq!(a, b);
+    assert_eq!(pair.decapsulate(&ct1, &a).expect("ok"), ss);
+    assert_eq!(pair.decapsulate(&ct1, &b).expect("ok"), ss);
+}
+
 #[test]
 fn the_totality_laws_hold_on_sampled_inputs() {
     let mut s = 3u64;
