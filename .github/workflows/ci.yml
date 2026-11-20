@@ -108,12 +108,34 @@ jobs:
       # wrapper refuses a restored
       # encapsulation state with such coefficients (`kem/src/lib.rs`,
       # `encapsulate2`), and this step is the only run that exercises the
-      # backend where the refusal matters. A separate target directory, because
-      # libcrux's build script does not declare the variables, so the cached
-      # build would not notice them.
+      # backend where the refusal matters. The second command runs the
+      # incremental path against libcrux's standard ML-KEM-1024 API and against
+      # a committed expected file (`tests/kem_incremental_package.rs`) that was
+      # written from this portable build and is also checked by the default
+      # build in the `rust_test` step. The last lines then read cargo's own
+      # record of libcrux's build script (`--message-format=json`, the
+      # `build-script-executed` message, which does not depend on how the
+      # target directory is laid out): its `cfgs` list a `simd128` or
+      # `simd256` feature when a SIMD backend was compiled in, so a forced
+      # build that was not forced fails here, and so does finding no record,
+      # more than one, or one without its `cfgs` list in the form cargo writes
+      # (the record is selected by its own `package_id`, and any mention of
+      # `simd` in it fails). The third cargo line writes its messages to a
+      # file, so a cargo failure stops the step before anything is read.
+      # This shows what was compiled in, not which backend a default
+      # build executes. A separate target
+      # directory, because libcrux's build script does not declare the
+      # variables, so the cached build would not notice them.
       - id: rust_portable_kem
         name: KEM, Braid and lifecycle tests on libcrux's portable backend
-        run: cargo test --locked -p tacenta-kem -p tacenta-braid -p tacenta-lifecycle --target-dir target/portable
+        run: |
+          cargo test --locked -p tacenta-kem -p tacenta-braid -p tacenta-lifecycle --target-dir target/portable
+          cargo test --locked -p tacenta-core --test kem_incremental_package --target-dir target/portable
+          cargo test --locked -p tacenta-core --test kem_incremental_package --target-dir target/portable --no-run --message-format=json > target/portable/build-messages.json
+          grep '"reason":"build-script-executed"' target/portable/build-messages.json | grep -E '"package_id":"([^"]*#)?libcrux-ml-kem[@ ]' > target/portable/libcrux-build-record.json || { echo "no libcrux build-script record found"; exit 1; }
+          test "$(wc -l < target/portable/libcrux-build-record.json)" -eq 1 || { echo "expected one libcrux build-script record"; exit 1; }
+          grep -q '"cfgs":\[' target/portable/libcrux-build-record.json || { echo "the libcrux build-script record has no cfgs list in the expected form"; exit 1; }
+          if grep -q 'simd' target/portable/libcrux-build-record.json; then echo "a SIMD backend was compiled in"; exit 1; fi
         env:
           LIBCRUX_DISABLE_SIMD128: "1"
           LIBCRUX_DISABLE_SIMD256: "1"
