@@ -1,0 +1,58 @@
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  assurance-receipts:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+      - id: download_pack_1
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack-downloaded
+      - id: download_pack_wait_2
+        if: steps.download_pack_1.outcome == 'failure'
+        run: rm -rf .assurance/evidence-pack-downloaded && sleep 20
+      - id: download_pack_2
+        if: steps.download_pack_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack-downloaded
+      - id: download_pack_wait_3
+        if: steps.download_pack_1.outcome == 'failure' && steps.download_pack_2.outcome == 'failure'
+        run: rm -rf .assurance/evidence-pack-downloaded && sleep 60
+      - id: download_pack_3
+        if: steps.download_pack_1.outcome == 'failure' && steps.download_pack_2.outcome == 'failure'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: evidence-pack
+          path: .assurance/evidence-pack-downloaded
+      - id: download_pack_result
+        env:
+          ATTEMPT_1: ${{ steps.download_pack_1.outcome }}
+          ATTEMPT_2: ${{ steps.download_pack_2.outcome }}
+          ATTEMPT_3: ${{ steps.download_pack_3.outcome }}
+        run: |
+          if [ "$ATTEMPT_1" = success ]; then
+            echo "evidence-pack download: attempt 1 of 3 succeeded"
+          elif [ "$ATTEMPT_1" = failure ] && [ "$ATTEMPT_2" = success ]; then
+            echo "evidence-pack download: attempt 2 of 3 succeeded (attempt 1 failed)"
+          elif [ "$ATTEMPT_1" = failure ] && [ "$ATTEMPT_2" = failure ] && [ "$ATTEMPT_3" = success ]; then
+            echo "evidence-pack download: attempt 3 of 3 succeeded (attempts 1 and 2 failed)"
+          else
+            echo "evidence-pack download: no attempt succeeded (outcomes: 1=$ATTEMPT_1 2=$ATTEMPT_2 3=$ATTEMPT_3)" >&2
+            exit 1
+          fi
+      - run: python3 tooling/build-evidence-pack.py --verify .assurance/evidence-pack-downloaded --candidate-repo .
